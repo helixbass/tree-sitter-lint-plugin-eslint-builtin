@@ -3,6 +3,26 @@ use std::sync::Arc;
 use tree_sitter_lint::{rule, violation, Rule};
 
 pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
+    const NEGATIVE_ZERO: &str = r#"
+      (unary_expression
+        operator: "-"
+        argument: (number) @unary_argument (#eq? @unary_argument "0")
+      )
+    "#;
+
+    const OPERATOR: &str = r#"
+      [
+        ">"
+        ">="
+        "<"
+        "<="
+        "=="
+        "==="
+        "!="
+        "!=="
+      ]
+    "#;
+
     rule! {
         name => "no-compare-neg-zero",
         languages => [Javascript],
@@ -10,40 +30,16 @@ pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
             unexpected => "Do not use the '{{operator}}' operator to compare against -0.",
         ],
         listeners => [
-            r#"[
+            format!(r#"[
               (binary_expression
-                left: (unary_expression
-                  operator: "-"
-                  argument: (number) @unary_argument (#eq? @unary_argument "0")
-                )
-                operator: [
-                  ">"
-                  ">="
-                  "<"
-                  "<="
-                  "=="
-                  "==="
-                  "!="
-                  "!=="
-                ]
+                left: {NEGATIVE_ZERO}
+                operator: {OPERATOR}
               )
               (binary_expression
-                operator: [
-                  ">"
-                  ">="
-                  "<"
-                  "<="
-                  "=="
-                  "==="
-                  "!="
-                  "!=="
-                ]
-                right: (unary_expression
-                  operator: "-"
-                  argument: (number) @unary_argument (#eq? @unary_argument "0")
-                )
+                operator: {OPERATOR}
+                right: {NEGATIVE_ZERO}
               )
-            ] @binary_expression"# => {
+            ] @binary_expression"#) => {
                 capture_name => "binary_expression",
                 callback => |node, context| {
                     context.report(violation! {
