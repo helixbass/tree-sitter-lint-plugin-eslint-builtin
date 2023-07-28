@@ -81,7 +81,7 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                     _ => unreachable!(),
                 } == wrong_direction {
                     context.report(violation! {
-                        node => node,
+                        node => captures["for_statement"],
                         message => "The update clause in this loop moves the variable in the wrong direction."
                     });
                 }
