@@ -6,7 +6,10 @@ mod ast_helpers;
 mod kind;
 mod rules;
 
-use rules::{for_direction_rule, no_async_promise_executor_rule, no_await_in_loop_rule};
+use rules::{
+    for_direction_rule, no_async_promise_executor_rule, no_await_in_loop_rule,
+    no_compare_neg_zero_rule,
+};
 
 pub fn instantiate() -> Plugin {
     Plugin {
@@ -15,6 +18,7 @@ pub fn instantiate() -> Plugin {
             for_direction_rule(),
             no_async_promise_executor_rule(),
             no_await_in_loop_rule(),
+            no_compare_neg_zero_rule(),
         ],
     }
 }
