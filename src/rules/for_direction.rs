@@ -37,8 +37,8 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                     right: [
                       (number)
                       (unary_expression
-                        argument: (number)
                         operator: "-"
+                        argument: (number)
                       ) @update_right_reversed
                     ]
                   )
@@ -67,9 +67,9 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
 
                 let reverse_if_negated = |direction: Direction| {
                     if captures.get("update_right_reversed").is_some() {
-                        direction
-                    } else {
                         direction.reversed()
+                    } else {
+                        direction
                     }
                 };
 
@@ -87,5 +87,82 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                 }
             },
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use tree_sitter_lint::{rule_tests, RuleTester};
+
+    #[test]
+    fn test_for_direction_rule() {
+        let incorrect_direction = /*{ messageId: "incorrectDirection" }*/
+            "The update clause in this loop moves the variable in the wrong direction.";
+
+        RuleTester::run(
+            for_direction_rule(),
+            rule_tests! {
+                valid => [
+                    // test if '++', '--'
+                    "for(var i = 0; i < 10; i++){}",
+                    "for(var i = 0; i <= 10; i++){}",
+                    "for(var i = 10; i > 0; i--){}",
+                    "for(var i = 10; i >= 0; i--){}",
+
+                    // test if '+=', '-=',
+                    "for(var i = 0; i < 10; i+=1){}",
+                    "for(var i = 0; i <= 10; i+=1){}",
+                    "for(var i = 0; i < 10; i-=-1){}",
+                    "for(var i = 0; i <= 10; i-=-1){}",
+                    "for(var i = 10; i > 0; i-=1){}",
+                    "for(var i = 10; i >= 0; i-=1){}",
+                    "for(var i = 10; i > 0; i+=-1){}",
+                    "for(var i = 10; i >= 0; i+=-1){}",
+
+                    // test if no update.
+                    "for(var i = 10; i > 0;){}",
+                    "for(var i = 10; i >= 0;){}",
+                    "for(var i = 10; i < 0;){}",
+                    "for(var i = 10; i <= 0;){}",
+                    "for(var i = 10; i <= 0; j++){}",
+                    "for(var i = 10; i <= 0; j--){}",
+                    "for(var i = 10; i >= 0; j++){}",
+                    "for(var i = 10; i >= 0; j--){}",
+                    "for(var i = 10; i >= 0; j += 2){}",
+                    "for(var i = 10; i >= 0; j -= 2){}",
+                    "for(var i = 10; i >= 0; i |= 2){}",
+                    "for(var i = 10; i >= 0; i %= 2){}",
+                    "for(var i = 0; i < MAX; i += STEP_SIZE);",
+                    "for(var i = 0; i < MAX; i -= STEP_SIZE);",
+                    "for(var i = 10; i > 0; i += STEP_SIZE);",
+
+                    // other cond-expressions.
+                    "for(var i = 0; i !== 10; i+=1){}",
+                    "for(var i = 0; i === 10; i+=1){}",
+                    "for(var i = 0; i == 10; i+=1){}",
+                    "for(var i = 0; i != 10; i+=1){}"
+                ],
+                invalid => [
+
+                    // test if '++', '--'
+                    { code => "for(var i = 0; i < 10; i--){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 0; i <= 10; i--){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 10; i > 10; i++){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 10; i >= 0; i++){}", errors => [incorrect_direction] },
+
+                    // test if '+=', '-='
+                    { code => "for(var i = 0; i < 10; i-=1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 0; i <= 10; i-=1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 10; i > 10; i+=1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 10; i >= 0; i+=1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 0; i < 10; i+=-1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 0; i <= 10; i+=-1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 10; i > 10; i-=-1){}", errors => [incorrect_direction] },
+                    { code => "for(var i = 10; i >= 0; i-=-1){}", errors => [incorrect_direction] }
+                ]
+            },
+        )
     }
 }
