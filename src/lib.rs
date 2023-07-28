@@ -1,14 +1,12 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+use tree_sitter_lint::Plugin;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod rules;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+use rules::for_direction_rule;
+
+pub fn instantiate() -> Plugin {
+    Plugin {
+        name: "eslint-builtin".to_owned(),
+        rules: vec![for_direction_rule()],
     }
 }
