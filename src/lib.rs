@@ -5,6 +5,7 @@ use tree_sitter_lint::Plugin;
 mod ast_helpers;
 mod kind;
 mod rules;
+mod utils;
 
 use rules::{
     for_direction_rule, no_async_promise_executor_rule, no_await_in_loop_rule,
