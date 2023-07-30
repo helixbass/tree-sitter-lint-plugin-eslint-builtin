@@ -121,11 +121,11 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
                     referencer.current_scope_mut().__referencing(
                         &mut referencer.scope_manager.arena.references.borrow_mut(),
                         pattern,
-                        ReadWriteFlags::WRITE,
+                        Some(ReadWriteFlags::WRITE),
                         node.child_by_field_name("right"),
                         maybe_implicit_global,
-                        !info.top_level,
-                        false,
+                        Some(!info.top_level),
+                        Some(false),
                     );
                 },
             );
@@ -143,11 +143,11 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             self.current_scope_mut().__referencing(
                 &mut self.scope_manager.arena.references.borrow_mut(),
                 node.child_by_field_name("left").unwrap(),
-                ReadWriteFlags::RW,
+                Some(ReadWriteFlags::RW),
                 node.child_by_field_name("right"),
                 None,
-                false,
-                false,
+                None,
+                None,
             );
         } else {
             cursor.reset(node.child_by_field_name("left").unwrap());
@@ -215,6 +215,19 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
 
         visit_program(self, cursor);
         self.close(node);
+    }
+
+    fn visit_identifier(&mut self, cursor: &mut TreeCursor<'tree>) {
+        let node = cursor.node();
+        self.current_scope_mut().__referencing(
+            &mut self.scope_manager.arena.references.borrow_mut(),
+            node,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
     }
 }
 

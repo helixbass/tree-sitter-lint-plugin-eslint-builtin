@@ -5,7 +5,7 @@ use tree_sitter_lint::tree_sitter::Node;
 use super::{arena::AllArenas, referencer::PatternAndNode, scope::Scope, variable::Variable};
 
 bitflags! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
     pub struct ReadWriteFlags: u32 {
         const NONE = 0;
 

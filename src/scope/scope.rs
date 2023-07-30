@@ -273,11 +273,11 @@ impl<'a> Scope<'a> {
         &mut self,
         arena: &mut Arena<Reference<'a>>,
         node: Node<'a>,
-        assign: ReadWriteFlags,
+        assign: Option<ReadWriteFlags>,
         write_expr: Option<Node<'a>>,
         maybe_implicit_global: Option<PatternAndNode<'a>>,
-        partial: bool,
-        init: bool,
+        partial: Option<bool>,
+        init: Option<bool>,
     ) {
         if node.kind() != Identifier {
             return;
@@ -287,15 +287,15 @@ impl<'a> Scope<'a> {
             arena,
             node,
             self.id(),
-            if assign == ReadWriteFlags::NONE {
+            if assign.unwrap_or_default() == ReadWriteFlags::NONE {
                 ReadWriteFlags::READ
             } else {
-                assign
+                assign.unwrap()
             },
             write_expr,
             maybe_implicit_global,
-            partial,
-            init,
+            partial.unwrap_or_default(),
+            init.unwrap_or_default(),
         );
     }
 

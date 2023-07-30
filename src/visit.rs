@@ -4,8 +4,8 @@ use crate::kind::{
     is_declaration_kind, is_statement_kind, AssignmentExpression, AugmentedAssignmentExpression,
     BreakStatement, CatchClause, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement,
     DoStatement, EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement,
-    ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, IfStatement,
-    ImportStatement, LabeledStatement, LexicalDeclaration, Program, ReturnStatement,
+    ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier,
+    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, Program, ReturnStatement,
     StatementBlock, SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration,
     WhileStatement, WithStatement,
 };
@@ -133,6 +133,10 @@ pub trait Visit<'a> {
 
     fn visit_catch_clause(&mut self, cursor: &mut TreeCursor<'a>) {
         visit_catch_clause(self, cursor);
+    }
+
+    fn visit_identifier(&mut self, cursor: &mut TreeCursor<'a>) {
+        visit_identifier(self, cursor);
     }
 }
 
@@ -445,5 +449,13 @@ pub fn visit_catch_clause<'a, TVisit: Visit<'a> + ?Sized>(
     cursor: &mut TreeCursor<'a>,
 ) {
     assert_cursor_node_kind!(cursor, CatchClause);
+    unimplemented!()
+}
+
+pub fn visit_identifier<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    cursor: &mut TreeCursor<'a>,
+) {
+    assert_cursor_node_kind!(cursor, Identifier);
     unimplemented!()
 }
