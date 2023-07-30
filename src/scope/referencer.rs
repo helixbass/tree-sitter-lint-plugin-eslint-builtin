@@ -195,6 +195,11 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
 
         self.close(node);
     }
+
+    fn visit_program(&mut self, cursor: &mut TreeCursor<'tree>) {
+        let node = cursor.node();
+        self.scope_manager.__nest_global_scope(node);
+    }
 }
 
 #[derive(Default)]

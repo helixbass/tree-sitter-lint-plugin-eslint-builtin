@@ -78,6 +78,11 @@ impl<'a> ScopeManager<'a> {
         scope
     }
 
+    pub fn __nest_global_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_global_scope(self, node);
+        self.__nest_scope(scope)
+    }
+
     pub fn __nest_catch_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
         let scope = Scope::new_catch_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)

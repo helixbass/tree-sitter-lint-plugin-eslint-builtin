@@ -44,15 +44,17 @@ fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<Scope<'a>>
 
 pub enum Scope<'a> {
     Base(ScopeBase<'a>),
+    Global(GlobalScope<'a>),
 }
 
 impl<'a> Scope<'a> {
-    pub fn new_base(
+    fn _new(
         scope_manager: &mut ScopeManager<'a>,
         type_: ScopeType,
         upper_scope: Option<Id<Scope<'a>>>,
         block: Node<'a>,
         is_method_definition: bool,
+        create_from_base: impl Fn(ScopeBase<'a>) -> Self,
     ) -> Id<Self> {
         let id = {
             let mut arena = scope_manager.arena.scopes.borrow_mut();
@@ -65,7 +67,7 @@ impl<'a> Scope<'a> {
                 _ => Some(arena.get(upper_scope.unwrap()).unwrap().variable_scope()),
             };
             let id = arena.alloc_with_id(|id| {
-                Self::Base(ScopeBase {
+                create_from_base(ScopeBase {
                     id,
                     type_,
                     set: Default::default(),
@@ -113,12 +115,40 @@ impl<'a> Scope<'a> {
         id
     }
 
+    pub fn new_base(
+        scope_manager: &mut ScopeManager<'a>,
+        type_: ScopeType,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+        is_method_definition: bool,
+    ) -> Id<Self> {
+        Self::_new(
+            scope_manager,
+            type_,
+            upper_scope,
+            block,
+            is_method_definition,
+            |base| Self::Base(base),
+        )
+    }
+
     pub fn new_catch_scope(
         scope_manager: &mut ScopeManager<'a>,
         upper_scope: Option<Id<Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Catch, upper_scope, block, false)
+    }
+
+    pub fn new_global_scope(scope_manager: &mut ScopeManager<'a>, block: Node<'a>) -> Id<Self> {
+        Self::_new(
+            scope_manager,
+            ScopeType::Global,
+            None,
+            block,
+            false,
+            |base| Self::Global(GlobalScope::new(base)),
+        )
     }
 
     pub fn is_strict(&self) -> bool {
@@ -309,4 +339,23 @@ pub struct ScopeBase<'a> {
     child_scopes: Vec<Id<Scope<'a>>>,
 }
 
-impl<'a> ScopeBase<'a> {}
+pub struct GlobalScope<'a> {
+    base: ScopeBase<'a>,
+    implicit: GlobalScopeImplicit<'a>,
+}
+
+impl<'a> GlobalScope<'a> {
+    pub fn new(base: ScopeBase<'a>) -> Self {
+        Self {
+            base,
+            implicit: Default::default(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct GlobalScopeImplicit<'a> {
+    set: HashMap<&'a str, Id<Variable<'a>>>,
+    variables: Vec<Id<Variable<'a>>>,
+    left: Vec<Id<Reference<'a>>>,
+}
