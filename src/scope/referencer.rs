@@ -114,7 +114,11 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
                 },
             );
         } else {
+            cursor.reset(node.child_by_field_name("left").unwrap());
+            self.visit_expression(cursor);
         }
+        cursor.reset(node.child_by_field_name("right").unwrap());
+        self.visit_expression(cursor);
     }
 
     fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'tree>) {

@@ -126,6 +126,10 @@ pub trait Visit<'a> {
     fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'a>) {
         visit_augmented_assignment_expression(self, cursor);
     }
+
+    fn visit_expression(&mut self, cursor: &mut TreeCursor<'a>) {
+        visit_expression(self, cursor);
+    }
 }
 
 macro_rules! assert_cursor_node_kind {
@@ -422,5 +426,12 @@ pub fn visit_augmented_assignment_expression<'a, TVisit: Visit<'a> + ?Sized>(
     cursor: &mut TreeCursor<'a>,
 ) {
     assert_cursor_node_kind!(cursor, AugmentedAssignmentExpression);
+    unimplemented!()
+}
+
+pub fn visit_expression<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    cursor: &mut TreeCursor<'a>,
+) {
     unimplemented!()
 }
