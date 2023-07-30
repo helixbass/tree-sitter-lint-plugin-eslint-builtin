@@ -249,6 +249,10 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         visit_expression(self, node.child_by_field_name("object").unwrap());
         visit_expressions(self, node.child_by_field_name("index").unwrap());
     }
+
+    fn visit_pair(&mut self, node: Node<'tree>) {
+        unimplemented!()
+    }
 }
 
 #[derive(Default)]

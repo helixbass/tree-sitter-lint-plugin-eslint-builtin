@@ -5,7 +5,7 @@ use crate::kind::{
     BreakStatement, CatchClause, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement,
     DoStatement, EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement,
     ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier,
-    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression,
+    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression, Pair,
     PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
     SwitchStatement, ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration,
     WhileStatement, WithStatement,
@@ -161,6 +161,10 @@ pub trait Visit<'a> {
 
     fn visit_subscript_expression(&mut self, node: Node<'a>) {
         visit_subscript_expression(self, node);
+    }
+
+    fn visit_pair(&mut self, node: Node<'a>) {
+        visit_pair(self, node);
     }
 }
 
@@ -462,5 +466,10 @@ pub fn visit_subscript_expression<'a, TVisit: Visit<'a> + ?Sized>(
     node: Node<'a>,
 ) {
     assert_node_kind!(node, SubscriptExpression);
+    unimplemented!()
+}
+
+pub fn visit_pair<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, Pair);
     unimplemented!()
 }
