@@ -1,19 +1,22 @@
+use std::cell::{Ref, RefMut};
+
 use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 
 use crate::visit::{visit, Visit};
 
 use super::{
     pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
+    reference::ReadWriteFlags,
     scope::Scope,
     scope_manager::ScopeManager,
 };
 
-fn traverse_identifier_in_pattern<'a>(
+fn traverse_identifier_in_pattern<'a, 'b>(
     // options,
     root_pattern: Node<'a>,
-    referencer: &mut Referencer<'a>,
+    referencer: &mut Referencer<'a, 'b>,
     should_visit_referencer: bool,
-    mut callback: impl FnMut(&mut Referencer<'a>, Node<'a>, PatternInfo<'a>),
+    mut callback: impl FnMut(&mut Referencer<'a, 'b>, Node<'a>, PatternInfo<'a>),
 ) {
     let mut visitor = PatternVisitor::new(
         // options,
@@ -33,17 +36,21 @@ fn traverse_identifier_in_pattern<'a>(
     }
 }
 
-pub struct Referencer<'a> {
-    scope_manager: &'a mut ScopeManager,
+pub struct Referencer<'a, 'b> {
+    scope_manager: &'b mut ScopeManager<'a>,
 }
 
-impl<'a> Referencer<'a> {
-    pub fn new(scope_manager: &'a mut ScopeManager) -> Self {
+impl<'a, 'b> Referencer<'a, 'b> {
+    pub fn new(scope_manager: &'b mut ScopeManager<'a>) -> Self {
         Self { scope_manager }
     }
 
-    fn current_scope(&self) -> &Scope {
+    fn current_scope(&self) -> Ref<Scope> {
         self.scope_manager.__current_scope()
+    }
+
+    fn current_scope_mut(&self) -> RefMut<Scope> {
+        self.scope_manager.__current_scope_mut()
     }
 
     fn referencing_default_value(
@@ -60,7 +67,7 @@ impl<'a> Referencer<'a> {
         &mut self,
         node: Node<'a>,
         options: Option<VisitPatternOptions>,
-        callback: impl FnMut(&mut Referencer<'a>, Node<'a>, PatternInfo<'a>),
+        callback: impl FnMut(&mut Referencer<'a, 'b>, Node<'a>, PatternInfo<'a>),
     ) {
         let options = options.unwrap_or_default();
 
@@ -74,8 +81,8 @@ impl<'a> Referencer<'a> {
     }
 }
 
-impl<'a: 'b, 'b> Visit<'a> for Referencer<'b> {
-    fn visit_assignment_expression(&mut self, cursor: &mut TreeCursor<'a>) {
+impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'referencer, 'b> {
+    fn visit_assignment_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
         let node = cursor.node();
         if is_pattern(node) {
             self.visit_pattern(
@@ -95,13 +102,22 @@ impl<'a: 'b, 'b> Visit<'a> for Referencer<'b> {
                         maybe_implicit_global,
                         false,
                     );
+                    referencer.current_scope_mut().__referencing(
+                        &mut referencer.scope_manager.arena.references.borrow_mut(),
+                        pattern,
+                        ReadWriteFlags::WRITE,
+                        node.child_by_field_name("right"),
+                        maybe_implicit_global,
+                        !info.top_level,
+                        false,
+                    );
                 },
             );
         } else {
         }
     }
 
-    fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'a>) {
+    fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
         unimplemented!()
     }
 }
@@ -112,7 +128,7 @@ struct VisitPatternOptions {
 }
 
 #[derive(Copy, Clone)]
-struct PatternAndNode<'a> {
+pub struct PatternAndNode<'a> {
     pattern: Node<'a>,
     node: Node<'a>,
 }

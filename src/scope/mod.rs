@@ -1,7 +1,11 @@
+mod arena;
+mod definition;
 mod pattern_visitor;
+mod reference;
 mod referencer;
 mod scope;
 mod scope_manager;
+mod variable;
 
 use tree_sitter_lint::tree_sitter::Tree;
 
