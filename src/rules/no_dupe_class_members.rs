@@ -52,7 +52,7 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
         listeners => [
             r#"(
               (class_body
-                member: (_)+ @member
+                member: ((_) @member ";"?)+
               ) @class_body
             )"# => |captures, context| {
                 let mut state_map: StateMap = Default::default();
@@ -65,7 +65,11 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
                         continue;
                     }
 
-                    let state = get_state(&mut state_map, name.to_owned(), is_class_member_static(node, context));
+                    let state = get_state(
+                        &mut state_map,
+                        name.clone().into_owned(),
+                        is_class_member_static(node, context)
+                    );
                     let is_duplicate;
 
                     match kind {

@@ -27,3 +27,4 @@ pub const Regex: &str = "regex";
 pub const TemplateString: &str = "template_string";
 pub const PropertyIdentifier: &str = "property_identifier";
 pub const String: &str = "string";
+pub const ComputedPropertyName: &str = "computed_property_name";
