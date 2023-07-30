@@ -5,10 +5,12 @@ use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 use crate::visit::{visit, Visit};
 
 use super::{
+    definition::Definition,
     pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
     reference::ReadWriteFlags,
     scope::Scope,
     scope_manager::ScopeManager,
+    variable::VariableType,
 };
 
 fn traverse_identifier_in_pattern<'a, 'b>(
@@ -49,8 +51,22 @@ impl<'a, 'b> Referencer<'a, 'b> {
         self.scope_manager.__current_scope()
     }
 
+    fn maybe_current_scope(&self) -> Option<Ref<Scope<'a>>> {
+        self.scope_manager.maybe_current_scope()
+    }
+
     fn current_scope_mut(&self) -> RefMut<Scope<'a>> {
         self.scope_manager.__current_scope_mut()
+    }
+
+    fn close(&mut self, node: Node<'a>) {
+        while matches!(
+            self.maybe_current_scope(),
+            Some(current_scope) if node == current_scope.block()
+        ) {
+            let closed = self.current_scope().__close(&self.scope_manager);
+            self.scope_manager.__current_scope = closed;
+        }
     }
 
     fn referencing_default_value(
@@ -144,6 +160,40 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
     fn visit_catch_clause(&mut self, cursor: &mut TreeCursor<'tree>) {
         let node = cursor.node();
         self.scope_manager.__nest_catch_scope(node);
+
+        if let Some(parameter) = node.child_by_field_name("parameter") {
+            self.visit_pattern(
+                parameter,
+                Some(VisitPatternOptions {
+                    process_right_hand_nodes: true,
+                }),
+                |this, pattern, info| {
+                    let definitions_arena = &this.scope_manager.arena.definitions;
+                    this.current_scope_mut().__define(
+                        &mut this.scope_manager.__declared_variables.borrow_mut(),
+                        &this.scope_manager.arena.variables,
+                        definitions_arena,
+                        this.scope_manager.source_text,
+                        pattern,
+                        Definition::new(
+                            definitions_arena,
+                            VariableType::CatchClause,
+                            parameter,
+                            node,
+                            None,
+                            None,
+                            None,
+                        ),
+                    );
+                    this.referencing_default_value(pattern, info.assignments, None, true);
+                },
+            );
+        }
+
+        cursor.reset(node.child_by_field_name("body").unwrap());
+        self.visit_statement_block(cursor);
+
+        self.close(node);
     }
 }
 

@@ -1,5 +1,5 @@
 use std::{
-    cell::{Ref, RefMut},
+    cell::{Ref, RefCell, RefMut},
     collections::HashMap,
 };
 
@@ -9,6 +9,7 @@ use tree_sitter_lint::tree_sitter::Node;
 use super::{
     arena::AllArenas,
     scope::{Scope, ScopeType},
+    variable::Variable,
 };
 
 pub type NodeId = usize;
@@ -17,18 +18,22 @@ pub struct ScopeManager<'a> {
     pub scopes: Vec<Id<Scope<'a>>>,
     global_scope: Option<Id<Scope<'a>>>,
     pub __node_to_scope: HashMap<NodeId, Vec<Id<Scope<'a>>>>,
-    __current_scope: Option<Id<Scope<'a>>>,
+    pub __current_scope: Option<Id<Scope<'a>>>,
     pub arena: AllArenas<'a>,
+    pub __declared_variables: RefCell<HashMap<NodeId, Vec<Id<Variable<'a>>>>>,
+    pub source_text: &'a [u8],
 }
 
 impl<'a> ScopeManager<'a> {
-    pub fn new() -> Self {
+    pub fn new(source_text: &'a [u8]) -> Self {
         Self {
             scopes: Default::default(),
             global_scope: Default::default(),
             __node_to_scope: Default::default(),
             __current_scope: Default::default(),
             arena: Default::default(),
+            __declared_variables: Default::default(),
+            source_text,
         }
     }
 

@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+
+use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
 use super::variable::VariableType;
@@ -9,14 +12,25 @@ pub enum Definition<'a> {
 
 impl<'a> Definition<'a> {
     pub fn new(
+        arena: &RefCell<Arena<Self>>,
         type_: VariableType,
         name: Node<'a>,
         node: Node<'a>,
         parent: Option<Node<'a>>,
         index: Option<usize>,
         kind: Option<String>,
-    ) -> Self {
-        Self::Base(DefinitionBase::new(type_, name, node, parent, index, kind))
+    ) -> Id<Self> {
+        arena.borrow_mut().alloc(Self::Base(DefinitionBase::new(
+            type_, name, node, parent, index, kind,
+        )))
+    }
+
+    pub fn node(&self) -> Node<'a> {
+        unimplemented!()
+    }
+
+    pub fn parent(&self) -> Option<Node<'a>> {
+        unimplemented!()
     }
 }
 

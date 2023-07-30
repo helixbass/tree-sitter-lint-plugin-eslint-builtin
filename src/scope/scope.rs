@@ -1,14 +1,15 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
 use id_arena::{Arena, Id};
-use tree_sitter_lint::tree_sitter::Node;
+use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none};
 
 use crate::kind::Identifier;
 
 use super::{
+    definition::Definition,
     reference::{ReadWriteFlags, Reference},
     referencer::PatternAndNode,
-    scope_manager::ScopeManager,
+    scope_manager::{NodeId, ScopeManager},
     variable::Variable,
 };
 
@@ -128,6 +129,91 @@ impl<'a> Scope<'a> {
         unimplemented!()
     }
 
+    pub fn __close(&self, scope_manager: &ScopeManager) -> Option<Id<Self>> {
+        unimplemented!()
+    }
+
+    fn __add_declared_variables_of_node(
+        &self,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable: Id<Variable<'a>>,
+        node: Option<Node>,
+    ) {
+        let node = return_if_none!(node);
+
+        let variables = __declared_variables.entry(node.id()).or_default();
+        if !variables.contains(&variable) {
+            variables.push(variable);
+        }
+    }
+
+    fn __define_generic(
+        &mut self,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        name: &'a str,
+        mut get_or_create_variable: impl FnMut(&mut Self, &'a str) -> Id<Variable<'a>>,
+        node: Option<Node<'a>>,
+        def: Option<Id<Definition<'a>>>,
+    ) {
+        let variable = get_or_create_variable(self, name);
+
+        if let Some(def) = def {
+            variable_arena
+                .borrow_mut()
+                .get_mut(variable)
+                .unwrap()
+                .defs
+                .push(def);
+            let definition_arena = definition_arena.borrow();
+            let def = definition_arena.get(def).unwrap();
+            self.__add_declared_variables_of_node(__declared_variables, variable, Some(def.node()));
+            self.__add_declared_variables_of_node(__declared_variables, variable, def.parent());
+        }
+        if let Some(node) = node {
+            variable_arena
+                .borrow_mut()
+                .get_mut(variable)
+                .unwrap()
+                .identifiers
+                .push(node);
+        }
+    }
+
+    pub fn __define(
+        &mut self,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        source_text: &'a [u8],
+        node: Node<'a>,
+        def: Id<Definition<'a>>,
+    ) {
+        if node.kind() == Identifier {
+            self.__define_generic(
+                __declared_variables,
+                variable_arena,
+                definition_arena,
+                node.utf8_text(source_text).unwrap(),
+                |this, name| {
+                    let mut did_insert = false;
+                    let id = this.id();
+                    let ret = *this.set_mut().entry(name).or_insert_with(|| {
+                        did_insert = true;
+                        Variable::new(&mut variable_arena.borrow_mut(), name, id)
+                    });
+                    if did_insert {
+                        this.variables_mut().push(ret);
+                    }
+                    ret
+                },
+                Some(node),
+                Some(def),
+            );
+        }
+    }
+
     pub fn __referencing(
         &mut self,
         arena: &mut Arena<Reference<'a>>,
@@ -177,6 +263,14 @@ impl<'a> Scope<'a> {
     pub fn type_(&self) -> ScopeType {
         unimplemented!()
     }
+
+    fn set_mut(&mut self) -> &mut HashMap<&'a str, Id<Variable<'a>>> {
+        unimplemented!()
+    }
+
+    fn variables_mut(&mut self) -> &mut Vec<Id<Variable<'a>>> {
+        unimplemented!()
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -198,7 +292,7 @@ pub enum ScopeType {
 pub struct ScopeBase<'a> {
     id: Id<Scope<'a>>,
     type_: ScopeType,
-    set: HashMap<String, Id<Variable<'a>>>,
+    set: HashMap<&'a str, Id<Variable<'a>>>,
     taints: HashMap<String, bool>,
     dynamic: bool,
     block: Node<'a>,
