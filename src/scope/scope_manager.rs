@@ -41,6 +41,18 @@ impl<'a> ScopeManager<'a> {
         unimplemented!()
     }
 
+    pub fn is_global_return(&self) -> bool {
+        unimplemented!()
+    }
+
+    pub fn is_module(&self) -> bool {
+        unimplemented!()
+    }
+
+    pub fn is_implied_strict(&self) -> bool {
+        unimplemented!()
+    }
+
     pub fn is_strict_mode_supported(&self) -> bool {
         unimplemented!()
     }
@@ -83,8 +95,27 @@ impl<'a> ScopeManager<'a> {
         self.__nest_scope(scope)
     }
 
+    pub fn __nest_function_scope(
+        &mut self,
+        node: Node<'a>,
+        is_method_definition: bool,
+    ) -> Id<Scope<'a>> {
+        let scope =
+            Scope::new_function_scope(self, self.__current_scope, node, is_method_definition);
+        self.__nest_scope(scope)
+    }
+
     pub fn __nest_catch_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
         let scope = Scope::new_catch_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
+    }
+
+    pub fn __nest_module_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_module_scope(self, self.__current_scope, node);
+        self.__nest_scope(scope)
+    }
+
+    pub fn __is_es6(&self) -> bool {
+        unimplemented!()
     }
 }

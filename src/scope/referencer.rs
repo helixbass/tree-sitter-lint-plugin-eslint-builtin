@@ -2,7 +2,7 @@ use std::cell::{Ref, RefMut};
 
 use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 
-use crate::visit::{visit, Visit};
+use crate::visit::{visit, visit_program, Visit};
 
 use super::{
     definition::Definition,
@@ -199,6 +199,22 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
     fn visit_program(&mut self, cursor: &mut TreeCursor<'tree>) {
         let node = cursor.node();
         self.scope_manager.__nest_global_scope(node);
+
+        if self.scope_manager.is_global_return() {
+            self.current_scope_mut().set_is_strict(false);
+            self.scope_manager.__nest_function_scope(node, false);
+        }
+
+        if self.scope_manager.__is_es6() && self.scope_manager.is_module() {
+            self.scope_manager.__nest_module_scope(node);
+        }
+
+        if self.scope_manager.is_strict_mode_supported() && self.scope_manager.is_implied_strict() {
+            self.current_scope_mut().set_is_strict(true);
+        }
+
+        visit_program(self, cursor);
+        self.close(node);
     }
 }
 

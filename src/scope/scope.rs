@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap};
 use id_arena::{Arena, Id};
 use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none};
 
-use crate::kind::Identifier;
+use crate::kind::{ArrowFunction, Identifier};
 
 use super::{
     definition::Definition,
@@ -45,6 +45,7 @@ fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<Scope<'a>>
 pub enum Scope<'a> {
     Base(ScopeBase<'a>),
     Global(GlobalScope<'a>),
+    Function(FunctionScope<'a>),
 }
 
 impl<'a> Scope<'a> {
@@ -132,14 +133,6 @@ impl<'a> Scope<'a> {
         )
     }
 
-    pub fn new_catch_scope(
-        scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
-        block: Node<'a>,
-    ) -> Id<Self> {
-        Self::new_base(scope_manager, ScopeType::Catch, upper_scope, block, false)
-    }
-
     pub fn new_global_scope(scope_manager: &mut ScopeManager<'a>, block: Node<'a>) -> Id<Self> {
         Self::_new(
             scope_manager,
@@ -148,6 +141,38 @@ impl<'a> Scope<'a> {
             block,
             false,
             |base| Self::Global(GlobalScope::new(base)),
+        )
+    }
+
+    pub fn new_module_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::Module, upper_scope, block, false)
+    }
+
+    pub fn new_catch_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::Catch, upper_scope, block, false)
+    }
+
+    pub fn new_function_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+        is_method_definition: bool,
+    ) -> Id<Self> {
+        Self::_new(
+            scope_manager,
+            ScopeType::Function,
+            upper_scope,
+            block,
+            is_method_definition,
+            |base| Self::Function(FunctionScope::new(base)),
         )
     }
 
@@ -301,6 +326,10 @@ impl<'a> Scope<'a> {
     fn variables_mut(&mut self) -> &mut Vec<Id<Variable<'a>>> {
         unimplemented!()
     }
+
+    pub fn set_is_strict(&mut self, is_strict: bool) {
+        unimplemented!()
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -358,4 +387,22 @@ pub struct GlobalScopeImplicit<'a> {
     set: HashMap<&'a str, Id<Variable<'a>>>,
     variables: Vec<Id<Variable<'a>>>,
     left: Vec<Id<Reference<'a>>>,
+}
+
+pub struct FunctionScope<'a> {
+    base: ScopeBase<'a>,
+}
+
+impl<'a> FunctionScope<'a> {
+    pub fn new(base: ScopeBase<'a>) -> Self {
+        let mut ret = Self { base };
+        if ret.base.block.kind() != ArrowFunction {
+            ret.__define_arguments();
+        }
+        ret
+    }
+
+    fn __define_arguments(&mut self) {
+        unimplemented!()
+    }
 }
