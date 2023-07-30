@@ -2,12 +2,12 @@ use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 
 use crate::kind::{
     is_declaration_kind, is_statement_kind, AssignmentExpression, AugmentedAssignmentExpression,
-    BreakStatement, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement, DoStatement,
-    EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement, ForStatement,
-    FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, IfStatement, ImportStatement,
-    LabeledStatement, LexicalDeclaration, Program, ReturnStatement, StatementBlock,
-    SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration, WhileStatement,
-    WithStatement,
+    BreakStatement, CatchClause, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement,
+    DoStatement, EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement,
+    ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, IfStatement,
+    ImportStatement, LabeledStatement, LexicalDeclaration, Program, ReturnStatement,
+    StatementBlock, SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration,
+    WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -129,6 +129,10 @@ pub trait Visit<'a> {
 
     fn visit_expression(&mut self, cursor: &mut TreeCursor<'a>) {
         visit_expression(self, cursor);
+    }
+
+    fn visit_catch_clause(&mut self, cursor: &mut TreeCursor<'a>) {
+        visit_catch_clause(self, cursor);
     }
 }
 
@@ -433,5 +437,13 @@ pub fn visit_expression<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
     cursor: &mut TreeCursor<'a>,
 ) {
+    unimplemented!()
+}
+
+pub fn visit_catch_clause<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    cursor: &mut TreeCursor<'a>,
+) {
+    assert_cursor_node_kind!(cursor, CatchClause);
     unimplemented!()
 }

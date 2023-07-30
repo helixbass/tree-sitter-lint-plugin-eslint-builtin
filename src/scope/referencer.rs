@@ -45,11 +45,11 @@ impl<'a, 'b> Referencer<'a, 'b> {
         Self { scope_manager }
     }
 
-    fn current_scope(&self) -> Ref<Scope> {
+    fn current_scope(&self) -> Ref<Scope<'a>> {
         self.scope_manager.__current_scope()
     }
 
-    fn current_scope_mut(&self) -> RefMut<Scope> {
+    fn current_scope_mut(&self) -> RefMut<Scope<'a>> {
         self.scope_manager.__current_scope_mut()
     }
 
@@ -139,6 +139,11 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         }
         cursor.reset(node.child_by_field_name("right").unwrap());
         self.visit_expression(cursor);
+    }
+
+    fn visit_catch_clause(&mut self, cursor: &mut TreeCursor<'tree>) {
+        let node = cursor.node();
+        self.scope_manager.__nest_catch_scope(node);
     }
 }
 

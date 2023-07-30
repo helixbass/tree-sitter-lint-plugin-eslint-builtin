@@ -7,7 +7,7 @@ use super::{reference::Reference, scope::Scope, variable::Variable};
 #[derive(Default)]
 pub struct AllArenas<'a> {
     pub references: RefCell<Arena<Reference<'a>>>,
-    pub scopes: RefCell<Arena<Scope>>,
+    pub scopes: RefCell<Arena<Scope<'a>>>,
     pub variables: RefCell<Arena<Variable<'a>>>,
 }
 
@@ -22,11 +22,11 @@ impl<'a> AllArenas<'a> {
         })
     }
 
-    pub fn get_scope(&self, id: Id<Scope>) -> Ref<Scope> {
+    pub fn get_scope(&self, id: Id<Scope<'a>>) -> Ref<Scope<'a>> {
         Ref::map(self.scopes.borrow(), |scopes| scopes.get(id).unwrap())
     }
 
-    pub fn get_scope_mut(&mut self, id: Id<Scope>) -> RefMut<Scope> {
+    pub fn get_scope_mut(&mut self, id: Id<Scope<'a>>) -> RefMut<Scope<'a>> {
         RefMut::map(self.scopes.borrow_mut(), |scopes| {
             scopes.get_mut(id).unwrap()
         })

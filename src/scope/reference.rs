@@ -17,7 +17,7 @@ bitflags! {
 
 pub struct Reference<'a> {
     identifier: Node<'a>,
-    from: Id<Scope>,
+    from: Id<Scope<'a>>,
     tainted: bool,
     resolved: Option<Id<Variable<'a>>>,
     flag: ReadWriteFlags,
@@ -31,7 +31,7 @@ impl<'a> Reference<'a> {
     pub fn new(
         arena: &mut Arena<Self>,
         ident: Node<'a>,
-        scope: Id<Scope>,
+        scope: Id<Scope<'a>>,
         flag: ReadWriteFlags,
         write_expr: Option<Node<'a>>,
         maybe_implicit_global: Option<PatternAndNode<'a>>,

@@ -8,6 +8,7 @@ pub const AssignmentExpression: &str = "assignment_expression";
 pub const AssignmentPattern: &str = "assignment_pattern";
 pub const AugmentedAssignmentExpression: &str = "augmented_assignment_expression";
 pub const BreakStatement: &str = "break_statement";
+pub const CatchClause: &str = "catch_clause";
 pub const ClassDeclaration: &str = "class_declaration";
 pub const Comment: &str = "comment";
 pub const ComputedPropertyName: &str = "computed_property_name";

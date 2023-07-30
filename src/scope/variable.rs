@@ -10,11 +10,11 @@ pub struct Variable<'a> {
     pub defs: Vec<Id<Definition<'a>>>,
     pub tainted: bool,
     pub stack: bool,
-    pub scope: Id<Scope>,
+    pub scope: Id<Scope<'a>>,
 }
 
 impl<'a> Variable<'a> {
-    pub fn new(name: String, scope: Id<Scope>) -> Self {
+    pub fn new(name: String, scope: Id<Scope<'a>>) -> Self {
         Self {
             name,
             identifiers: Default::default(),
