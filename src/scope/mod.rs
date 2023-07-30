@@ -1,4 +1,6 @@
+mod pattern_visitor;
 mod referencer;
+mod scope;
 mod scope_manager;
 
 use tree_sitter_lint::tree_sitter::Tree;
@@ -12,6 +14,11 @@ pub fn analyze(tree: &Tree) -> ScopeManager {
     let mut referencer = Referencer::new(&mut scope_manager);
 
     referencer.visit_program(&mut tree.walk());
+
+    assert!(
+        scope_manager.__current_scope().is_none(),
+        "current_scope should be null."
+    );
 
     scope_manager
 }
