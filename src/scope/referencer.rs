@@ -4,24 +4,26 @@ use crate::visit::{visit, Visit};
 
 use super::{
     pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
+    scope::Scope,
     scope_manager::ScopeManager,
 };
 
 fn traverse_identifier_in_pattern<'a>(
     // options,
     root_pattern: Node<'a>,
-    referencer: Option<&mut Referencer<'a>>,
-    callback: impl FnMut(Node<'a>, PatternInfo<'a>),
+    referencer: &mut Referencer<'a>,
+    should_visit_referencer: bool,
+    mut callback: impl FnMut(&mut Referencer<'a>, Node<'a>, PatternInfo<'a>),
 ) {
     let mut visitor = PatternVisitor::new(
         // options,
         root_pattern,
-        callback,
+        |node, pattern_info| callback(referencer, node, pattern_info),
     );
 
     visit(&mut visitor, root_pattern);
 
-    if let Some(referencer) = referencer {
+    if should_visit_referencer {
         visitor
             .right_hand_nodes
             .iter()
@@ -40,18 +42,33 @@ impl<'a> Referencer<'a> {
         Self { scope_manager }
     }
 
+    fn current_scope(&self) -> &Scope {
+        self.scope_manager.__current_scope()
+    }
+
+    fn referencing_default_value(
+        &self,
+        pattern: Node,
+        assignments: &[Node],
+        maybe_implicit_global: Option<PatternAndNode>,
+        init: bool,
+    ) {
+        unimplemented!();
+    }
+
     fn visit_pattern(
         &mut self,
         node: Node<'a>,
         options: Option<VisitPatternOptions>,
-        callback: impl FnMut(Node<'a>, PatternInfo<'a>),
+        callback: impl FnMut(&mut Referencer<'a>, Node<'a>, PatternInfo<'a>),
     ) {
         let options = options.unwrap_or_default();
 
         traverse_identifier_in_pattern(
             // this.options,
             node,
-            options.process_right_hand_nodes.then_some(self),
+            self,
+            options.process_right_hand_nodes,
             callback,
         );
     }
@@ -66,8 +83,18 @@ impl<'a: 'b, 'b> Visit<'a> for Referencer<'b> {
                 Some(VisitPatternOptions {
                     process_right_hand_nodes: true,
                 }),
-                |pattern, info| {
+                |referencer, pattern, info| {
                     let mut maybe_implicit_global: Option<PatternAndNode> = Default::default();
+
+                    if !referencer.current_scope().is_strict() {
+                        maybe_implicit_global = Some(PatternAndNode { pattern, node });
+                    }
+                    referencer.referencing_default_value(
+                        pattern,
+                        info.assignments,
+                        maybe_implicit_global,
+                        false,
+                    );
                 },
             );
         } else {
@@ -84,6 +111,7 @@ struct VisitPatternOptions {
     process_right_hand_nodes: bool,
 }
 
+#[derive(Copy, Clone)]
 struct PatternAndNode<'a> {
     pattern: Node<'a>,
     node: Node<'a>,

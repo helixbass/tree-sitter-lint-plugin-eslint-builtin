@@ -16,7 +16,7 @@ pub fn analyze(tree: &Tree) -> ScopeManager {
     referencer.visit_program(&mut tree.walk());
 
     assert!(
-        scope_manager.__current_scope().is_none(),
+        scope_manager.maybe_current_scope().is_none(),
         "current_scope should be null."
     );
 
