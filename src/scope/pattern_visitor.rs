@@ -8,12 +8,6 @@ use crate::{
     visit::Visit,
 };
 
-pub struct PatternVisitor<'a, TCallback> {
-    root_pattern: Node<'a>,
-    callback: TCallback,
-    pub right_hand_nodes: Vec<Node<'a>>,
-}
-
 pub fn is_pattern(node: Node) -> bool {
     matches!(
         node.kind(),
@@ -32,7 +26,13 @@ pub fn is_pattern(node: Node) -> bool {
     )
 }
 
-impl<'a, TCallback: FnMut((), ())> PatternVisitor<'a, TCallback> {
+pub struct PatternVisitor<'a, TCallback> {
+    root_pattern: Node<'a>,
+    callback: TCallback,
+    pub right_hand_nodes: Vec<Node<'a>>,
+}
+
+impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a>)> PatternVisitor<'a, TCallback> {
     pub fn new(
         // options,
         root_pattern: Node<'a>,
@@ -46,4 +46,10 @@ impl<'a, TCallback: FnMut((), ())> PatternVisitor<'a, TCallback> {
     }
 }
 
-impl<'a, TCallback: FnMut((), ())> Visit<'a> for PatternVisitor<'a, TCallback> {}
+impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a>)> Visit<'a> for PatternVisitor<'a, TCallback> {}
+
+pub struct PatternInfo<'a> {
+    pub top_level: bool,
+    pub rest: bool,
+    pub assignments: &'a [Node<'a>],
+}

@@ -3,15 +3,15 @@ use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 use crate::visit::{visit, Visit};
 
 use super::{
-    pattern_visitor::{is_pattern, PatternVisitor},
+    pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
     scope_manager::ScopeManager,
 };
 
-fn traverse_identifier_in_pattern(
+fn traverse_identifier_in_pattern<'a>(
     // options,
-    root_pattern: Node,
-    referencer: Option<&mut Referencer>,
-    callback: impl FnMut((), ()),
+    root_pattern: Node<'a>,
+    referencer: Option<&mut Referencer<'a>>,
+    callback: impl FnMut(Node<'a>, PatternInfo<'a>),
 ) {
     let mut visitor = PatternVisitor::new(
         // options,
@@ -42,9 +42,9 @@ impl<'a> Referencer<'a> {
 
     fn visit_pattern(
         &mut self,
-        node: Node,
+        node: Node<'a>,
         options: Option<VisitPatternOptions>,
-        callback: impl FnMut((), ()),
+        callback: impl FnMut(Node<'a>, PatternInfo<'a>),
     ) {
         let options = options.unwrap_or_default();
 
@@ -57,7 +57,7 @@ impl<'a> Referencer<'a> {
     }
 }
 
-impl<'a, 'b> Visit<'a> for Referencer<'b> {
+impl<'a: 'b, 'b> Visit<'a> for Referencer<'b> {
     fn visit_assignment_expression(&mut self, cursor: &mut TreeCursor<'a>) {
         let node = cursor.node();
         if is_pattern(node) {
@@ -66,7 +66,9 @@ impl<'a, 'b> Visit<'a> for Referencer<'b> {
                 Some(VisitPatternOptions {
                     process_right_hand_nodes: true,
                 }),
-                |pattern, info| {},
+                |pattern, info| {
+                    let mut maybe_implicit_global: Option<PatternAndNode> = Default::default();
+                },
             );
         } else {
         }
@@ -80,4 +82,9 @@ impl<'a, 'b> Visit<'a> for Referencer<'b> {
 #[derive(Default)]
 struct VisitPatternOptions {
     process_right_hand_nodes: bool,
+}
+
+struct PatternAndNode<'a> {
+    pattern: Node<'a>,
+    node: Node<'a>,
 }
