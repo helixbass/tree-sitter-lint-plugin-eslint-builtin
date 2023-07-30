@@ -2,7 +2,9 @@ use std::cell::{Ref, RefMut};
 
 use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 
-use crate::visit::{visit, visit_program, visit_update_expression, Visit};
+use crate::visit::{
+    visit_expression, visit_expressions, visit_program, visit_update_expression, Visit,
+};
 
 use super::{
     definition::Definition,
@@ -26,14 +28,14 @@ fn traverse_identifier_in_pattern<'a, 'b>(
         |node, pattern_info| callback(referencer, node, pattern_info),
     );
 
-    visit(&mut visitor, root_pattern);
+    visitor.visit(root_pattern);
 
     if should_visit_referencer {
         visitor
             .right_hand_nodes
             .iter()
             .for_each(|&right_hand_node| {
-                visit(referencer, right_hand_node);
+                referencer.visit(right_hand_node);
             });
     }
 }
@@ -98,8 +100,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
 }
 
 impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'referencer, 'b> {
-    fn visit_assignment_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
-        let node = cursor.node();
+    fn visit_assignment_expression(&mut self, node: Node<'tree>) {
         if is_pattern(node) {
             self.visit_pattern(
                 node.child_by_field_name("left").unwrap(),
@@ -130,15 +131,12 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
                 },
             );
         } else {
-            cursor.reset(node.child_by_field_name("left").unwrap());
-            self.visit_expression(cursor);
+            self.visit_expression(node.child_by_field_name("left").unwrap());
         }
-        cursor.reset(node.child_by_field_name("right").unwrap());
-        self.visit_expression(cursor);
+        self.visit_expression(node.child_by_field_name("right").unwrap());
     }
 
-    fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
-        let node = cursor.node();
+    fn visit_augmented_assignment_expression(&mut self, node: Node<'tree>) {
         if is_pattern(node) {
             self.current_scope_mut().__referencing(
                 &mut self.scope_manager.arena.references.borrow_mut(),
@@ -150,15 +148,12 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
                 None,
             );
         } else {
-            cursor.reset(node.child_by_field_name("left").unwrap());
-            self.visit_expression(cursor);
+            self.visit_expression(node.child_by_field_name("left").unwrap());
         }
-        cursor.reset(node.child_by_field_name("right").unwrap());
-        self.visit_expression(cursor);
+        self.visit_expression(node.child_by_field_name("right").unwrap());
     }
 
-    fn visit_catch_clause(&mut self, cursor: &mut TreeCursor<'tree>) {
-        let node = cursor.node();
+    fn visit_catch_clause(&mut self, node: Node<'tree>) {
         self.scope_manager.__nest_catch_scope(node);
 
         if let Some(parameter) = node.child_by_field_name("parameter") {
@@ -190,14 +185,12 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             );
         }
 
-        cursor.reset(node.child_by_field_name("body").unwrap());
-        self.visit_statement_block(cursor);
+        self.visit_statement_block(node.child_by_field_name("body").unwrap());
 
         self.close(node);
     }
 
-    fn visit_program(&mut self, cursor: &mut TreeCursor<'tree>) {
-        let node = cursor.node();
+    fn visit_program(&mut self, node: Node<'tree>) {
         self.scope_manager.__nest_global_scope(node);
 
         if self.scope_manager.is_global_return() {
@@ -213,12 +206,11 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             self.current_scope_mut().set_is_strict(true);
         }
 
-        visit_program(self, cursor);
+        visit_program(self, node);
         self.close(node);
     }
 
-    fn visit_identifier(&mut self, cursor: &mut TreeCursor<'tree>) {
-        let node = cursor.node();
+    fn visit_identifier(&mut self, node: Node<'tree>) {
         self.current_scope_mut().__referencing(
             &mut self.scope_manager.arena.references.borrow_mut(),
             node,
@@ -230,10 +222,9 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         );
     }
 
-    fn visit_private_property_identifier(&mut self, _cursor: &mut TreeCursor<'tree>) {}
+    fn visit_private_property_identifier(&mut self, _node: Node<'tree>) {}
 
-    fn visit_update_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
-        let node = cursor.node();
+    fn visit_update_expression(&mut self, node: Node<'tree>) {
         let argument = node.child_by_field_name("argument").unwrap();
         if is_pattern(argument) {
             self.current_scope_mut().__referencing(
@@ -246,8 +237,17 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
                 None,
             );
         } else {
-            visit_update_expression(self, cursor);
+            visit_update_expression(self, node);
         }
+    }
+
+    fn visit_member_expression(&mut self, node: Node<'tree>) {
+        visit_expression(self, node.child_by_field_name("object").unwrap());
+    }
+
+    fn visit_subscript_expression(&mut self, node: Node<'tree>) {
+        visit_expression(self, node.child_by_field_name("object").unwrap());
+        visit_expressions(self, node.child_by_field_name("index").unwrap());
     }
 }
 

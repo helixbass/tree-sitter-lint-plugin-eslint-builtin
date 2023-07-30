@@ -5,152 +5,168 @@ use crate::kind::{
     BreakStatement, CatchClause, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement,
     DoStatement, EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement,
     ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier,
-    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, PrivatePropertyIdentifier,
-    Program, ReturnStatement, StatementBlock, SwitchStatement, ThrowStatement, TryStatement,
-    UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
+    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression,
+    PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
+    SwitchStatement, ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration,
+    WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
-    fn visit_program(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_program(self, cursor);
+    fn visit(&mut self, node: Node<'a>) {
+        match node.kind() {
+            Program => self.visit_program(node),
+            _ => unimplemented!(),
+        }
     }
 
-    fn visit_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_statement(self, cursor);
+    fn visit_program(&mut self, node: Node<'a>) {
+        visit_program(self, node);
     }
 
-    fn visit_declaration(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_declaration(self, cursor);
+    fn visit_statement(&mut self, node: Node<'a>) {
+        visit_statement(self, node);
     }
 
-    fn visit_export_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_export_statement(self, cursor);
+    fn visit_declaration(&mut self, node: Node<'a>) {
+        visit_declaration(self, node);
     }
 
-    fn visit_import_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_import_statement(self, cursor);
+    fn visit_export_statement(&mut self, node: Node<'a>) {
+        visit_export_statement(self, node);
     }
 
-    fn visit_debugger_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_debugger_statement(self, cursor);
+    fn visit_import_statement(&mut self, node: Node<'a>) {
+        visit_import_statement(self, node);
     }
 
-    fn visit_expression_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_expression_statement(self, cursor);
+    fn visit_debugger_statement(&mut self, node: Node<'a>) {
+        visit_debugger_statement(self, node);
     }
 
-    fn visit_function_declaration(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_function_declaration(self, cursor);
+    fn visit_expression_statement(&mut self, node: Node<'a>) {
+        visit_expression_statement(self, node);
     }
 
-    fn visit_generator_function_declaration(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_generator_function_declaration(self, cursor);
+    fn visit_function_declaration(&mut self, node: Node<'a>) {
+        visit_function_declaration(self, node);
     }
 
-    fn visit_class_declaration(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_class_declaration(self, cursor);
+    fn visit_generator_function_declaration(&mut self, node: Node<'a>) {
+        visit_generator_function_declaration(self, node);
     }
 
-    fn visit_lexical_declaration(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_lexical_declaration(self, cursor);
+    fn visit_class_declaration(&mut self, node: Node<'a>) {
+        visit_class_declaration(self, node);
     }
 
-    fn visit_variable_declaration(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_variable_declaration(self, cursor);
+    fn visit_lexical_declaration(&mut self, node: Node<'a>) {
+        visit_lexical_declaration(self, node);
     }
 
-    fn visit_statement_block(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_statement_block(self, cursor);
+    fn visit_variable_declaration(&mut self, node: Node<'a>) {
+        visit_variable_declaration(self, node);
     }
 
-    fn visit_if_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_if_statement(self, cursor);
+    fn visit_statement_block(&mut self, node: Node<'a>) {
+        visit_statement_block(self, node);
     }
 
-    fn visit_switch_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_switch_statement(self, cursor);
+    fn visit_if_statement(&mut self, node: Node<'a>) {
+        visit_if_statement(self, node);
     }
 
-    fn visit_for_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_for_statement(self, cursor);
+    fn visit_switch_statement(&mut self, node: Node<'a>) {
+        visit_switch_statement(self, node);
     }
 
-    fn visit_for_in_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_for_in_statement(self, cursor);
+    fn visit_for_statement(&mut self, node: Node<'a>) {
+        visit_for_statement(self, node);
     }
 
-    fn visit_while_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_while_statement(self, cursor);
+    fn visit_for_in_statement(&mut self, node: Node<'a>) {
+        visit_for_in_statement(self, node);
     }
 
-    fn visit_do_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_do_statement(self, cursor);
+    fn visit_while_statement(&mut self, node: Node<'a>) {
+        visit_while_statement(self, node);
     }
 
-    fn visit_try_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_try_statement(self, cursor);
+    fn visit_do_statement(&mut self, node: Node<'a>) {
+        visit_do_statement(self, node);
     }
 
-    fn visit_with_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_with_statement(self, cursor);
+    fn visit_try_statement(&mut self, node: Node<'a>) {
+        visit_try_statement(self, node);
     }
 
-    fn visit_break_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_break_statement(self, cursor);
+    fn visit_with_statement(&mut self, node: Node<'a>) {
+        visit_with_statement(self, node);
     }
 
-    fn visit_continue_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_continue_statement(self, cursor);
+    fn visit_break_statement(&mut self, node: Node<'a>) {
+        visit_break_statement(self, node);
     }
 
-    fn visit_return_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_return_statement(self, cursor);
+    fn visit_continue_statement(&mut self, node: Node<'a>) {
+        visit_continue_statement(self, node);
     }
 
-    fn visit_throw_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_throw_statement(self, cursor);
+    fn visit_return_statement(&mut self, node: Node<'a>) {
+        visit_return_statement(self, node);
     }
 
-    fn visit_empty_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_empty_statement(self, cursor);
+    fn visit_throw_statement(&mut self, node: Node<'a>) {
+        visit_throw_statement(self, node);
     }
 
-    fn visit_labeled_statement(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_labeled_statement(self, cursor);
+    fn visit_empty_statement(&mut self, node: Node<'a>) {
+        visit_empty_statement(self, node);
     }
 
-    fn visit_assignment_expression(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_assignment_expression(self, cursor);
+    fn visit_labeled_statement(&mut self, node: Node<'a>) {
+        visit_labeled_statement(self, node);
     }
 
-    fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_augmented_assignment_expression(self, cursor);
+    fn visit_assignment_expression(&mut self, node: Node<'a>) {
+        visit_assignment_expression(self, node);
     }
 
-    fn visit_expression(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_expression(self, cursor);
+    fn visit_augmented_assignment_expression(&mut self, node: Node<'a>) {
+        visit_augmented_assignment_expression(self, node);
     }
 
-    fn visit_catch_clause(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_catch_clause(self, cursor);
+    fn visit_expression(&mut self, node: Node<'a>) {
+        visit_expression(self, node);
     }
 
-    fn visit_identifier(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_identifier(self, cursor);
+    fn visit_catch_clause(&mut self, node: Node<'a>) {
+        visit_catch_clause(self, node);
     }
 
-    fn visit_private_property_identifier(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_private_property_identifier(self, cursor);
+    fn visit_identifier(&mut self, node: Node<'a>) {
+        visit_identifier(self, node);
     }
 
-    fn visit_update_expression(&mut self, cursor: &mut TreeCursor<'a>) {
-        visit_update_expression(self, cursor);
+    fn visit_private_property_identifier(&mut self, node: Node<'a>) {
+        visit_private_property_identifier(self, node);
+    }
+
+    fn visit_update_expression(&mut self, node: Node<'a>) {
+        visit_update_expression(self, node);
+    }
+
+    fn visit_member_expression(&mut self, node: Node<'a>) {
+        visit_member_expression(self, node);
+    }
+
+    fn visit_subscript_expression(&mut self, node: Node<'a>) {
+        visit_subscript_expression(self, node);
     }
 }
 
-macro_rules! assert_cursor_node_kind {
-    ($cursor: expr, $kind:expr) => {
-        debug_assert_eq!($cursor.node().kind(), $kind);
+macro_rules! assert_node_kind {
+    ($node: expr, $kind:expr) => {
+        debug_assert_eq!($node.kind(), $kind);
     };
 }
 
@@ -162,27 +178,17 @@ macro_rules! return_if_false {
     };
 }
 
-pub fn visit<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+pub fn visit_program<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, Program);
+
     let mut cursor = node.walk();
-    match node.kind() {
-        Program => visit_program(visitor, &mut cursor),
-        _ => unimplemented!(),
-    }
-}
-
-pub fn visit_program<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, Program);
-
     return_if_false!(cursor.goto_first_child());
 
     loop {
         let current_child = cursor.node();
         match current_child.kind() {
             HashBangLine => unimplemented!(),
-            kind if is_statement_kind(kind) => visitor.visit_statement(cursor),
+            kind if is_statement_kind(kind) => visitor.visit_statement(current_child),
             Comment => unimplemented!(),
             _ => unreachable!(),
         }
@@ -190,296 +196,271 @@ pub fn visit_program<'a, TVisit: Visit<'a> + ?Sized>(
     }
 }
 
-pub fn visit_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    debug_assert!(is_statement_kind(cursor.node().kind()));
+pub fn visit_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    debug_assert!(is_statement_kind(node.kind()));
 
-    match cursor.node().kind() {
-        ExportStatement => visitor.visit_export_statement(cursor),
-        ImportStatement => visitor.visit_import_statement(cursor),
-        DebuggerStatement => visitor.visit_debugger_statement(cursor),
-        ExpressionStatement => visitor.visit_expression_statement(cursor),
-        kind if is_declaration_kind(kind) => visitor.visit_declaration(cursor),
-        StatementBlock => visitor.visit_statement_block(cursor),
-        IfStatement => visitor.visit_if_statement(cursor),
-        SwitchStatement => visitor.visit_switch_statement(cursor),
-        ForStatement => visitor.visit_for_statement(cursor),
-        ForInStatement => visitor.visit_for_in_statement(cursor),
-        WhileStatement => visitor.visit_while_statement(cursor),
-        DoStatement => visitor.visit_do_statement(cursor),
-        TryStatement => visitor.visit_try_statement(cursor),
-        WithStatement => visitor.visit_with_statement(cursor),
-        BreakStatement => visitor.visit_break_statement(cursor),
-        ContinueStatement => visitor.visit_continue_statement(cursor),
-        ReturnStatement => visitor.visit_return_statement(cursor),
-        ThrowStatement => visitor.visit_throw_statement(cursor),
-        EmptyStatement => visitor.visit_empty_statement(cursor),
-        LabeledStatement => visitor.visit_labeled_statement(cursor),
+    match node.kind() {
+        ExportStatement => visitor.visit_export_statement(node),
+        ImportStatement => visitor.visit_import_statement(node),
+        DebuggerStatement => visitor.visit_debugger_statement(node),
+        ExpressionStatement => visitor.visit_expression_statement(node),
+        kind if is_declaration_kind(kind) => visitor.visit_declaration(node),
+        StatementBlock => visitor.visit_statement_block(node),
+        IfStatement => visitor.visit_if_statement(node),
+        SwitchStatement => visitor.visit_switch_statement(node),
+        ForStatement => visitor.visit_for_statement(node),
+        ForInStatement => visitor.visit_for_in_statement(node),
+        WhileStatement => visitor.visit_while_statement(node),
+        DoStatement => visitor.visit_do_statement(node),
+        TryStatement => visitor.visit_try_statement(node),
+        WithStatement => visitor.visit_with_statement(node),
+        BreakStatement => visitor.visit_break_statement(node),
+        ContinueStatement => visitor.visit_continue_statement(node),
+        ReturnStatement => visitor.visit_return_statement(node),
+        ThrowStatement => visitor.visit_throw_statement(node),
+        EmptyStatement => visitor.visit_empty_statement(node),
+        LabeledStatement => visitor.visit_labeled_statement(node),
         _ => unreachable!(),
     }
 }
 
-pub fn visit_declaration<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    debug_assert!(is_declaration_kind(cursor.node().kind()));
+pub fn visit_declaration<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    debug_assert!(is_declaration_kind(node.kind()));
 
-    match cursor.node().kind() {
-        FunctionDeclaration => visitor.visit_function_declaration(cursor),
-        GeneratorFunctionDeclaration => visitor.visit_generator_function_declaration(cursor),
-        ClassDeclaration => visitor.visit_class_declaration(cursor),
-        LexicalDeclaration => visitor.visit_lexical_declaration(cursor),
-        VariableDeclaration => visitor.visit_variable_declaration(cursor),
+    match node.kind() {
+        FunctionDeclaration => visitor.visit_function_declaration(node),
+        GeneratorFunctionDeclaration => visitor.visit_generator_function_declaration(node),
+        ClassDeclaration => visitor.visit_class_declaration(node),
+        LexicalDeclaration => visitor.visit_lexical_declaration(node),
+        VariableDeclaration => visitor.visit_variable_declaration(node),
         _ => unreachable!(),
     }
 }
 
 pub fn visit_export_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ExportStatement);
+    assert_node_kind!(node, ExportStatement);
     unimplemented!()
 }
 
 pub fn visit_import_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ImportStatement);
+    assert_node_kind!(node, ImportStatement);
     unimplemented!()
 }
 
 pub fn visit_debugger_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, DebuggerStatement);
+    assert_node_kind!(node, DebuggerStatement);
     unimplemented!()
 }
 
 pub fn visit_expression_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ExpressionStatement);
+    assert_node_kind!(node, ExpressionStatement);
     unimplemented!()
 }
 
 pub fn visit_function_declaration<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, FunctionDeclaration);
+    assert_node_kind!(node, FunctionDeclaration);
     unimplemented!()
 }
 
 pub fn visit_generator_function_declaration<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, GeneratorFunctionDeclaration);
+    assert_node_kind!(node, GeneratorFunctionDeclaration);
     unimplemented!()
 }
 
 pub fn visit_class_declaration<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ClassDeclaration);
+    assert_node_kind!(node, ClassDeclaration);
     unimplemented!()
 }
 
 pub fn visit_lexical_declaration<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, LexicalDeclaration);
+    assert_node_kind!(node, LexicalDeclaration);
     unimplemented!()
 }
 
 pub fn visit_variable_declaration<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, VariableDeclaration);
+    assert_node_kind!(node, VariableDeclaration);
     unimplemented!()
 }
 
-pub fn visit_statement_block<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, StatementBlock);
+pub fn visit_statement_block<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, StatementBlock);
     unimplemented!()
 }
 
-pub fn visit_if_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, IfStatement);
+pub fn visit_if_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, IfStatement);
     unimplemented!()
 }
 
 pub fn visit_switch_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, SwitchStatement);
+    assert_node_kind!(node, SwitchStatement);
     unimplemented!()
 }
 
-pub fn visit_for_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, ForStatement);
+pub fn visit_for_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ForStatement);
     unimplemented!()
 }
 
 pub fn visit_for_in_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ForInStatement);
+    assert_node_kind!(node, ForInStatement);
     unimplemented!()
 }
 
-pub fn visit_while_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, WhileStatement);
+pub fn visit_while_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, WhileStatement);
     unimplemented!()
 }
 
-pub fn visit_do_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, DoStatement);
+pub fn visit_do_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, DoStatement);
     unimplemented!()
 }
 
-pub fn visit_try_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, TryStatement);
+pub fn visit_try_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, TryStatement);
     unimplemented!()
 }
 
-pub fn visit_with_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, WithStatement);
+pub fn visit_with_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, WithStatement);
     unimplemented!()
 }
 
-pub fn visit_break_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, BreakStatement);
+pub fn visit_break_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, BreakStatement);
     unimplemented!()
 }
 
 pub fn visit_continue_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ContinueStatement);
+    assert_node_kind!(node, ContinueStatement);
     unimplemented!()
 }
 
 pub fn visit_return_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, ReturnStatement);
+    assert_node_kind!(node, ReturnStatement);
     unimplemented!()
 }
 
-pub fn visit_throw_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, ThrowStatement);
+pub fn visit_throw_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ThrowStatement);
     unimplemented!()
 }
 
-pub fn visit_empty_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, EmptyStatement);
+pub fn visit_empty_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, EmptyStatement);
     unimplemented!()
 }
 
 pub fn visit_labeled_statement<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, LabeledStatement);
+    assert_node_kind!(node, LabeledStatement);
     unimplemented!()
 }
 
 pub fn visit_assignment_expression<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, AssignmentExpression);
+    assert_node_kind!(node, AssignmentExpression);
     unimplemented!()
 }
 
 pub fn visit_augmented_assignment_expression<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, AugmentedAssignmentExpression);
+    assert_node_kind!(node, AugmentedAssignmentExpression);
     unimplemented!()
 }
 
-pub fn visit_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
+pub fn visit_expression<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     unimplemented!()
 }
 
-pub fn visit_catch_clause<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, CatchClause);
+pub fn visit_expressions<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     unimplemented!()
 }
 
-pub fn visit_identifier<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
-) {
-    assert_cursor_node_kind!(cursor, Identifier);
+pub fn visit_catch_clause<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, CatchClause);
+    unimplemented!()
+}
+
+pub fn visit_identifier<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, Identifier);
     unimplemented!()
 }
 
 pub fn visit_private_property_identifier<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, PrivatePropertyIdentifier);
+    assert_node_kind!(node, PrivatePropertyIdentifier);
     unimplemented!()
 }
 
 pub fn visit_update_expression<'a, TVisit: Visit<'a> + ?Sized>(
     visitor: &mut TVisit,
-    cursor: &mut TreeCursor<'a>,
+    node: Node<'a>,
 ) {
-    assert_cursor_node_kind!(cursor, UpdateExpression);
+    assert_node_kind!(node, UpdateExpression);
+    unimplemented!()
+}
+
+pub fn visit_member_expression<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, MemberExpression);
+    unimplemented!()
+}
+
+pub fn visit_subscript_expression<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, SubscriptExpression);
     unimplemented!()
 }

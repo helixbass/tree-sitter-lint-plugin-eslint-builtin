@@ -17,7 +17,7 @@ pub fn analyze<'a>(tree: &'a Tree, source_text: &'a [u8]) -> ScopeManager<'a> {
     let mut scope_manager = ScopeManager::new(source_text);
     let mut referencer = Referencer::new(&mut scope_manager);
 
-    referencer.visit_program(&mut tree.walk());
+    referencer.visit_program(tree.root_node());
 
     assert!(
         scope_manager.maybe_current_scope().is_none(),
