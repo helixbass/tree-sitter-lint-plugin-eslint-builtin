@@ -122,7 +122,23 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
     }
 
     fn visit_augmented_assignment_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
-        unimplemented!()
+        let node = cursor.node();
+        if is_pattern(node) {
+            self.current_scope_mut().__referencing(
+                &mut self.scope_manager.arena.references.borrow_mut(),
+                node.child_by_field_name("left").unwrap(),
+                ReadWriteFlags::RW,
+                node.child_by_field_name("right"),
+                None,
+                false,
+                false,
+            );
+        } else {
+            cursor.reset(node.child_by_field_name("left").unwrap());
+            self.visit_expression(cursor);
+        }
+        cursor.reset(node.child_by_field_name("right").unwrap());
+        self.visit_expression(cursor);
     }
 }
 
