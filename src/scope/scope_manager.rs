@@ -21,7 +21,7 @@ impl<'a> ScopeManager<'a> {
 
     pub fn maybe_current_scope(&self) -> Option<Ref<Scope>> {
         self.__current_scope.map(|__current_scope| {
-            Ref::map((*self.arena.scopes).borrow(), |scopes| {
+            Ref::map(self.arena.scopes.borrow(), |scopes| {
                 scopes.get(__current_scope).unwrap()
             })
         })
