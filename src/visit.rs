@@ -5,9 +5,9 @@ use crate::kind::{
     BreakStatement, CatchClause, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement,
     DoStatement, EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement,
     ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier,
-    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, Program, ReturnStatement,
-    StatementBlock, SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration,
-    WhileStatement, WithStatement,
+    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, PrivatePropertyIdentifier,
+    Program, ReturnStatement, StatementBlock, SwitchStatement, ThrowStatement, TryStatement,
+    UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -137,6 +137,14 @@ pub trait Visit<'a> {
 
     fn visit_identifier(&mut self, cursor: &mut TreeCursor<'a>) {
         visit_identifier(self, cursor);
+    }
+
+    fn visit_private_property_identifier(&mut self, cursor: &mut TreeCursor<'a>) {
+        visit_private_property_identifier(self, cursor);
+    }
+
+    fn visit_update_expression(&mut self, cursor: &mut TreeCursor<'a>) {
+        visit_update_expression(self, cursor);
     }
 }
 
@@ -457,5 +465,21 @@ pub fn visit_identifier<'a, TVisit: Visit<'a> + ?Sized>(
     cursor: &mut TreeCursor<'a>,
 ) {
     assert_cursor_node_kind!(cursor, Identifier);
+    unimplemented!()
+}
+
+pub fn visit_private_property_identifier<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    cursor: &mut TreeCursor<'a>,
+) {
+    assert_cursor_node_kind!(cursor, PrivatePropertyIdentifier);
+    unimplemented!()
+}
+
+pub fn visit_update_expression<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    cursor: &mut TreeCursor<'a>,
+) {
+    assert_cursor_node_kind!(cursor, UpdateExpression);
     unimplemented!()
 }

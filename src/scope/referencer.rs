@@ -2,7 +2,7 @@ use std::cell::{Ref, RefMut};
 
 use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
 
-use crate::visit::{visit, visit_program, Visit};
+use crate::visit::{visit, visit_program, visit_update_expression, Visit};
 
 use super::{
     definition::Definition,
@@ -228,6 +228,26 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             None,
             None,
         );
+    }
+
+    fn visit_private_property_identifier(&mut self, _cursor: &mut TreeCursor<'tree>) {}
+
+    fn visit_update_expression(&mut self, cursor: &mut TreeCursor<'tree>) {
+        let node = cursor.node();
+        let argument = node.child_by_field_name("argument").unwrap();
+        if is_pattern(argument) {
+            self.current_scope_mut().__referencing(
+                &mut self.scope_manager.arena.references.borrow_mut(),
+                argument,
+                Some(ReadWriteFlags::RW),
+                None,
+                None,
+                None,
+                None,
+            );
+        } else {
+            visit_update_expression(self, cursor);
+        }
     }
 }
 
