@@ -50,6 +50,7 @@ pub enum Scope<'a> {
     Base(ScopeBase<'a>),
     Global(GlobalScope<'a>),
     Function(FunctionScope<'a>),
+    With(WithScope<'a>),
 }
 
 impl<'a> Scope<'a> {
@@ -162,6 +163,21 @@ impl<'a> Scope<'a> {
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Catch, upper_scope, block, false)
+    }
+
+    pub fn new_with_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::_new(
+            scope_manager,
+            ScopeType::With,
+            upper_scope,
+            block,
+            false,
+            |base| Self::With(WithScope::new(base)),
+        )
     }
 
     pub fn new_block_scope(
@@ -485,5 +501,15 @@ impl<'a> FunctionScope<'a> {
 
     fn __define_arguments(&mut self) {
         unimplemented!()
+    }
+}
+
+pub struct WithScope<'a> {
+    base: ScopeBase<'a>,
+}
+
+impl<'a> WithScope<'a> {
+    pub fn new(base: ScopeBase<'a>) -> Self {
+        Self { base }
     }
 }

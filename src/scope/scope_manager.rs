@@ -126,6 +126,11 @@ impl<'a> ScopeManager<'a> {
         self.__nest_scope(scope)
     }
 
+    pub fn __nest_with_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_with_scope(self, self.__current_scope, node);
+        self.__nest_scope(scope)
+    }
+
     pub fn __nest_class_field_initializer_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
         let scope = Scope::new_class_field_initializer_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)

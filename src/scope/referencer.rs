@@ -366,7 +366,7 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         self.close(node);
     }
 
-    fn visit_this(&mut self, node: Node<'tree>) {
+    fn visit_this(&mut self, _node: Node<'tree>) {
         let variable_scope = self.current_scope().variable_scope();
         self.scope_manager
             .arena
@@ -375,6 +375,16 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             .get_mut(variable_scope)
             .unwrap()
             .__detect_this();
+    }
+
+    fn visit_with_statement(&mut self, node: Node<'tree>) {
+        self.visit_parenthesized_expression(node.child_by_field_name("object").unwrap());
+
+        self.scope_manager.__nest_with_scope(node);
+
+        self.visit_statement(node.child_by_field_name("body").unwrap());
+
+        self.close(node);
     }
 
     fn visit_for_in_statement(&mut self, node: Node<'tree>) {

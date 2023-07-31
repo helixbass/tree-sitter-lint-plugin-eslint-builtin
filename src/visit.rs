@@ -7,9 +7,10 @@ use crate::kind::{
     EmptyStatement, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
     ForStatement, FormalParameters, FunctionDeclaration, GeneratorFunctionDeclaration,
     HashBangLine, Identifier, IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration,
-    MemberExpression, MethodDefinition, Pair, PrivatePropertyIdentifier, Program, ReturnStatement,
-    StatementBlock, SubscriptExpression, SwitchStatement, This, ThrowStatement, TryStatement,
-    UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
+    MemberExpression, MethodDefinition, Pair, ParenthesizedExpression, PrivatePropertyIdentifier,
+    Program, ReturnStatement, StatementBlock, SubscriptExpression, SwitchStatement, This,
+    ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration, WhileStatement,
+    WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -198,6 +199,10 @@ pub trait Visit<'a> {
 
     fn visit_this(&mut self, node: Node<'a>) {
         visit_this(self, node);
+    }
+
+    fn visit_parenthesized_expression(&mut self, node: Node<'a>) {
+        visit_parenthesized_expression(self, node);
     }
 }
 
@@ -559,5 +564,13 @@ pub fn visit_call_expression<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisi
 
 pub fn visit_this<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     assert_node_kind!(node, This);
+    unimplemented!()
+}
+
+pub fn visit_parenthesized_expression<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, ParenthesizedExpression);
     unimplemented!()
 }
