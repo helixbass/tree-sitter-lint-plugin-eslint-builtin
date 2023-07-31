@@ -10,6 +10,7 @@ pub const AugmentedAssignmentExpression: &str = "augmented_assignment_expression
 pub const BreakStatement: &str = "break_statement";
 pub const CatchClause: &str = "catch_clause";
 pub const ClassDeclaration: &str = "class_declaration";
+pub const ClassStaticBlock: &str = "class_static_block";
 pub const Comment: &str = "comment";
 pub const ComputedPropertyName: &str = "computed_property_name";
 pub const ContinueStatement: &str = "continue_statement";

@@ -5,7 +5,10 @@ use tree_sitter_lint::tree_sitter::Node;
 use crate::{
     kind::ComputedPropertyName,
     text::SourceTextProvider,
-    visit::{visit_expression, visit_expressions, visit_program, visit_update_expression, Visit},
+    visit::{
+        visit_class_static_block, visit_expression, visit_expressions, visit_program,
+        visit_update_expression, Visit,
+    },
 };
 
 use super::{
@@ -286,6 +289,14 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             self.visit_expression(value);
             self.close(value);
         }
+    }
+
+    fn visit_class_static_block(&mut self, node: Node<'tree>) {
+        self.scope_manager.__nest_class_static_block_scope(node);
+
+        visit_class_static_block(self, node);
+
+        self.close(node);
     }
 
     fn visit_method_definition(&mut self, node: Node<'tree>) {

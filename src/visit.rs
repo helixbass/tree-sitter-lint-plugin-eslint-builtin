@@ -2,7 +2,7 @@ use tree_sitter_lint::tree_sitter::Node;
 
 use crate::kind::{
     is_declaration_kind, is_statement_kind, AssignmentExpression, AugmentedAssignmentExpression,
-    BreakStatement, CatchClause, ClassDeclaration, Comment, ComputedPropertyName,
+    BreakStatement, CatchClause, ClassDeclaration, ClassStaticBlock, Comment, ComputedPropertyName,
     ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement, ExportStatement,
     ExpressionStatement, FieldDefinition, ForInStatement, ForStatement, FormalParameters,
     FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement,
@@ -182,6 +182,10 @@ pub trait Visit<'a> {
 
     fn visit_field_definition(&mut self, node: Node<'a>) {
         visit_field_definition(self, node);
+    }
+
+    fn visit_class_static_block(&mut self, node: Node<'a>) {
+        visit_class_static_block(self, node);
     }
 }
 
@@ -520,5 +524,13 @@ pub fn visit_field_definition<'a, TVisit: Visit<'a> + ?Sized>(
     node: Node<'a>,
 ) {
     assert_node_kind!(node, FieldDefinition);
+    unimplemented!()
+}
+
+pub fn visit_class_static_block<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, ClassStaticBlock);
     unimplemented!()
 }

@@ -122,6 +122,11 @@ impl<'a> ScopeManager<'a> {
         self.__nest_scope(scope)
     }
 
+    pub fn __nest_class_static_block_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_class_static_block_scope(self, self.__current_scope, node);
+        self.__nest_scope(scope)
+    }
+
     pub fn __nest_module_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
         let scope = Scope::new_module_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)

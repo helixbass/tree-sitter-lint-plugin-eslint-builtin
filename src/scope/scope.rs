@@ -179,6 +179,14 @@ impl<'a> Scope<'a> {
         )
     }
 
+    pub fn new_for_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::For, upper_scope, block, false)
+    }
+
     pub fn new_class_field_initializer_scope(
         scope_manager: &mut ScopeManager<'a>,
         upper_scope: Option<Id<Scope<'a>>>,
@@ -193,12 +201,18 @@ impl<'a> Scope<'a> {
         )
     }
 
-    pub fn new_for_scope(
+    pub fn new_class_static_block_scope(
         scope_manager: &mut ScopeManager<'a>,
         upper_scope: Option<Id<Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
-        Self::new_base(scope_manager, ScopeType::For, upper_scope, block, false)
+        Self::new_base(
+            scope_manager,
+            ScopeType::ClassStaticBlock,
+            upper_scope,
+            block,
+            true,
+        )
     }
 
     pub fn is_strict(&self) -> bool {
