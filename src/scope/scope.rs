@@ -4,6 +4,7 @@ use id_arena::{Arena, Id};
 use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none};
 
 use crate::{
+    break_if_none,
     kind::{ArrowFunction, Identifier},
     text::SourceTextProvider,
 };
@@ -338,6 +339,19 @@ impl<'a> Scope<'a> {
         );
     }
 
+    pub fn __detect_eval(id: Id<Self>, arena: &mut Arena<Self>) {
+        arena
+            .get_mut(id)
+            .unwrap()
+            .set_direct_call_to_eval_scope(true);
+        let mut current = id;
+        loop {
+            let current_scope = arena.get_mut(current).unwrap();
+            current_scope.set_dynamic(true);
+            current = break_if_none!(current_scope.upper());
+        }
+    }
+
     pub fn is_static(&self) -> bool {
         unimplemented!()
     }
@@ -367,6 +381,18 @@ impl<'a> Scope<'a> {
     }
 
     pub fn set_is_strict(&mut self, is_strict: bool) {
+        unimplemented!()
+    }
+
+    pub fn set_direct_call_to_eval_scope(&mut self, direct_call_to_eval_scope: bool) {
+        unimplemented!()
+    }
+
+    pub fn set_dynamic(&mut self, dynamic: bool) {
+        unimplemented!()
+    }
+
+    pub fn upper(&self) -> Option<Id<Self>> {
         unimplemented!()
     }
 }

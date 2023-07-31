@@ -4,6 +4,7 @@ use tree_sitter_lint::Plugin;
 
 mod ast_helpers;
 mod kind;
+mod macros;
 mod rules;
 mod scope;
 mod text;

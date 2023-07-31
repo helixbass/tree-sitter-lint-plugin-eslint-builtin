@@ -2,14 +2,14 @@ use tree_sitter_lint::tree_sitter::Node;
 
 use crate::kind::{
     is_declaration_kind, is_statement_kind, AssignmentExpression, AugmentedAssignmentExpression,
-    BreakStatement, CatchClause, ClassDeclaration, ClassStaticBlock, Comment, ComputedPropertyName,
-    ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement, ExportStatement,
-    ExpressionStatement, FieldDefinition, ForInStatement, ForStatement, FormalParameters,
-    FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement,
-    ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression, MethodDefinition,
-    Pair, PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
-    SwitchStatement, ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration,
-    WhileStatement, WithStatement,
+    BreakStatement, CallExpression, CatchClause, Class, ClassDeclaration, ClassStaticBlock,
+    Comment, ComputedPropertyName, ContinueStatement, DebuggerStatement, DoStatement,
+    EmptyStatement, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
+    ForStatement, FormalParameters, FunctionDeclaration, GeneratorFunctionDeclaration,
+    HashBangLine, Identifier, IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration,
+    MemberExpression, MethodDefinition, Pair, PrivatePropertyIdentifier, Program, ReturnStatement,
+    StatementBlock, SubscriptExpression, SwitchStatement, ThrowStatement, TryStatement,
+    UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -186,6 +186,14 @@ pub trait Visit<'a> {
 
     fn visit_class_static_block(&mut self, node: Node<'a>) {
         visit_class_static_block(self, node);
+    }
+
+    fn visit_class(&mut self, node: Node<'a>) {
+        visit_class(self, node);
+    }
+
+    fn visit_call_expression(&mut self, node: Node<'a>) {
+        visit_call_expression(self, node);
     }
 }
 
@@ -532,5 +540,15 @@ pub fn visit_class_static_block<'a, TVisit: Visit<'a> + ?Sized>(
     node: Node<'a>,
 ) {
     assert_node_kind!(node, ClassStaticBlock);
+    unimplemented!()
+}
+
+pub fn visit_class<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, Class);
+    unimplemented!()
+}
+
+pub fn visit_call_expression<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, CallExpression);
     unimplemented!()
 }

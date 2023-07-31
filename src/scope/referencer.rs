@@ -3,11 +3,11 @@ use std::cell::{Ref, RefMut};
 use tree_sitter_lint::tree_sitter::Node;
 
 use crate::{
-    kind::ComputedPropertyName,
+    kind::{ComputedPropertyName, Identifier, LexicalDeclaration},
     text::SourceTextProvider,
     visit::{
-        visit_class_static_block, visit_expression, visit_expressions, visit_program,
-        visit_update_expression, Visit,
+        visit_call_expression, visit_class_static_block, visit_expression, visit_expressions,
+        visit_for_statement, visit_program, visit_update_expression, Visit,
     },
 };
 
@@ -116,6 +116,10 @@ impl<'a, 'b> Referencer<'a, 'b> {
             options.process_right_hand_nodes,
             callback,
         );
+    }
+
+    fn _visit_class(&mut self, node: Node) {
+        unimplemented!()
     }
 }
 
@@ -308,6 +312,48 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         self.visit_formal_parameters(node.child_by_field_name("parameters").unwrap());
         self.visit_statement_block(node.child_by_field_name("body").unwrap());
         self.pop_inner_method_definition(previous);
+    }
+
+    fn visit_break_statement(&mut self, _node: Node<'tree>) {}
+
+    fn visit_continue_statement(&mut self, _node: Node<'tree>) {}
+
+    fn visit_labeled_statement(&mut self, node: Node<'tree>) {
+        self.visit_statement(node.child_by_field_name("body").unwrap());
+    }
+
+    fn visit_for_statement(&mut self, node: Node<'tree>) {
+        let initializer = node.child_by_field_name("initializer").unwrap();
+        if initializer.kind() == LexicalDeclaration {
+            self.scope_manager.__nest_for_scope(node);
+        }
+
+        visit_for_statement(self, node);
+
+        self.close(node);
+    }
+
+    fn visit_class(&mut self, node: Node<'tree>) {
+        self._visit_class(node);
+    }
+
+    fn visit_class_declaration(&mut self, node: Node<'tree>) {
+        self._visit_class(node);
+    }
+
+    fn visit_call_expression(&mut self, node: Node<'tree>) {
+        let callee = node.child_by_field_name("function").unwrap();
+        if !self.scope_manager.__ignore_eval()
+            && callee.kind() == Identifier
+            && self.get_node_text(callee) == "eval"
+        {
+            let variable_scope = self.current_scope().variable_scope();
+            Scope::__detect_eval(
+                variable_scope,
+                &mut self.scope_manager.arena.scopes.borrow_mut(),
+            );
+        }
+        visit_call_expression(self, node);
     }
 
     fn visit_for_in_statement(&mut self, node: Node<'tree>) {

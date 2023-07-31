@@ -43,6 +43,10 @@ impl<'a> ScopeManager<'a> {
         unimplemented!()
     }
 
+    pub fn __ignore_eval(&self) -> bool {
+        unimplemented!()
+    }
+
     pub fn is_global_return(&self) -> bool {
         unimplemented!()
     }
