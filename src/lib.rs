@@ -4,6 +4,7 @@ use tree_sitter_lint::Plugin;
 
 mod ast_helpers;
 mod kind;
+mod macros;
 mod rules;
 mod text;
 mod utils;
@@ -11,7 +12,7 @@ mod utils;
 use rules::{
     for_direction_rule, no_async_promise_executor_rule, no_await_in_loop_rule,
     no_compare_neg_zero_rule, no_cond_assign_rule, no_debugger_rule, no_dupe_class_members_rule,
-    no_dupe_else_if_rule,
+    no_dupe_else_if_rule, no_dupe_keys_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -26,6 +27,7 @@ pub fn instantiate() -> Plugin {
             no_debugger_rule(),
             no_dupe_class_members_rule(),
             no_dupe_else_if_rule(),
+            no_dupe_keys_rule(),
         ],
     }
 }

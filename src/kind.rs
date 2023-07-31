@@ -50,6 +50,7 @@ pub const PrivatePropertyIdentifier: &str = "private_property_identifier";
 pub const Regex: &str = "regex";
 pub const RestElement: &str = "rest_element";
 pub const ReturnStatement: &str = "return_statement";
+pub const ShorthandPropertyIdentifier: &str = "shorthand_property_identifier";
 pub const SpreadElement: &str = "spread_element";
 pub const StatementBlock: &str = "statement_block";
 pub const String: &str = "string";

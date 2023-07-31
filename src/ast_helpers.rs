@@ -1,9 +1,9 @@
-use tree_sitter_lint::{tree_sitter::Node, QueryMatchContext};
+use tree_sitter_lint::{regex, tree_sitter::Node, QueryMatchContext};
 
 use crate::{
     kind::{
-        self, BinaryExpression, Comment, FieldDefinition, Kind, MethodDefinition,
-        ParenthesizedExpression, PropertyIdentifier,
+        self, BinaryExpression, Comment, FieldDefinition, Kind, MethodDefinition, Pair,
+        ParenthesizedExpression, PropertyIdentifier, ShorthandPropertyIdentifier,
     },
     text::SourceTextProvider,
 };
@@ -89,6 +89,14 @@ pub fn skip_nodes_of_types<'a>(mut node: Node<'a>, kinds: &[Kind]) -> Node<'a> {
     node
 }
 
+fn get_previous_non_comment_sibling(mut node: Node) -> Option<Node> {
+    node = node.prev_sibling()?;
+    while node.kind() == Comment {
+        node = node.prev_sibling()?;
+    }
+    Some(node)
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum MethodDefinitionKind {
     Method,
@@ -112,13 +120,41 @@ pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> Me
     {
         return MethodDefinitionKind::Constructor;
     }
-    match name
-        .prev_sibling()
+    match get_previous_non_comment_sibling(name)
         .map(|prev_sibling| context.get_node_text(prev_sibling))
     {
         Some("get") => MethodDefinitionKind::Get,
         Some("set") => MethodDefinitionKind::Set,
         _ => MethodDefinitionKind::Method,
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ObjectPropertyKind {
+    Init,
+    Get,
+    Set,
+}
+
+pub fn get_object_property_kind(node: Node, context: &QueryMatchContext) -> ObjectPropertyKind {
+    match node.kind() {
+        Pair | ShorthandPropertyIdentifier => ObjectPropertyKind::Init,
+        MethodDefinition => {
+            let mut cursor = node.walk();
+            assert!(cursor.goto_first_child());
+            loop {
+                if cursor.field_name() == Some("name") {
+                    return ObjectPropertyKind::Init;
+                }
+                match context.get_node_text(cursor.node()) {
+                    "get" => return ObjectPropertyKind::Get,
+                    "set" => return ObjectPropertyKind::Set,
+                    _ => (),
+                }
+                assert!(cursor.goto_next_sibling());
+            }
+        }
+        _ => unreachable!(),
     }
 }
 
@@ -147,16 +183,19 @@ pub enum Number {
 
 impl From<&str> for Number {
     fn from(value: &str) -> Self {
-        if is_hex_literal(value) {
+        let value = regex!(r#"_"#).replace_all(value, "");
+        if is_hex_literal(&value) {
             u64::from_str_radix(&value[2..], 16).map_or(Self::NaN, Self::Integer)
-        } else if is_octal_literal(value) {
+        } else if is_octal_literal(&value) {
             u64::from_str_radix(&value[2..], 8).map_or(Self::NaN, Self::Integer)
-        } else if is_binary_literal(value) {
+        } else if is_binary_literal(&value) {
             u64::from_str_radix(&value[2..], 2).map_or(Self::NaN, Self::Integer)
-        } else if is_bigint_literal(value) {
+        } else if is_bigint_literal(&value) {
             value[..value.len() - 1]
                 .parse::<u64>()
                 .map_or(Self::NaN, Self::Integer)
+        } else if let Some(value) = value.strip_prefix('0') {
+            u64::from_str_radix(value, 8).map_or(Self::NaN, Self::Integer)
         } else {
             value
                 .parse::<u64>()
