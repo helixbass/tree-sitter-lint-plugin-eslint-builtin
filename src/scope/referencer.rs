@@ -7,7 +7,7 @@ use crate::{
     text::SourceTextProvider,
     visit::{
         visit_call_expression, visit_class_static_block, visit_expression, visit_expressions,
-        visit_for_statement, visit_program, visit_update_expression, Visit,
+        visit_for_statement, visit_program, visit_statement_block, visit_update_expression, Visit,
     },
 };
 
@@ -354,6 +354,27 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
             );
         }
         visit_call_expression(self, node);
+    }
+
+    fn visit_statement_block(&mut self, node: Node<'tree>) {
+        if self.scope_manager.__is_es6() {
+            self.scope_manager.__nest_block_scope(node);
+        }
+
+        visit_statement_block(self, node);
+
+        self.close(node);
+    }
+
+    fn visit_this(&mut self, node: Node<'tree>) {
+        let variable_scope = self.current_scope().variable_scope();
+        self.scope_manager
+            .arena
+            .scopes
+            .borrow_mut()
+            .get_mut(variable_scope)
+            .unwrap()
+            .__detect_this();
     }
 
     fn visit_for_in_statement(&mut self, node: Node<'tree>) {

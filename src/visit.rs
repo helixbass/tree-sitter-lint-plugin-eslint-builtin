@@ -8,7 +8,7 @@ use crate::kind::{
     ForStatement, FormalParameters, FunctionDeclaration, GeneratorFunctionDeclaration,
     HashBangLine, Identifier, IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration,
     MemberExpression, MethodDefinition, Pair, PrivatePropertyIdentifier, Program, ReturnStatement,
-    StatementBlock, SubscriptExpression, SwitchStatement, ThrowStatement, TryStatement,
+    StatementBlock, SubscriptExpression, SwitchStatement, This, ThrowStatement, TryStatement,
     UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
 };
 
@@ -194,6 +194,10 @@ pub trait Visit<'a> {
 
     fn visit_call_expression(&mut self, node: Node<'a>) {
         visit_call_expression(self, node);
+    }
+
+    fn visit_this(&mut self, node: Node<'a>) {
+        visit_this(self, node);
     }
 }
 
@@ -550,5 +554,10 @@ pub fn visit_class<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: N
 
 pub fn visit_call_expression<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     assert_node_kind!(node, CallExpression);
+    unimplemented!()
+}
+
+pub fn visit_this<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, This);
     unimplemented!()
 }

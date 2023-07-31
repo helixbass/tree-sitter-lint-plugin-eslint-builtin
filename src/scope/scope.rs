@@ -164,6 +164,14 @@ impl<'a> Scope<'a> {
         Self::new_base(scope_manager, ScopeType::Catch, upper_scope, block, false)
     }
 
+    pub fn new_block_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::Block, upper_scope, block, false)
+    }
+
     pub fn new_function_scope(
         scope_manager: &mut ScopeManager<'a>,
         upper_scope: Option<Id<Scope<'a>>>,
@@ -352,6 +360,10 @@ impl<'a> Scope<'a> {
         }
     }
 
+    pub fn __detect_this(&mut self) {
+        self.set_this_found(true);
+    }
+
     pub fn is_static(&self) -> bool {
         unimplemented!()
     }
@@ -393,6 +405,10 @@ impl<'a> Scope<'a> {
     }
 
     pub fn upper(&self) -> Option<Id<Self>> {
+        unimplemented!()
+    }
+
+    pub fn set_this_found(&mut self, this_found: bool) {
         unimplemented!()
     }
 }

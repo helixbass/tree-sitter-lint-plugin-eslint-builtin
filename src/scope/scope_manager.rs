@@ -101,6 +101,11 @@ impl<'a> ScopeManager<'a> {
         self.__nest_scope(scope)
     }
 
+    pub fn __nest_block_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_block_scope(self, self.__current_scope, node);
+        self.__nest_scope(scope)
+    }
+
     pub fn __nest_function_scope(
         &mut self,
         node: Node<'a>,
