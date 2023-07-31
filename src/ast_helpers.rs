@@ -63,7 +63,7 @@ pub fn skip_nodes_of_type(mut node: Node, kind: Kind) -> Node {
         if !cursor.goto_first_child() {
             return node;
         }
-        while cursor.node().kind() == Comment {
+        while cursor.node().kind() == Comment || !cursor.node().is_named() {
             if !cursor.goto_next_sibling() {
                 return node;
             }
@@ -79,7 +79,7 @@ pub fn skip_nodes_of_types<'a>(mut node: Node<'a>, kinds: &[Kind]) -> Node<'a> {
         if !cursor.goto_first_child() {
             return node;
         }
-        while cursor.node().kind() == Comment {
+        while cursor.node().kind() == Comment || !cursor.node().is_named() {
             if !cursor.goto_next_sibling() {
                 return node;
             }

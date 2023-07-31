@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use squalid::VecExt;
+use squalid::{BoolExt, VecExt};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::{
         is_binary_expression_with_one_of_operators, is_binary_expression_with_operator,
-        is_logical_and, skip_nodes_of_type, skip_parenthesized_expressions,
+        is_logical_and, skip_parenthesized_expressions,
     },
     kind::{ElseClause, IfStatement},
     text::SourceTextProvider,
@@ -28,6 +28,7 @@ fn split_by_logical_operator<'a, 'b>(
     node: Node<'b>,
     source_text_provider: &impl SourceTextProvider<'a>,
 ) -> Vec<Node<'b>> {
+    let node = skip_parenthesized_expressions(node);
     if is_binary_expression_with_operator(node, operator, source_text_provider) {
         split_by_logical_operator(
             operator,
@@ -107,13 +108,9 @@ pub fn no_dupe_else_if_rule() -> Arc<dyn Rule> {
                     })
                     .collect::<Vec<_>>();
 
-                while let Some(parent) = current.parent().filter(|parent| {
-                    parent.kind() == IfStatement &&
-                        matches!(
-                            parent.child_by_field_name("alternative"),
-                            Some(alternative) if skip_nodes_of_type(alternative, ElseClause) == current
-                        )
-                }) {
+                while let Some(parent) = current.parent().and_then(|else_clause| {
+                    (else_clause.kind() == ElseClause).then_and(|| else_clause.parent())
+                }).filter(|parent| parent.kind() == IfStatement) {
                     current = parent;
 
                     let current_or_operands = split_by_logical_operator(
