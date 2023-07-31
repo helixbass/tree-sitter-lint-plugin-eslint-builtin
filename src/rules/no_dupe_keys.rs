@@ -71,6 +71,7 @@ pub fn no_dupe_keys_rule() -> Arc<dyn Rule> {
                     if info.is_property_defined(&name, kind) {
                         context.report(violation! {
                             node => info.node,
+                            range => property.range(),
                             message_id => "unexpected",
                             data => {
                                 name => name.clone().into_owned(),
