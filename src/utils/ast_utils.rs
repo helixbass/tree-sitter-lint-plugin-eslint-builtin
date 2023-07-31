@@ -65,3 +65,22 @@ pub fn get_static_property_name<'a>(
 
     get_static_string_value(skip_nodes_of_type(prop, ComputedPropertyName), context)
 }
+
+pub fn equal_tokens(left: Node, right: Node, context: &QueryMatchContext) -> bool {
+    let mut tokens_l = context.get_tokens(left);
+    let mut tokens_r = context.get_tokens(right);
+
+    loop {
+        match (tokens_l.next(), tokens_r.next()) {
+            (Some(token_l), Some(token_r)) => {
+                if token_l.kind_id() != token_r.kind_id()
+                    || context.get_node_text(token_l) != context.get_node_text(token_r)
+                {
+                    return false;
+                }
+            }
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}

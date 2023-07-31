@@ -1,7 +1,11 @@
 use tree_sitter_lint::{tree_sitter::Node, QueryMatchContext};
 
-use crate::kind::{
-    self, FieldDefinition, Kind, MethodDefinition, ParenthesizedExpression, PropertyIdentifier,
+use crate::{
+    kind::{
+        self, BinaryExpression, Comment, FieldDefinition, Kind, MethodDefinition,
+        ParenthesizedExpression, PropertyIdentifier,
+    },
+    text::SourceTextProvider,
 };
 
 #[macro_export]
@@ -49,23 +53,38 @@ pub fn is_for_of_await(node: Node, context: &QueryMatchContext) -> bool {
 }
 
 #[allow(dead_code)]
-pub fn skip_parenthesized_expressions(mut node: Node) -> Node {
-    while node.kind() == ParenthesizedExpression {
-        node = node.named_child(0).unwrap();
-    }
-    node
+pub fn skip_parenthesized_expressions(node: Node) -> Node {
+    skip_nodes_of_type(node, ParenthesizedExpression)
 }
 
-pub fn skip_nodes_of_type<'a>(mut node: Node<'a>, kind: Kind) -> Node<'a> {
+pub fn skip_nodes_of_type(mut node: Node, kind: Kind) -> Node {
     while node.kind() == kind {
-        node = node.named_child(0).unwrap();
+        let mut cursor = node.walk();
+        if !cursor.goto_first_child() {
+            return node;
+        }
+        while cursor.node().kind() == Comment {
+            if !cursor.goto_next_sibling() {
+                return node;
+            }
+        }
+        node = cursor.node();
     }
     node
 }
 
 pub fn skip_nodes_of_types<'a>(mut node: Node<'a>, kinds: &[Kind]) -> Node<'a> {
     while kinds.contains(&node.kind()) {
-        node = node.named_child(0).unwrap();
+        let mut cursor = node.walk();
+        if !cursor.goto_first_child() {
+            return node;
+        }
+        while cursor.node().kind() == Comment {
+            if !cursor.goto_next_sibling() {
+                return node;
+            }
+        }
+        node = cursor.node();
     }
     node
 }
@@ -129,11 +148,11 @@ pub enum Number {
 impl From<&str> for Number {
     fn from(value: &str) -> Self {
         if is_hex_literal(value) {
-            u64::from_str_radix(&value[2..], 16).map_or(Self::NaN, |parsed| Self::Integer(parsed))
+            u64::from_str_radix(&value[2..], 16).map_or(Self::NaN, Self::Integer)
         } else if is_octal_literal(value) {
-            u64::from_str_radix(&value[2..], 8).map_or(Self::NaN, |parsed| Self::Integer(parsed))
+            u64::from_str_radix(&value[2..], 8).map_or(Self::NaN, Self::Integer)
         } else if is_binary_literal(value) {
-            u64::from_str_radix(&value[2..], 2).map_or(Self::NaN, |parsed| Self::Integer(parsed))
+            u64::from_str_radix(&value[2..], 2).map_or(Self::NaN, Self::Integer)
         } else if is_bigint_literal(value) {
             value[..value.len() - 1]
                 .parse::<u64>()
@@ -148,7 +167,7 @@ impl From<&str> for Number {
 }
 
 fn is_bigint_literal(number_node_text: &str) -> bool {
-    number_node_text.ends_with("n")
+    number_node_text.ends_with('n')
 }
 
 fn is_hex_literal(number_node_text: &str) -> bool {
@@ -171,4 +190,33 @@ pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) 
         Number::Integer(number) => number.to_string(),
         Number::Float(number) => number.to_string(),
     }
+}
+
+pub fn is_logical_and<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
+    is_binary_expression_with_operator(node, "&&", source_text_provider)
+}
+
+pub fn is_binary_expression_with_operator<'a>(
+    node: Node,
+    operator: &str,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> bool {
+    node.kind() == BinaryExpression
+        && source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
+            == operator
+}
+
+pub fn is_binary_expression_with_one_of_operators<'a>(
+    node: Node,
+    operators: &[impl AsRef<str>],
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> bool {
+    if node.kind() != BinaryExpression {
+        return false;
+    }
+    let operator_text =
+        source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap());
+    operators
+        .iter()
+        .any(|operator| operator_text == operator.as_ref())
 }
