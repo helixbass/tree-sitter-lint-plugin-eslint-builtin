@@ -20,6 +20,7 @@ pub const ExportStatement: &str = "export_statement";
 pub const ExpressionStatement: &str = "expression_statement";
 pub const FieldDefinition: &str = "field_definition";
 pub const ForInStatement: &str = "for_in_statement";
+pub const FormalParameters: &str = "formal_parameters";
 pub const ForStatement: &str = "for_statement";
 pub const Function: &str = "function";
 pub const FunctionDeclaration: &str = "function_declaration";

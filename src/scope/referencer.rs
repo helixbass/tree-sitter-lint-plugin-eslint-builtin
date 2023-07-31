@@ -1,9 +1,11 @@
 use std::cell::{Ref, RefMut};
 
-use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
+use tree_sitter_lint::tree_sitter::Node;
 
-use crate::visit::{
-    visit_expression, visit_expressions, visit_program, visit_update_expression, Visit,
+use crate::{
+    kind::ComputedPropertyName,
+    text::SourceTextProvider,
+    visit::{visit_expression, visit_expressions, visit_program, visit_update_expression, Visit},
 };
 
 use super::{
@@ -42,11 +44,15 @@ fn traverse_identifier_in_pattern<'a, 'b>(
 
 pub struct Referencer<'a, 'b> {
     scope_manager: &'b mut ScopeManager<'a>,
+    is_inner_method_definition: bool,
 }
 
 impl<'a, 'b> Referencer<'a, 'b> {
     pub fn new(scope_manager: &'b mut ScopeManager<'a>) -> Self {
-        Self { scope_manager }
+        Self {
+            scope_manager,
+            is_inner_method_definition: Default::default(),
+        }
     }
 
     fn current_scope(&self) -> Ref<Scope<'a>> {
@@ -69,6 +75,17 @@ impl<'a, 'b> Referencer<'a, 'b> {
             let closed = self.current_scope().__close(&self.scope_manager);
             self.scope_manager.__current_scope = closed;
         }
+    }
+
+    fn push_inner_method_definition(&mut self, is_inner_method_definition: bool) -> bool {
+        let previous = self.is_inner_method_definition;
+
+        self.is_inner_method_definition = is_inner_method_definition;
+        previous
+    }
+
+    fn pop_inner_method_definition(&mut self, is_inner_method_definition: bool) {
+        self.is_inner_method_definition = is_inner_method_definition;
     }
 
     fn referencing_default_value(
@@ -168,7 +185,7 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
                         &mut this.scope_manager.__declared_variables.borrow_mut(),
                         &this.scope_manager.arena.variables,
                         definitions_arena,
-                        this.scope_manager.source_text,
+                        &*this,
                         pattern,
                         Definition::new(
                             definitions_arena,
@@ -251,6 +268,49 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
     }
 
     fn visit_pair(&mut self, node: Node<'tree>) {
+        let key = node.child_by_field_name("key").unwrap();
+        if key.kind() == ComputedPropertyName {
+            self.visit_computed_property_name(key);
+        }
+        self.visit_expression(node.child_by_field_name("value").unwrap());
+    }
+
+    fn visit_field_definition(&mut self, node: Node<'tree>) {
+        let property = node.child_by_field_name("property").unwrap();
+        if property.kind() == ComputedPropertyName {
+            self.visit_computed_property_name(property);
+        }
+        if let Some(value) = node.child_by_field_name("value") {
+            self.scope_manager
+                .__nest_class_field_initializer_scope(value);
+            self.visit_expression(value);
+            self.close(value);
+        }
+    }
+
+    fn visit_method_definition(&mut self, node: Node<'tree>) {
+        let key = node.child_by_field_name("name").unwrap();
+        if key.kind() == ComputedPropertyName {
+            self.visit_computed_property_name(key);
+        }
+        let previous = self.push_inner_method_definition(true);
+        self.visit_formal_parameters(node.child_by_field_name("parameters").unwrap());
+        self.visit_statement_block(node.child_by_field_name("body").unwrap());
+        self.pop_inner_method_definition(previous);
+    }
+
+    fn visit_for_in_statement(&mut self, node: Node<'tree>) {
+        let left = node.child_by_field_name("left").unwrap();
+        let kind = node.child_by_field_name("kind");
+        if matches!(
+            kind,
+            Some(kind) if ["let", "const"].contains(&self.get_node_text(kind))
+        ) {
+            self.scope_manager.__nest_for_scope(node);
+        }
+        // if kind.is_some() {
+        // } else {
+        // }
         unimplemented!()
     }
 }
@@ -264,4 +324,10 @@ struct VisitPatternOptions {
 pub struct PatternAndNode<'a> {
     pattern: Node<'a>,
     node: Node<'a>,
+}
+
+impl<'a> SourceTextProvider<'a> for Referencer<'a, '_> {
+    fn get_node_text(&self, node: Node) -> &'a str {
+        self.scope_manager.get_node_text(node)
+    }
 }

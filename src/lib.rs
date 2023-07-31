@@ -6,6 +6,7 @@ mod ast_helpers;
 mod kind;
 mod rules;
 mod scope;
+mod text;
 mod utils;
 mod visit;
 

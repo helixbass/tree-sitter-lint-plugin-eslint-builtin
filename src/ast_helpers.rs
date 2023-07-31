@@ -1,7 +1,11 @@
 use tree_sitter_lint::{tree_sitter::Node, QueryMatchContext};
 
-use crate::kind::{
-    self, FieldDefinition, Kind, MethodDefinition, ParenthesizedExpression, PropertyIdentifier,
+use crate::{
+    kind::{
+        self, FieldDefinition, ForInStatement, Kind, MethodDefinition, ParenthesizedExpression,
+        PropertyIdentifier,
+    },
+    text::SourceTextProvider,
 };
 
 #[macro_export]
@@ -37,15 +41,22 @@ macro_rules! return_default_if_false {
     };
 }
 
-pub fn is_for_of_await(node: Node, context: &QueryMatchContext) -> bool {
-    // assert_kind!(node, ForInStatement);
+pub fn is_for_of<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
+    assert_kind!(node, ForInStatement);
     matches!(
         node.child_by_field_name("operator"),
-        Some(child) if context.get_node_text(child) == "of"
-    ) && matches!(
-        node.child(1),
-        Some(child) if context.get_node_text(child) == "await"
+        Some(child) if source_text_provider.get_node_text(child) == "of"
     )
+}
+
+pub fn is_for_of_await<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
+    assert_kind!(node, ForInStatement);
+    is_for_of(node, source_text_provider)
+        && matches!(
+            // TODO: I can't do stuff like this because comments could be anywhere
+            node.child(1),
+            Some(child) if source_text_provider.get_node_text(child) == "await"
+        )
 }
 
 #[allow(dead_code)]

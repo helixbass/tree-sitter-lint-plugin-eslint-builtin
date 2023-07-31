@@ -1,12 +1,13 @@
-use tree_sitter_lint::tree_sitter::{Node, TreeCursor};
+use tree_sitter_lint::tree_sitter::Node;
 
 use crate::kind::{
     is_declaration_kind, is_statement_kind, AssignmentExpression, AugmentedAssignmentExpression,
-    BreakStatement, CatchClause, ClassDeclaration, Comment, ContinueStatement, DebuggerStatement,
-    DoStatement, EmptyStatement, ExportStatement, ExpressionStatement, ForInStatement,
-    ForStatement, FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier,
-    IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression, Pair,
-    PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
+    BreakStatement, CatchClause, ClassDeclaration, Comment, ComputedPropertyName,
+    ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement, ExportStatement,
+    ExpressionStatement, FieldDefinition, ForInStatement, ForStatement, FormalParameters,
+    FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement,
+    ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression, MethodDefinition,
+    Pair, PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
     SwitchStatement, ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration,
     WhileStatement, WithStatement,
 };
@@ -165,6 +166,22 @@ pub trait Visit<'a> {
 
     fn visit_pair(&mut self, node: Node<'a>) {
         visit_pair(self, node);
+    }
+
+    fn visit_computed_property_name(&mut self, node: Node<'a>) {
+        visit_computed_property_name(self, node);
+    }
+
+    fn visit_method_definition(&mut self, node: Node<'a>) {
+        visit_method_definition(self, node);
+    }
+
+    fn visit_formal_parameters(&mut self, node: Node<'a>) {
+        visit_formal_parameters(self, node);
+    }
+
+    fn visit_field_definition(&mut self, node: Node<'a>) {
+        visit_field_definition(self, node);
     }
 }
 
@@ -471,5 +488,37 @@ pub fn visit_subscript_expression<'a, TVisit: Visit<'a> + ?Sized>(
 
 pub fn visit_pair<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     assert_node_kind!(node, Pair);
+    unimplemented!()
+}
+
+pub fn visit_computed_property_name<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, ComputedPropertyName);
+    unimplemented!()
+}
+
+pub fn visit_method_definition<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, MethodDefinition);
+    unimplemented!()
+}
+
+pub fn visit_formal_parameters<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, FormalParameters);
+    unimplemented!()
+}
+
+pub fn visit_field_definition<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, FieldDefinition);
     unimplemented!()
 }

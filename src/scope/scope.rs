@@ -3,7 +3,10 @@ use std::{cell::RefCell, collections::HashMap};
 use id_arena::{Arena, Id};
 use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none};
 
-use crate::kind::{ArrowFunction, Identifier};
+use crate::{
+    kind::{ArrowFunction, Identifier},
+    text::SourceTextProvider,
+};
 
 use super::{
     definition::Definition,
@@ -176,6 +179,28 @@ impl<'a> Scope<'a> {
         )
     }
 
+    pub fn new_class_field_initializer_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(
+            scope_manager,
+            ScopeType::ClassFieldInitializer,
+            upper_scope,
+            block,
+            true,
+        )
+    }
+
+    pub fn new_for_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::For, upper_scope, block, false)
+    }
+
     pub fn is_strict(&self) -> bool {
         unimplemented!()
     }
@@ -241,7 +266,7 @@ impl<'a> Scope<'a> {
         __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
         variable_arena: &RefCell<Arena<Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
-        source_text: &'a [u8],
+        source_text_provider: &impl SourceTextProvider<'a>,
         node: Node<'a>,
         def: Id<Definition<'a>>,
     ) {
@@ -250,7 +275,7 @@ impl<'a> Scope<'a> {
                 __declared_variables,
                 variable_arena,
                 definition_arena,
-                node.utf8_text(source_text).unwrap(),
+                source_text_provider.get_node_text(node),
                 |this, name| {
                     let mut did_insert = false;
                     let id = this.id();

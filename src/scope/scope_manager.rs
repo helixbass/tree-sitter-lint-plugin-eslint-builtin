@@ -6,6 +6,8 @@ use std::{
 use id_arena::Id;
 use tree_sitter_lint::tree_sitter::Node;
 
+use crate::text::SourceTextProvider;
+
 use super::{
     arena::AllArenas,
     scope::{Scope, ScopeType},
@@ -105,8 +107,18 @@ impl<'a> ScopeManager<'a> {
         self.__nest_scope(scope)
     }
 
+    pub fn __nest_for_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_for_scope(self, self.__current_scope, node);
+        self.__nest_scope(scope)
+    }
+
     pub fn __nest_catch_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
         let scope = Scope::new_catch_scope(self, self.__current_scope, node);
+        self.__nest_scope(scope)
+    }
+
+    pub fn __nest_class_field_initializer_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_class_field_initializer_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
@@ -117,5 +129,11 @@ impl<'a> ScopeManager<'a> {
 
     pub fn __is_es6(&self) -> bool {
         unimplemented!()
+    }
+}
+
+impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {
+    fn get_node_text(&self, node: Node) -> &'a str {
+        node.utf8_text(self.source_text).unwrap()
     }
 }
