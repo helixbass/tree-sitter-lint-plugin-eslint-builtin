@@ -55,6 +55,7 @@ pub const SpreadElement: &str = "spread_element";
 pub const StatementBlock: &str = "statement_block";
 pub const String: &str = "string";
 pub const SubscriptExpression: &str = "subscript_expression";
+pub const SwitchCase: &str = "switch_case";
 pub const SwitchStatement: &str = "switch_statement";
 pub const TemplateString: &str = "template_string";
 pub const TernaryExpression: &str = "ternary_expression";
