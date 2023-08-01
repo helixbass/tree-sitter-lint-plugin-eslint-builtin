@@ -1,10 +1,14 @@
+use std::borrow::Cow;
+
 use tree_sitter_lint::{regex, tree_sitter::Node, QueryMatchContext};
 
 use crate::{
     kind::{
-        self, BinaryExpression, Comment, FieldDefinition, Kind, MethodDefinition, Pair,
-        ParenthesizedExpression, PropertyIdentifier, ShorthandPropertyIdentifier,
+        self, BinaryExpression, Comment, FieldDefinition, Kind, MemberExpression, MethodDefinition,
+        Pair, ParenthesizedExpression, PropertyIdentifier, ShorthandPropertyIdentifier,
+        UnaryExpression,
     },
+    return_default_if_none,
     text::SourceTextProvider,
 };
 
@@ -122,6 +126,7 @@ pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> Me
     }
     match get_previous_non_comment_sibling(name)
         .map(|prev_sibling| context.get_node_text(prev_sibling))
+        .as_deref()
     {
         Some("get") => MethodDefinitionKind::Get,
         Some("set") => MethodDefinitionKind::Set,
@@ -146,7 +151,7 @@ pub fn get_object_property_kind(node: Node, context: &QueryMatchContext) -> Obje
                 if cursor.field_name() == Some("name") {
                     return ObjectPropertyKind::Init;
                 }
-                match context.get_node_text(cursor.node()) {
+                match &*context.get_node_text(cursor.node()) {
                     "get" => return ObjectPropertyKind::Get,
                     "set" => return ObjectPropertyKind::Set,
                     _ => (),
@@ -224,7 +229,7 @@ fn is_octal_literal(number_node_text: &str) -> bool {
 pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) -> String {
     assert_kind!(node, "number");
 
-    match Number::from(context.get_node_text(node)) {
+    match Number::from(&*context.get_node_text(node)) {
         Number::NaN => unreachable!("I don't know if this should be possible?"),
         Number::Integer(number) => number.to_string(),
         Number::Float(number) => number.to_string(),
@@ -241,8 +246,7 @@ pub fn is_binary_expression_with_operator<'a>(
     source_text_provider: &impl SourceTextProvider<'a>,
 ) -> bool {
     node.kind() == BinaryExpression
-        && source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
-            == operator
+        && get_binary_expression_operator(node, source_text_provider) == operator
 }
 
 pub fn is_binary_expression_with_one_of_operators<'a>(
@@ -253,9 +257,36 @@ pub fn is_binary_expression_with_one_of_operators<'a>(
     if node.kind() != BinaryExpression {
         return false;
     }
-    let operator_text =
-        source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap());
+    let operator_text = get_binary_expression_operator(node, source_text_provider);
     operators
         .iter()
         .any(|operator| operator_text == operator.as_ref())
+}
+
+pub fn is_chain_expression(mut node: Node) -> bool {
+    loop {
+        if node.kind() != MemberExpression {
+            return false;
+        }
+        if node.child_by_field_name("optional_chain").is_some() {
+            return true;
+        }
+        node = return_default_if_none!(node.parent());
+    }
+}
+
+pub fn get_binary_expression_operator<'a>(
+    node: Node,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> Cow<'a, str> {
+    assert_kind!(node, BinaryExpression);
+    source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
+}
+
+pub fn get_unary_expression_operator<'a>(
+    node: Node,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> Cow<'a, str> {
+    assert_kind!(node, UnaryExpression);
+    source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
 }

@@ -60,7 +60,7 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                     }
                 }
 
-                let wrong_direction = match context.get_node_text(captures["operator"]) {
+                let wrong_direction = match &*context.get_node_text(captures["operator"]) {
                     "<" | "<=" => Direction::Decreasing,
                     _ => Direction::Increasing,
                 };
@@ -73,7 +73,7 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                     }
                 };
 
-                if match context.get_node_text(captures["update_operator"]) {
+                if match &*context.get_node_text(captures["update_operator"]) {
                     "++" => Direction::Increasing,
                     "--" => Direction::Decreasing,
                     "+=" => reverse_if_negated(Direction::Increasing),

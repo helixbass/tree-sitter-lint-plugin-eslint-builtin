@@ -5,8 +5,8 @@ use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Ru
 
 use crate::{
     ast_helpers::{
-        is_binary_expression_with_one_of_operators, is_binary_expression_with_operator,
-        is_logical_and, skip_parenthesized_expressions,
+        get_binary_expression_operator, is_binary_expression_with_one_of_operators,
+        is_binary_expression_with_operator, is_logical_and, skip_parenthesized_expressions,
     },
     kind::{ElseClause, IfStatement},
     text::SourceTextProvider,
@@ -53,7 +53,7 @@ fn equal(context: &QueryMatchContext, a: Node, b: Node) -> bool {
     if is_binary_expression_with_one_of_operators(a, &["&&", "||"], context)
         && matches!(
             b.child_by_field_name("operator"),
-            Some(b_operator) if context.get_node_text(a.child_by_field_name("operator").unwrap()) ==
+            Some(b_operator) if get_binary_expression_operator(a, context) ==
                 context.get_node_text(b_operator)
         )
     {
