@@ -188,6 +188,14 @@ impl<'a> Scope<'a> {
         Self::new_base(scope_manager, ScopeType::Block, upper_scope, block, false)
     }
 
+    pub fn new_switch_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::Switch, upper_scope, block, false)
+    }
+
     pub fn new_function_scope(
         scope_manager: &mut ScopeManager<'a>,
         upper_scope: Option<Id<Scope<'a>>>,

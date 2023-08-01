@@ -3,10 +3,14 @@ use std::{
     cell::{Ref, RefMut},
 };
 
+use id_arena::Id;
 use tree_sitter_lint::tree_sitter::Node;
 
 use crate::{
-    kind::{ComputedPropertyName, Identifier, LexicalDeclaration},
+    kind::{
+        ComputedPropertyName, Identifier, LexicalDeclaration, SwitchCase, SwitchDefault,
+        VariableDeclaration, VariableDeclarator,
+    },
     text::SourceTextProvider,
     visit::{
         visit_call_expression, visit_class_static_block, visit_expression, visit_expressions,
@@ -123,6 +127,42 @@ impl<'a, 'b> Referencer<'a, 'b> {
 
     fn _visit_class(&mut self, node: Node) {
         unimplemented!()
+    }
+
+    fn _visit_variable_declaration(
+        &mut self,
+        variable_target_scope: Id<Scope<'a>>,
+        type_: VariableType,
+        node: Node,
+        index: usize,
+    ) {
+        unimplemented!()
+    }
+
+    fn visit_variable_or_lexical_declaration<'tree: 'a>(&mut self, node: Node<'tree>) {
+        let variable_target_scope = if node.kind() == VariableDeclaration {
+            self.current_scope().variable_scope()
+        } else {
+            self.current_scope().id()
+        };
+
+        let mut cursor = node.walk();
+        for (i, decl) in node
+            .named_children(&mut cursor)
+            .filter(|child| child.kind() == VariableDeclarator)
+            .enumerate()
+        {
+            self._visit_variable_declaration(
+                variable_target_scope,
+                VariableType::Variable,
+                node,
+                i,
+            );
+
+            if let Some(init) = decl.child_by_field_name("value") {
+                self.visit_expression(init);
+            }
+        }
     }
 }
 
@@ -403,6 +443,34 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         // } else {
         // }
         unimplemented!()
+    }
+
+    fn visit_variable_declaration(&mut self, node: Node<'tree>) {
+        self.visit_variable_or_lexical_declaration(node);
+    }
+
+    fn visit_lexical_declaration(&mut self, node: Node<'tree>) {
+        self.visit_variable_or_lexical_declaration(node);
+    }
+
+    fn visit_switch_statement(&mut self, node: Node<'tree>) {
+        self.visit_parenthesized_expression(node.child_by_field_name("value").unwrap());
+
+        if self.scope_manager.__is_es6() {
+            self.scope_manager.__nest_switch_scope(node);
+        }
+
+        let mut cursor = node.walk();
+        for case in node
+            .child_by_field_name("body")
+            .unwrap()
+            .named_children(&mut cursor)
+            .filter(|child| matches!(child.kind(), SwitchCase | SwitchDefault))
+        {
+            self.visit(case);
+        }
+
+        self.close(node);
     }
 }
 
