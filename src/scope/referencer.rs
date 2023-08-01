@@ -1,4 +1,7 @@
-use std::cell::{Ref, RefMut};
+use std::{
+    borrow::Cow,
+    cell::{Ref, RefMut},
+};
 
 use tree_sitter_lint::tree_sitter::Node;
 
@@ -392,7 +395,7 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         let kind = node.child_by_field_name("kind");
         if matches!(
             kind,
-            Some(kind) if ["let", "const"].contains(&self.get_node_text(kind))
+            Some(kind) if ["let", "const"].contains(&&*self.get_node_text(kind))
         ) {
             self.scope_manager.__nest_for_scope(node);
         }
@@ -415,7 +418,7 @@ pub struct PatternAndNode<'a> {
 }
 
 impl<'a> SourceTextProvider<'a> for Referencer<'a, '_> {
-    fn get_node_text(&self, node: Node) -> &'a str {
+    fn get_node_text(&self, node: Node) -> Cow<'a, str> {
         self.scope_manager.get_node_text(node)
     }
 }

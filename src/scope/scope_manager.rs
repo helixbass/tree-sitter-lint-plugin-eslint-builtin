@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::{Ref, RefCell, RefMut},
     collections::HashMap,
 };
@@ -152,7 +153,7 @@ impl<'a> ScopeManager<'a> {
 }
 
 impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {
-    fn get_node_text(&self, node: Node) -> &'a str {
-        node.utf8_text(self.source_text).unwrap()
+    fn get_node_text(&self, node: Node) -> Cow<'a, str> {
+        node.utf8_text(self.source_text).unwrap().into()
     }
 }

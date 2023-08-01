@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use id_arena::{Arena, Id};
 use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none};
@@ -266,13 +266,14 @@ impl<'a> Scope<'a> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn __define_generic(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
         variable_arena: &RefCell<Arena<Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
-        name: &'a str,
-        mut get_or_create_variable: impl FnMut(&mut Self, &'a str) -> Id<Variable<'a>>,
+        name: Cow<'a, str>,
+        mut get_or_create_variable: impl FnMut(&mut Self, Cow<'a, str>) -> Id<Variable<'a>>,
         node: Option<Node<'a>>,
         def: Option<Id<Definition<'a>>>,
     ) {
@@ -318,7 +319,7 @@ impl<'a> Scope<'a> {
                 |this, name| {
                     let mut did_insert = false;
                     let id = this.id();
-                    let ret = *this.set_mut().entry(name).or_insert_with(|| {
+                    let ret = *this.set_mut().entry(name.clone()).or_insert_with(|| {
                         did_insert = true;
                         Variable::new(&mut variable_arena.borrow_mut(), name, id)
                     });
@@ -333,6 +334,7 @@ impl<'a> Scope<'a> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn __referencing(
         &mut self,
         arena: &mut Arena<Reference<'a>>,
@@ -400,7 +402,7 @@ impl<'a> Scope<'a> {
         unimplemented!()
     }
 
-    fn set_mut(&mut self) -> &mut HashMap<&'a str, Id<Variable<'a>>> {
+    fn set_mut(&mut self) -> &mut HashMap<Cow<'a, str>, Id<Variable<'a>>> {
         unimplemented!()
     }
 
@@ -448,7 +450,7 @@ pub enum ScopeType {
 pub struct ScopeBase<'a> {
     id: Id<Scope<'a>>,
     type_: ScopeType,
-    set: HashMap<&'a str, Id<Variable<'a>>>,
+    set: HashMap<Cow<'a, str>, Id<Variable<'a>>>,
     taints: HashMap<String, bool>,
     dynamic: bool,
     block: Node<'a>,
