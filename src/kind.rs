@@ -42,6 +42,7 @@ pub const ImportStatement: &str = "import_statement";
 pub const LabeledStatement: &str = "labeled_statement";
 pub const LexicalDeclaration: &str = "lexical_declaration";
 pub const MemberExpression: &str = "member_expression";
+pub const MetaProperty: &str = "meta_property";
 pub const MethodDefinition: &str = "method_definition";
 pub const NamespaceImport: &str = "namespace_import";
 pub const NewExpression: &str = "new_expression";

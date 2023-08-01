@@ -587,6 +587,8 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             self.visit_identifier(name);
         }
     }
+
+    fn visit_meta_property(&mut self, _node: Node<'tree>) {}
 }
 
 #[derive(Default)]

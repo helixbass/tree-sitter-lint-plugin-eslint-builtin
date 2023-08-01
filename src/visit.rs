@@ -8,10 +8,10 @@ use crate::kind::{
     ExpressionStatement, FieldDefinition, ForInStatement, ForStatement, FormalParameters, Function,
     FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement,
     ImportSpecifier, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression,
-    MethodDefinition, NamespaceImport, Pair, ParenthesizedExpression, PrivatePropertyIdentifier,
-    Program, ReturnStatement, StatementBlock, SubscriptExpression, SwitchStatement, This,
-    ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration, WhileStatement,
-    WithStatement,
+    MetaProperty, MethodDefinition, NamespaceImport, Pair, ParenthesizedExpression,
+    PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
+    SwitchStatement, This, ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration,
+    WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -228,6 +228,10 @@ pub trait Visit<'a> {
 
     fn visit_export_specifier(&mut self, node: Node<'a>) {
         visit_export_specifier(self, node);
+    }
+
+    fn visit_meta_property(&mut self, node: Node<'a>) {
+        visit_meta_property(self, node);
     }
 }
 
@@ -636,5 +640,10 @@ pub fn visit_export_specifier<'a, TVisit: Visit<'a> + ?Sized>(
     node: Node<'a>,
 ) {
     assert_node_kind!(node, ExportSpecifier);
+    unimplemented!()
+}
+
+pub fn visit_meta_property<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, MetaProperty);
     unimplemented!()
 }
