@@ -4,13 +4,14 @@ use crate::kind::{
     is_declaration_kind, is_statement_kind, ArrowFunction, AssignmentExpression,
     AugmentedAssignmentExpression, BreakStatement, CallExpression, CatchClause, Class,
     ClassDeclaration, ClassStaticBlock, Comment, ComputedPropertyName, ContinueStatement,
-    DebuggerStatement, DoStatement, EmptyStatement, ExportStatement, ExpressionStatement,
-    FieldDefinition, ForInStatement, ForStatement, FormalParameters, Function, FunctionDeclaration,
-    GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement, ImportSpecifier,
-    ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression, MethodDefinition,
-    NamespaceImport, Pair, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
-    ReturnStatement, StatementBlock, SubscriptExpression, SwitchStatement, This, ThrowStatement,
-    TryStatement, UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
+    DebuggerStatement, DoStatement, EmptyStatement, ExportClause, ExportSpecifier, ExportStatement,
+    ExpressionStatement, FieldDefinition, ForInStatement, ForStatement, FormalParameters, Function,
+    FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement,
+    ImportSpecifier, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression,
+    MethodDefinition, NamespaceImport, Pair, ParenthesizedExpression, PrivatePropertyIdentifier,
+    Program, ReturnStatement, StatementBlock, SubscriptExpression, SwitchStatement, This,
+    ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration, WhileStatement,
+    WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -219,6 +220,14 @@ pub trait Visit<'a> {
 
     fn visit_import_specifier(&mut self, node: Node<'a>) {
         visit_import_specifier(self, node);
+    }
+
+    fn visit_export_clause(&mut self, node: Node<'a>) {
+        visit_export_clause(self, node);
+    }
+
+    fn visit_export_specifier(&mut self, node: Node<'a>) {
+        visit_export_specifier(self, node);
     }
 }
 
@@ -614,5 +623,18 @@ pub fn visit_import_specifier<'a, TVisit: Visit<'a> + ?Sized>(
     node: Node<'a>,
 ) {
     assert_node_kind!(node, ImportSpecifier);
+    unimplemented!()
+}
+
+pub fn visit_export_clause<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ExportClause);
+    unimplemented!()
+}
+
+pub fn visit_export_specifier<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, ExportSpecifier);
     unimplemented!()
 }

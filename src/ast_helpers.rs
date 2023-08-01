@@ -100,12 +100,16 @@ pub fn skip_nodes_of_types<'a>(mut node: Node<'a>, kinds: &[Kind]) -> Node<'a> {
     node
 }
 
-fn get_previous_non_comment_sibling(mut node: Node) -> Option<Node> {
+pub fn maybe_get_prev_non_comment_sibling(mut node: Node) -> Option<Node> {
     node = node.prev_sibling()?;
     while node.kind() == Comment {
         node = node.prev_sibling()?;
     }
     Some(node)
+}
+
+pub fn get_prev_non_comment_sibling(node: Node) -> Node {
+    maybe_get_prev_non_comment_sibling(node).unwrap()
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -131,7 +135,7 @@ pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> Me
     {
         return MethodDefinitionKind::Constructor;
     }
-    match get_previous_non_comment_sibling(name)
+    match maybe_get_prev_non_comment_sibling(name)
         .map(|prev_sibling| context.get_node_text(prev_sibling))
         .as_deref()
     {

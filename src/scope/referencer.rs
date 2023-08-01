@@ -4,13 +4,14 @@ use std::{
 };
 
 use id_arena::Id;
+use squalid::OptionExt;
 use tree_sitter_lint::tree_sitter::Node;
 
 use crate::{
-    ast_helpers::get_first_child_of_kind,
+    ast_helpers::{get_first_child_of_kind, get_prev_non_comment_sibling},
     kind::{
-        ComputedPropertyName, Identifier, ImportStatement, LexicalDeclaration, SwitchCase,
-        SwitchDefault, VariableDeclaration, VariableDeclarator,
+        ComputedPropertyName, ExportClause, Identifier, ImportStatement, LexicalDeclaration,
+        SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
     text::SourceTextProvider,
     visit::{
@@ -558,6 +559,33 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         let mut importer = Importer::new(node, self);
 
         importer.visit(node);
+    }
+
+    fn visit_export_statement(&mut self, node: Node<'tree>) {
+        if node.child_by_field_name("source").is_some() {
+            return;
+        }
+        if let Some(declaration) = node.child_by_field_name("declaration") {
+            self.visit(declaration);
+        } else if let Some(value) = node.child_by_field_name("value") {
+            self.visit(value);
+        }
+        let mut cursor = node.walk();
+        for export_clause in node
+            .named_children(&mut cursor)
+            .filter(|child| child.kind() == ExportClause)
+        {
+            self.visit_export_clause(export_clause);
+        }
+    }
+
+    fn visit_export_specifier(&mut self, node: Node<'tree>) {
+        let name = node
+            .child_by_field_name("alias")
+            .unwrap_or_else(|| node.child_by_field_name("name").unwrap());
+        if name.kind() == Identifier {
+            self.visit_identifier(name);
+        }
     }
 }
 
