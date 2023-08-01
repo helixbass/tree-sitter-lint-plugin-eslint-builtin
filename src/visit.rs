@@ -1,16 +1,16 @@
 use tree_sitter_lint::tree_sitter::Node;
 
 use crate::kind::{
-    is_declaration_kind, is_statement_kind, AssignmentExpression, AugmentedAssignmentExpression,
-    BreakStatement, CallExpression, CatchClause, Class, ClassDeclaration, ClassStaticBlock,
-    Comment, ComputedPropertyName, ContinueStatement, DebuggerStatement, DoStatement,
-    EmptyStatement, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
-    ForStatement, FormalParameters, FunctionDeclaration, GeneratorFunctionDeclaration,
-    HashBangLine, Identifier, IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration,
-    MemberExpression, MethodDefinition, Pair, ParenthesizedExpression, PrivatePropertyIdentifier,
-    Program, ReturnStatement, StatementBlock, SubscriptExpression, SwitchStatement, This,
-    ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration, WhileStatement,
-    WithStatement,
+    is_declaration_kind, is_statement_kind, ArrowFunction, AssignmentExpression,
+    AugmentedAssignmentExpression, BreakStatement, CallExpression, CatchClause, Class,
+    ClassDeclaration, ClassStaticBlock, Comment, ComputedPropertyName, ContinueStatement,
+    DebuggerStatement, DoStatement, EmptyStatement, ExportStatement, ExpressionStatement,
+    FieldDefinition, ForInStatement, ForStatement, FormalParameters, Function, FunctionDeclaration,
+    GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement, ImportSpecifier,
+    ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression, MethodDefinition,
+    NamespaceImport, Pair, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
+    ReturnStatement, StatementBlock, SubscriptExpression, SwitchStatement, This, ThrowStatement,
+    TryStatement, UpdateExpression, VariableDeclaration, WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -203,6 +203,22 @@ pub trait Visit<'a> {
 
     fn visit_parenthesized_expression(&mut self, node: Node<'a>) {
         visit_parenthesized_expression(self, node);
+    }
+
+    fn visit_function(&mut self, node: Node<'a>) {
+        visit_function(self, node);
+    }
+
+    fn visit_arrow_function(&mut self, node: Node<'a>) {
+        visit_arrow_function(self, node);
+    }
+
+    fn visit_namespace_import(&mut self, node: Node<'a>) {
+        visit_namespace_import(self, node);
+    }
+
+    fn visit_import_specifier(&mut self, node: Node<'a>) {
+        visit_import_specifier(self, node);
     }
 }
 
@@ -572,5 +588,31 @@ pub fn visit_parenthesized_expression<'a, TVisit: Visit<'a> + ?Sized>(
     node: Node<'a>,
 ) {
     assert_node_kind!(node, ParenthesizedExpression);
+    unimplemented!()
+}
+
+pub fn visit_function<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, Function);
+    unimplemented!()
+}
+
+pub fn visit_arrow_function<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ArrowFunction);
+    unimplemented!()
+}
+
+pub fn visit_namespace_import<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, NamespaceImport);
+    unimplemented!()
+}
+
+pub fn visit_import_specifier<'a, TVisit: Visit<'a> + ?Sized>(
+    visitor: &mut TVisit,
+    node: Node<'a>,
+) {
+    assert_node_kind!(node, ImportSpecifier);
     unimplemented!()
 }

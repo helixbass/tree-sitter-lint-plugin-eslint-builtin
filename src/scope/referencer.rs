@@ -7,9 +7,10 @@ use id_arena::Id;
 use tree_sitter_lint::tree_sitter::Node;
 
 use crate::{
+    ast_helpers::get_first_child_of_kind,
     kind::{
-        ComputedPropertyName, Identifier, LexicalDeclaration, SwitchCase, SwitchDefault,
-        VariableDeclaration, VariableDeclarator,
+        ComputedPropertyName, Identifier, ImportStatement, LexicalDeclaration, SwitchCase,
+        SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
     text::SourceTextProvider,
     visit::{
@@ -49,6 +50,65 @@ fn traverse_identifier_in_pattern<'a, 'b>(
             .for_each(|&right_hand_node| {
                 referencer.visit(right_hand_node);
             });
+    }
+}
+
+struct Importer<'a, 'b, 'c> {
+    declaration: Node<'a>,
+    referencer: &'c mut Referencer<'a, 'b>,
+}
+
+impl<'a, 'b, 'c> Importer<'a, 'b, 'c> {
+    pub fn new(declaration: Node<'a>, referencer: &'c mut Referencer<'a, 'b>) -> Self {
+        Self {
+            declaration,
+            referencer,
+        }
+    }
+
+    fn visit_import(&mut self, id: Node<'a>, specifier: Node<'a>) {
+        self.referencer
+            .visit_pattern(id, None, |referencer, pattern, _| {
+                let definitions_arena = &referencer.scope_manager.arena.definitions;
+                referencer.current_scope_mut().__define(
+                    &mut referencer.scope_manager.__declared_variables.borrow_mut(),
+                    &referencer.scope_manager.arena.variables,
+                    definitions_arena,
+                    &*referencer,
+                    pattern,
+                    Definition::new(
+                        definitions_arena,
+                        VariableType::ImportBinding,
+                        pattern,
+                        specifier,
+                        Some(self.declaration),
+                        None,
+                        None,
+                    ),
+                );
+            });
+    }
+}
+
+impl<'tree: 'a, 'a, 'b, 'c> Visit<'tree> for Importer<'a, 'b, 'c> {
+    fn visit_namespace_import(&mut self, node: Node<'tree>) {
+        self.visit_import(get_first_child_of_kind(node, Identifier), node);
+    }
+
+    fn visit_identifier(&mut self, node: Node<'tree>) {
+        if node.parent().unwrap().kind() != ImportStatement {
+            return;
+        }
+
+        self.visit_import(node, node);
+    }
+
+    fn visit_import_specifier(&mut self, node: Node<'tree>) {
+        if let Some(alias) = node.child_by_field_name("alias") {
+            self.visit_import(alias, node);
+        } else {
+            self.visit_import(node.child_by_field_name("name").unwrap(), node);
+        }
     }
 }
 
@@ -125,6 +185,10 @@ impl<'a, 'b> Referencer<'a, 'b> {
         );
     }
 
+    fn _visit_function(&mut self, node: Node) {
+        unimplemented!()
+    }
+
     fn _visit_class(&mut self, node: Node) {
         unimplemented!()
     }
@@ -166,7 +230,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
     }
 }
 
-impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'referencer, 'b> {
+impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_assignment_expression(&mut self, node: Node<'tree>) {
         if is_pattern(node) {
             self.visit_pattern(
@@ -430,21 +494,6 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         self.close(node);
     }
 
-    fn visit_for_in_statement(&mut self, node: Node<'tree>) {
-        let left = node.child_by_field_name("left").unwrap();
-        let kind = node.child_by_field_name("kind");
-        if matches!(
-            kind,
-            Some(kind) if ["let", "const"].contains(&&*self.get_node_text(kind))
-        ) {
-            self.scope_manager.__nest_for_scope(node);
-        }
-        // if kind.is_some() {
-        // } else {
-        // }
-        unimplemented!()
-    }
-
     fn visit_variable_declaration(&mut self, node: Node<'tree>) {
         self.visit_variable_or_lexical_declaration(node);
     }
@@ -471,6 +520,44 @@ impl<'tree: 'referencer, 'referencer, 'b> Visit<'tree> for Referencer<'reference
         }
 
         self.close(node);
+    }
+
+    fn visit_function_declaration(&mut self, node: Node<'tree>) {
+        self._visit_function(node);
+    }
+
+    fn visit_function(&mut self, node: Node<'tree>) {
+        self._visit_function(node);
+    }
+
+    fn visit_for_in_statement(&mut self, node: Node<'tree>) {
+        let left = node.child_by_field_name("left").unwrap();
+        let kind = node.child_by_field_name("kind");
+        if matches!(
+            kind,
+            Some(kind) if ["let", "const"].contains(&&*self.get_node_text(kind))
+        ) {
+            self.scope_manager.__nest_for_scope(node);
+        }
+        // if kind.is_some() {
+        // } else {
+        // }
+        unimplemented!()
+    }
+
+    fn visit_arrow_function(&mut self, node: Node<'tree>) {
+        self._visit_function(node);
+    }
+
+    fn visit_import_statement(&mut self, node: Node<'tree>) {
+        assert!(
+            self.scope_manager.__is_es6() && self.scope_manager.is_module(),
+            "import_statement should appear when the mode is ES6 and in the module context.",
+        );
+
+        let mut importer = Importer::new(node, self);
+
+        importer.visit(node);
     }
 }
 

@@ -297,3 +297,12 @@ pub fn get_unary_expression_operator<'a>(
     assert_kind!(node, UnaryExpression);
     source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
 }
+
+pub fn get_first_child_of_kind(node: Node, kind: Kind) -> Node {
+    let mut cursor = node.walk();
+    let ret = node
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == kind)
+        .unwrap();
+    ret
+}
