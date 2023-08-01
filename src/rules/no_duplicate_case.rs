@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
 
-use crate::{kind::SwitchCase, utils::ast_utils};
+use crate::utils::ast_utils;
 
 fn equal(a: Node, b: Node, context: &QueryMatchContext) -> bool {
     if a.kind_id() != b.kind_id() {
@@ -21,14 +21,11 @@ pub fn no_duplicate_case_rule() -> Arc<dyn Rule> {
         ],
         listeners => [
             r#"(
-              (switch_statement) @c
-            )"# => |node, context| {
+              ((switch_case) @switch_case (comment)*)+
+            )"# => |captures, context| {
                 let mut previous_tests = vec![];
 
-                let mut cursor = node.walk();
-                for switch_case in node.child_by_field_name("body").unwrap()
-                    .named_children(&mut cursor)
-                    .filter(|child| child.kind() == SwitchCase) {
+                for switch_case in captures.get_all("switch_case") {
                     let test = switch_case.child_by_field_name("value").unwrap();
 
                     if previous_tests.iter().any(|&previous_test| {

@@ -52,7 +52,7 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
         listeners => [
             r#"(
               (class_body
-                member: ((_) @member ";"?)+
+                member: ((_) @member (comment)* ";"? (comment)*)+
               ) @class_body
             )"# => |captures, context| {
                 let mut state_map: StateMap = Default::default();
