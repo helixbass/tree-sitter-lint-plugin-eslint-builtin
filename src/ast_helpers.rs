@@ -330,6 +330,7 @@ pub trait NodeExt<'a> {
     fn non_comment_children(&self) -> NonCommentChildren<'a>;
     fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a>;
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str>;
+    fn is_descendant_of(&self, node: Node) -> bool;
 }
 
 impl<'a> NodeExt<'a> for Node<'a> {
@@ -343,6 +344,11 @@ impl<'a> NodeExt<'a> for Node<'a> {
 
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str> {
         source_text_provider.get_node_text(*self)
+    }
+
+    fn is_descendant_of(&self, node: Node) -> bool {
+        self.range().start_byte >= node.range().start_byte
+            && self.range().end_byte <= node.range().end_byte
     }
 }
 

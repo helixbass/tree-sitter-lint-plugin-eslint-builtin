@@ -1,4 +1,5 @@
 mod for_direction;
+mod max_nested_callbacks;
 mod max_params;
 mod no_async_promise_executor;
 mod no_await_in_loop;
@@ -12,6 +13,7 @@ mod no_duplicate_case;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
+pub use max_nested_callbacks::max_nested_callbacks_rule;
 pub use max_params::max_params_rule;
 pub use no_async_promise_executor::no_async_promise_executor_rule;
 pub use no_await_in_loop::no_await_in_loop_rule;
