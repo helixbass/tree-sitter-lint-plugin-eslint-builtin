@@ -7,6 +7,7 @@ mod kind;
 mod macros;
 mod rules;
 mod scope;
+mod string_utils;
 mod text;
 mod utils;
 mod visit;

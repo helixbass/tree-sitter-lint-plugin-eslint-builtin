@@ -272,7 +272,7 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
             is_async = true;
         }
         node.child_by_field_name("name")
-            .map(|name| name.text(context))
+            .map(|name| format!("'{}'", name.text(context)).into())
     } else {
         assert_kind!(node, ArrowFunction);
         None

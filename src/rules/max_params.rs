@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
-use inflector::Inflector;
 use serde::Deserialize;
 use tree_sitter_lint::{rule, violation, Rule};
 
-use crate::utils::ast_utils;
+use crate::{string_utils::upper_case_first, utils::ast_utils};
+
+const DEFAULT_MAX: usize = 3;
 
 #[derive(Deserialize)]
 struct OptionsObject {
     #[serde(alias = "maximum")]
-    max: usize,
+    max: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -23,14 +24,14 @@ impl Options {
     pub fn max(&self) -> usize {
         match self {
             Self::Usize(value) => *value,
-            Self::Object(OptionsObject { max }) => *max,
+            Self::Object(OptionsObject { max }) => max.unwrap_or(DEFAULT_MAX),
         }
     }
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self::Usize(3)
+        Self::Usize(DEFAULT_MAX)
     }
 }
 
@@ -47,14 +48,14 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
             num_params: usize = options.unwrap_or_default().max(),
         },
         listeners => [
-            r#"(
+            r#"
               (function) @c
               (function_declaration) @c
               (arrow_function) @c
               (generator_function) @c
               (generator_function_declaration) @c
               (method_definition) @c
-            )"# => |node, context| {
+            "# => |node, context| {
                 let num_params = node.child_by_field_name("parameters").map(|parameters| {
                     let mut cursor = parameters.walk();
                     parameters.named_children(&mut cursor).count()
@@ -65,7 +66,7 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
                         node => node,
                         message_id => "exceed",
                         data => {
-                            name => ast_utils::get_function_name_with_kind(node, context).to_sentence_case(),
+                            name => upper_case_first(&ast_utils::get_function_name_with_kind(node, context)),
                             count => num_params,
                             max => self.num_params,
                         }
