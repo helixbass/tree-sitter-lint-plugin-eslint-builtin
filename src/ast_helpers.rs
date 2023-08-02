@@ -8,9 +8,10 @@ use tree_sitter_lint::{
 
 use crate::{
     kind::{
-        self, BinaryExpression, Comment, FieldDefinition, ForInStatement, Kind, MemberExpression,
-        MethodDefinition, Pair, ParenthesizedExpression, PropertyIdentifier,
-        ShorthandPropertyIdentifier, UnaryExpression,
+        self, Arguments, BinaryExpression, CallExpression, Comment, FieldDefinition,
+        ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression, Pair,
+        ParenthesizedExpression, PropertyIdentifier, ShorthandPropertyIdentifier, TemplateString,
+        UnaryExpression,
     },
     return_default_if_none,
     text::SourceTextProvider,
@@ -57,7 +58,7 @@ pub fn is_for_of(node: Node, context: &QueryMatchContext) -> bool {
     )
 }
 
-pub fn is_for_of_await<'a>(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_for_of_await(node: Node, context: &QueryMatchContext) -> bool {
     assert_kind!(node, ForInStatement);
     is_for_of(node, context)
         && matches!(
@@ -331,6 +332,8 @@ pub trait NodeExt<'a> {
     fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a>;
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str>;
     fn is_descendant_of(&self, node: Node) -> bool;
+    fn field(&self, field_name: &str) -> Node<'a>;
+    fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a>;
 }
 
 impl<'a> NodeExt<'a> for Node<'a> {
@@ -349,6 +352,16 @@ impl<'a> NodeExt<'a> for Node<'a> {
     fn is_descendant_of(&self, node: Node) -> bool {
         self.range().start_byte >= node.range().start_byte
             && self.range().end_byte <= node.range().end_byte
+    }
+
+    fn field(&self, field_name: &str) -> Node<'a> {
+        self.child_by_field_name(field_name).unwrap_or_else(|| {
+            panic!("Expected field '{field_name}'");
+        })
+    }
+
+    fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a> {
+        NonCommentNamedChildren::new(*self)
     }
 }
 
@@ -371,9 +384,8 @@ impl<'a> Iterator for NonCommentChildren<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         while !self.is_done {
             let node = self.cursor.node();
-            if node.kind() == Comment {
-                self.is_done = !self.cursor.goto_next_sibling();
-            } else {
+            self.is_done = !self.cursor.goto_next_sibling();
+            if node.kind() != Comment {
                 return Some(node);
             }
         }
@@ -400,12 +412,51 @@ impl<'a> Iterator for NonCommentChildrenAndFieldNames<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         while !self.is_done {
             let node = self.cursor.node();
-            if node.kind() == Comment {
-                self.is_done = !self.cursor.goto_next_sibling();
-            } else {
-                return Some((node, self.cursor.field_name()));
+            let field_name = self.cursor.field_name();
+            self.is_done = !self.cursor.goto_next_sibling();
+            if node.kind() != Comment {
+                return Some((node, field_name));
             }
         }
         None
+    }
+}
+
+pub struct NonCommentNamedChildren<'a> {
+    cursor: TreeCursor<'a>,
+    is_done: bool,
+}
+
+impl<'a> NonCommentNamedChildren<'a> {
+    pub fn new(node: Node<'a>) -> Self {
+        let mut cursor = node.walk();
+        let is_done = !cursor.goto_first_child();
+        Self { cursor, is_done }
+    }
+}
+
+impl<'a> Iterator for NonCommentNamedChildren<'a> {
+    type Item = Node<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.is_done {
+            let node = self.cursor.node();
+            self.is_done = !self.cursor.goto_next_sibling();
+            if node.is_named() && node.kind() != Comment {
+                return Some(node);
+            }
+        }
+        None
+    }
+}
+
+pub fn get_num_call_expression_arguments(node: Node) -> usize {
+    assert_one_of_kinds!(node, [CallExpression, NewExpression]);
+
+    let arguments = return_default_if_none!(node.child_by_field_name("arguments"));
+    match arguments.kind() {
+        TemplateString => 1,
+        Arguments => arguments.non_comment_named_children().count(),
+        _ => unreachable!(),
     }
 }
