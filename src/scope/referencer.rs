@@ -4,11 +4,10 @@ use std::{
 };
 
 use id_arena::Id;
-use squalid::OptionExt;
 use tree_sitter_lint::tree_sitter::Node;
 
 use crate::{
-    ast_helpers::{get_first_child_of_kind, get_prev_non_comment_sibling},
+    ast_helpers::get_first_child_of_kind,
     kind::{
         ComputedPropertyName, ExportClause, Identifier, ImportStatement, LexicalDeclaration,
         SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,

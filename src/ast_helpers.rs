@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 
-use tree_sitter_lint::{regex, tree_sitter::Node, QueryMatchContext};
+use tree_sitter_lint::{
+    regex,
+    tree_sitter::{Node, TreeCursor},
+    QueryMatchContext,
+};
 
 use crate::{
     kind::{
@@ -45,21 +49,21 @@ macro_rules! return_default_if_false {
     };
 }
 
-pub fn is_for_of<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
+pub fn is_for_of(node: Node, context: &QueryMatchContext) -> bool {
     assert_kind!(node, ForInStatement);
     matches!(
         node.child_by_field_name("operator"),
-        Some(child) if source_text_provider.get_node_text(child) == "of"
+        Some(child) if context.get_node_text(child) == "of"
     )
 }
 
-pub fn is_for_of_await<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
+pub fn is_for_of_await<'a>(node: Node, context: &QueryMatchContext) -> bool {
     assert_kind!(node, ForInStatement);
-    is_for_of(node, source_text_provider)
+    is_for_of(node, context)
         && matches!(
             // TODO: I can't do stuff like this because comments could be anywhere
             node.child(1),
-            Some(child) if source_text_provider.get_node_text(child) == "await"
+            Some(child) if context.get_node_text(child) == "await"
         )
 }
 
@@ -247,28 +251,27 @@ pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) 
     }
 }
 
-pub fn is_logical_and<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
-    is_binary_expression_with_operator(node, "&&", source_text_provider)
+pub fn is_logical_and(node: Node, context: &QueryMatchContext) -> bool {
+    is_binary_expression_with_operator(node, "&&", context)
 }
 
-pub fn is_binary_expression_with_operator<'a>(
+pub fn is_binary_expression_with_operator(
     node: Node,
     operator: &str,
-    source_text_provider: &impl SourceTextProvider<'a>,
+    context: &QueryMatchContext,
 ) -> bool {
-    node.kind() == BinaryExpression
-        && get_binary_expression_operator(node, source_text_provider) == operator
+    node.kind() == BinaryExpression && get_binary_expression_operator(node, context) == operator
 }
 
-pub fn is_binary_expression_with_one_of_operators<'a>(
+pub fn is_binary_expression_with_one_of_operators(
     node: Node,
     operators: &[impl AsRef<str>],
-    source_text_provider: &impl SourceTextProvider<'a>,
+    context: &QueryMatchContext,
 ) -> bool {
     if node.kind() != BinaryExpression {
         return false;
     }
-    let operator_text = get_binary_expression_operator(node, source_text_provider);
+    let operator_text = get_binary_expression_operator(node, context);
     operators
         .iter()
         .any(|operator| operator_text == operator.as_ref())
@@ -288,18 +291,18 @@ pub fn is_chain_expression(mut node: Node) -> bool {
 
 pub fn get_binary_expression_operator<'a>(
     node: Node,
-    source_text_provider: &impl SourceTextProvider<'a>,
+    context: &QueryMatchContext<'a>,
 ) -> Cow<'a, str> {
     assert_kind!(node, BinaryExpression);
-    source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
+    context.get_node_text(node.child_by_field_name("operator").unwrap())
 }
 
 pub fn get_unary_expression_operator<'a>(
     node: Node,
-    source_text_provider: &impl SourceTextProvider<'a>,
+    context: &QueryMatchContext<'a>,
 ) -> Cow<'a, str> {
     assert_kind!(node, UnaryExpression);
-    source_text_provider.get_node_text(node.child_by_field_name("operator").unwrap())
+    context.get_node_text(node.child_by_field_name("operator").unwrap())
 }
 
 pub fn get_first_child_of_kind(node: Node, kind: Kind) -> Node {
@@ -309,4 +312,94 @@ pub fn get_first_child_of_kind(node: Node, kind: Kind) -> Node {
         .find(|child| child.kind() == kind)
         .unwrap();
     ret
+}
+
+pub fn maybe_get_first_non_comment_child(node: Node) -> Option<Node> {
+    let mut cursor = node.walk();
+    let ret = node
+        .children(&mut cursor)
+        .find(|child| child.kind() != Comment);
+    ret
+}
+
+pub fn get_first_non_comment_child(node: Node) -> Node {
+    maybe_get_first_non_comment_child(node).unwrap()
+}
+
+pub trait NodeExt<'a> {
+    fn non_comment_children(&self) -> NonCommentChildren<'a>;
+    fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a>;
+    fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str>;
+}
+
+impl<'a> NodeExt<'a> for Node<'a> {
+    fn non_comment_children(&self) -> NonCommentChildren<'a> {
+        NonCommentChildren::new(*self)
+    }
+
+    fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a> {
+        NonCommentChildrenAndFieldNames::new(*self)
+    }
+
+    fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str> {
+        source_text_provider.get_node_text(*self)
+    }
+}
+
+pub struct NonCommentChildren<'a> {
+    cursor: TreeCursor<'a>,
+    is_done: bool,
+}
+
+impl<'a> NonCommentChildren<'a> {
+    pub fn new(node: Node<'a>) -> Self {
+        let mut cursor = node.walk();
+        let is_done = !cursor.goto_first_child();
+        Self { cursor, is_done }
+    }
+}
+
+impl<'a> Iterator for NonCommentChildren<'a> {
+    type Item = Node<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.is_done {
+            let node = self.cursor.node();
+            if node.kind() == Comment {
+                self.is_done = !self.cursor.goto_next_sibling();
+            } else {
+                return Some(node);
+            }
+        }
+        None
+    }
+}
+
+pub struct NonCommentChildrenAndFieldNames<'a> {
+    cursor: TreeCursor<'a>,
+    is_done: bool,
+}
+
+impl<'a> NonCommentChildrenAndFieldNames<'a> {
+    pub fn new(node: Node<'a>) -> Self {
+        let mut cursor = node.walk();
+        let is_done = !cursor.goto_first_child();
+        Self { cursor, is_done }
+    }
+}
+
+impl<'a> Iterator for NonCommentChildrenAndFieldNames<'a> {
+    type Item = (Node<'a>, Option<&'static str>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.is_done {
+            let node = self.cursor.node();
+            if node.kind() == Comment {
+                self.is_done = !self.cursor.goto_next_sibling();
+            } else {
+                return Some((node, self.cursor.field_name()));
+            }
+        }
+        None
+    }
 }

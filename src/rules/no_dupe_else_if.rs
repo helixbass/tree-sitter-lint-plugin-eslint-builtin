@@ -9,7 +9,6 @@ use crate::{
         is_binary_expression_with_operator, is_logical_and, skip_parenthesized_expressions,
     },
     kind::{ElseClause, IfStatement},
-    text::SourceTextProvider,
     utils::ast_utils,
 };
 
@@ -26,20 +25,16 @@ fn is_subset_by_comparator<TItem>(
 fn split_by_logical_operator<'a, 'b>(
     operator: &str,
     node: Node<'b>,
-    source_text_provider: &impl SourceTextProvider<'a>,
+    context: &QueryMatchContext,
 ) -> Vec<Node<'b>> {
     let node = skip_parenthesized_expressions(node);
-    if is_binary_expression_with_operator(node, operator, source_text_provider) {
-        split_by_logical_operator(
-            operator,
-            node.child_by_field_name("left").unwrap(),
-            source_text_provider,
-        )
-        .and_extend(split_by_logical_operator(
-            operator,
-            node.child_by_field_name("right").unwrap(),
-            source_text_provider,
-        ))
+    if is_binary_expression_with_operator(node, operator, context) {
+        split_by_logical_operator(operator, node.child_by_field_name("left").unwrap(), context)
+            .and_extend(split_by_logical_operator(
+                operator,
+                node.child_by_field_name("right").unwrap(),
+                context,
+            ))
     } else {
         vec![node]
     }
