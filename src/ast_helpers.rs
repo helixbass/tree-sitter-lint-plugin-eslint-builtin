@@ -338,6 +338,8 @@ pub trait NodeExtJs<'a> {
     fn is_only_non_comment_named_sibling(&self) -> bool;
     fn has_trailing_comments(&self, context: &QueryMatchContext) -> bool;
     fn first_non_comment_named_child(&self) -> Node<'a>;
+    fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a>;
+    fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a>;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -392,6 +394,18 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
 
     fn first_non_comment_named_child(&self) -> Node<'a> {
         self.non_comment_named_children().next().unwrap()
+    }
+
+    fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a> {
+        skip_nodes_of_types(*self, kinds)
+    }
+
+    fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a> {
+        let mut node = self.parent().unwrap();
+        while kinds.contains(&node.kind()) {
+            node = node.parent().unwrap();
+        }
+        node
     }
 }
 
