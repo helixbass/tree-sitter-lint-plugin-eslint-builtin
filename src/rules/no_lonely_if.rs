@@ -61,7 +61,7 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
                         );
 
                         if !context.get_text_slice(opening_else_curly.end_byte()..node.start_byte()).trim().is_empty() ||
-                            !context.get_text_slice(node.end_byte()..closing_else_curly.start_byte()).trim().is_empty() {
+                            node.has_trailing_comments(context) {
                             return;
                         }
 
@@ -69,7 +69,7 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
                             last_if_token.text(context) != ";" &&
                             token_after_else_block.matches(|token_after_else_block| {
                                 consequent.start_position().row == token_after_else_block.start_position().row ||
-                                    regex!(r#"^[([+`-]"#).is_match(&token_after_else_block.text(context)) ||
+                                    regex!(r#"^[(\[+`-]"#).is_match(&token_after_else_block.text(context)) ||
                                     matches!(
                                         &*last_if_token.text(context),
                                         "++" | "--"

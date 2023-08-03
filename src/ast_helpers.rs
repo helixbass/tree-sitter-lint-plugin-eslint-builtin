@@ -4,7 +4,7 @@ use itertools::Either;
 use tree_sitter_lint::{
     regex,
     tree_sitter::{Node, TreeCursor},
-    QueryMatchContext,
+    QueryMatchContext, SkipOptions, SkipOptionsBuilder,
 };
 
 use crate::{
@@ -336,6 +336,7 @@ pub trait NodeExtJs<'a> {
     fn next_non_parentheses_ancestor(&self) -> Node<'a>;
     fn skip_parentheses(&self) -> Node<'a>;
     fn is_only_non_comment_named_sibling(&self) -> bool;
+    fn has_trailing_comments(&self, context: &QueryMatchContext) -> bool;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -370,7 +371,22 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
     fn is_only_non_comment_named_sibling(&self) -> bool {
         assert!(self.is_named());
         let parent = return_default_if_none!(self.parent());
-        parent.named_child_count() == 1
+        parent.non_comment_named_children().count() == 1
+    }
+
+    fn has_trailing_comments(&self, context: &QueryMatchContext) -> bool {
+        context
+            .get_last_token(
+                *self,
+                Option::<SkipOptions<fn(Node) -> bool>>::Some(
+                    SkipOptionsBuilder::default()
+                        .include_comments(true)
+                        .build()
+                        .unwrap(),
+                ),
+            )
+            .kind()
+            == Comment
     }
 }
 
