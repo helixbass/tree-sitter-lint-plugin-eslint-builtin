@@ -15,6 +15,7 @@ mod no_eq_null;
 mod no_extra_bind;
 mod no_extra_label;
 mod no_labels;
+mod no_lonely_if;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
@@ -34,4 +35,5 @@ pub use no_eq_null::no_eq_null_rule;
 pub use no_extra_bind::no_extra_bind_rule;
 pub use no_extra_label::no_extra_label_rule;
 pub use no_labels::no_labels_rule;
+pub use no_lonely_if::no_lonely_if_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;

@@ -335,6 +335,7 @@ pub trait NodeExtJs<'a> {
     fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a>;
     fn next_non_parentheses_ancestor(&self) -> Node<'a>;
     fn skip_parentheses(&self) -> Node<'a>;
+    fn is_only_non_comment_named_sibling(&self) -> bool;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -364,6 +365,12 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
 
     fn skip_parentheses(&self) -> Node<'a> {
         skip_parenthesized_expressions(*self)
+    }
+
+    fn is_only_non_comment_named_sibling(&self) -> bool {
+        assert!(self.is_named());
+        let parent = return_default_if_none!(self.parent());
+        parent.named_child_count() == 1
     }
 }
 
