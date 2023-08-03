@@ -20,10 +20,10 @@ use crate::{
         self, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression, AwaitExpression,
         BinaryExpression, CallExpression, ComputedPropertyName, Decorator, FieldDefinition,
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
-        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Pair,
+        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Pair, PairPattern,
         ParenthesizedExpression, PrivatePropertyIdentifier, PropertyIdentifier, SequenceExpression,
-        SubscriptExpression, TemplateString, TernaryExpression, UnaryExpression, UpdateExpression,
-        YieldExpression,
+        ShorthandPropertyIdentifierPattern, SubscriptExpression, TemplateString, TernaryExpression,
+        UnaryExpression, UpdateExpression, YieldExpression,
     },
 };
 
@@ -74,14 +74,18 @@ pub fn get_static_property_name<'a>(
     context: &QueryMatchContext<'a>,
 ) -> Option<Cow<'a, str>> {
     let prop = match node.kind() {
-        Pair => node.child_by_field_name("key"),
+        Pair | PairPattern => node.child_by_field_name("key"),
         FieldDefinition | MemberExpression => node.child_by_field_name("property"),
         MethodDefinition => node.child_by_field_name("name"),
         SubscriptExpression => node.child_by_field_name("index"),
+        ShorthandPropertyIdentifierPattern => Some(node),
         _ => None,
     }?;
 
-    if matches!(prop.kind(), Identifier | PropertyIdentifier) && node.kind() != SubscriptExpression
+    if matches!(
+        prop.kind(),
+        Identifier | PropertyIdentifier | ShorthandPropertyIdentifierPattern
+    ) && node.kind() != SubscriptExpression
     {
         return Some(context.get_node_text(prop));
     }

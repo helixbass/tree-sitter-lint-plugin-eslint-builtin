@@ -25,6 +25,7 @@ mod no_octal;
 mod no_octal_escape;
 mod no_plusplus;
 mod no_proto;
+mod no_restricted_properties;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
@@ -54,4 +55,5 @@ pub use no_octal::no_octal_rule;
 pub use no_octal_escape::no_octal_escape_rule;
 pub use no_plusplus::no_plusplus_rule;
 pub use no_proto::no_proto_rule;
+pub use no_restricted_properties::no_restricted_properties_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;
