@@ -12,9 +12,10 @@ use tree_sitter_lint::{
 use crate::{
     assert_kind,
     ast_helpers::{
-        get_binary_expression_operator, get_first_non_comment_child, get_method_definition_kind,
+        get_binary_expression_operator, get_first_non_comment_child,
+        get_last_expression_of_sequence_expression, get_method_definition_kind,
         get_number_literal_string_value, get_prev_non_comment_sibling, is_chain_expression,
-        skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
+        is_logical_expression, skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
     },
     kind::{
         self, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression, AwaitExpression,
@@ -23,7 +24,7 @@ use crate::{
         Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Pair, PairPattern,
         ParenthesizedExpression, PrivatePropertyIdentifier, PropertyIdentifier, SequenceExpression,
         ShorthandPropertyIdentifierPattern, SubscriptExpression, TemplateString, TernaryExpression,
-        UnaryExpression, UpdateExpression, YieldExpression,
+        UnaryExpression, Undefined, UpdateExpression, YieldExpression,
     },
 };
 
@@ -449,4 +450,40 @@ pub fn get_parenthesised_text<'a>(context: &'a QueryMatchContext, mut node: Node
         }
     }
     context.get_node_text(node)
+}
+
+pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
+    match node.kind() {
+        Identifier | CallExpression | NewExpression | MemberExpression | SubscriptExpression
+        | YieldExpression | AwaitExpression | Undefined => true,
+        AssignmentExpression => could_be_error(node.field("right"), context),
+        AugmentedAssignmentExpression => match &*node.field("operator").text(context) {
+            "&&=" => could_be_error(node.field("right"), context),
+            "||=" | "??=" => {
+                could_be_error(node.field("left"), context)
+                    || could_be_error(node.field("right"), context)
+            }
+            _ => false,
+        },
+        SequenceExpression => {
+            could_be_error(get_last_expression_of_sequence_expression(node), context)
+        }
+        BinaryExpression => {
+            if !is_logical_expression(node, context) {
+                return false;
+            }
+
+            if node.field("operator").text(context) == "&&" {
+                return could_be_error(node.field("right"), context);
+            }
+
+            could_be_error(node.field("left"), context)
+                || could_be_error(node.field("right"), context)
+        }
+        TernaryExpression => {
+            could_be_error(node.field("consequence"), context)
+                || could_be_error(node.field("alternative"), context)
+        }
+        _ => false,
+    }
 }

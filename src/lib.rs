@@ -21,7 +21,7 @@ use rules::{
     no_negated_condition_rule, no_nested_ternary_rule, no_new_rule, no_new_wrappers_rule,
     no_octal_escape_rule, no_octal_rule, no_plusplus_rule, no_proto_rule,
     no_restricted_properties_rule, no_return_assign_rule, no_script_url_rule, no_sequences_rule,
-    no_ternary_rule, no_unneeded_ternary_rule,
+    no_ternary_rule, no_throw_literal_rule, no_unneeded_ternary_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -61,6 +61,7 @@ pub fn instantiate() -> Plugin {
             no_script_url_rule(),
             no_sequences_rule(),
             no_ternary_rule(),
+            no_throw_literal_rule(),
         ],
     }
 }

@@ -30,6 +30,7 @@ mod no_return_assign;
 mod no_script_url;
 mod no_sequences;
 mod no_ternary;
+mod no_throw_literal;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
@@ -64,4 +65,5 @@ pub use no_return_assign::no_return_assign_rule;
 pub use no_script_url::no_script_url_rule;
 pub use no_sequences::no_sequences_rule;
 pub use no_ternary::no_ternary_rule;
+pub use no_throw_literal::no_throw_literal_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;

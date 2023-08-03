@@ -4,15 +4,15 @@ use itertools::Either;
 use tree_sitter_lint::{
     regex,
     tree_sitter::{Node, TreeCursor},
-    QueryMatchContext, SkipOptions, SkipOptionsBuilder,
+    NodeExt, QueryMatchContext, SkipOptions, SkipOptionsBuilder,
 };
 
 use crate::{
     kind::{
         self, Arguments, BinaryExpression, CallExpression, Comment, FieldDefinition,
         ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression, Pair,
-        ParenthesizedExpression, PropertyIdentifier, ShorthandPropertyIdentifier, TemplateString,
-        UnaryExpression,
+        ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
+        ShorthandPropertyIdentifier, TemplateString, UnaryExpression,
     },
     return_default_if_none,
     text::SourceTextProvider,
@@ -525,4 +525,21 @@ pub fn call_expression_has_single_matching_argument(
         return false;
     }
     true
+}
+
+pub fn get_last_expression_of_sequence_expression(mut node: Node) -> Node {
+    assert_kind!(node, SequenceExpression);
+
+    while node.kind() == SequenceExpression {
+        node = node.field("right");
+    }
+    node
+}
+
+pub fn is_logical_expression(node: Node, context: &QueryMatchContext) -> bool {
+    if node.kind() != BinaryExpression {
+        return false;
+    }
+
+    matches!(&*node.field("operator").text(context), "&&" | "||" | "??")
 }

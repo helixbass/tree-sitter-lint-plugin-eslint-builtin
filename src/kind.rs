@@ -79,6 +79,7 @@ pub const ThrowStatement: &str = "throw_statement";
 pub const True: &str = "true";
 pub const TryStatement: &str = "try_statement";
 pub const UnaryExpression: &str = "unary_expression";
+pub const Undefined: &str = "undefined";
 pub const UpdateExpression: &str = "update_expression";
 pub const VariableDeclaration: &str = "variable_declaration";
 pub const VariableDeclarator: &str = "variable_declarator";
