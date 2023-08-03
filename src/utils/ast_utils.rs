@@ -194,6 +194,13 @@ pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bo
     !is_closing_paren_token(node, context)
 }
 
+static BREAKABLE_TYPE_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"^(?:do|while|for(?:_in)?|switch)_statement$"#).unwrap());
+
+pub fn is_breakable_statement(node: Node) -> bool {
+    BREAKABLE_TYPE_PATTERN.is_match(node.kind())
+}
+
 pub fn get_precedence(node: Node, context: &QueryMatchContext) -> u32 {
     _get_precedence(
         node.kind(),
