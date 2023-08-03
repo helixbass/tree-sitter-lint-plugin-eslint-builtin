@@ -20,6 +20,7 @@ mod no_multi_assign;
 mod no_negated_condition;
 mod no_nested_ternary;
 mod no_new;
+mod no_new_wrappers;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
@@ -44,4 +45,5 @@ pub use no_multi_assign::no_multi_assign_rule;
 pub use no_negated_condition::no_negated_condition_rule;
 pub use no_nested_ternary::no_nested_ternary_rule;
 pub use no_new::no_new_rule;
+pub use no_new_wrappers::no_new_wrappers_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;
