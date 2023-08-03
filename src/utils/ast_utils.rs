@@ -38,6 +38,13 @@ pub fn is_function(node: Node) -> bool {
     any_function_pattern.is_match(node.kind())
 }
 
+static any_loop_pattern: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"^(?:do|for|for_in|while)_statement$"#).unwrap());
+
+pub fn is_loop(node: Node) -> bool {
+    any_loop_pattern.is_match(node.kind())
+}
+
 fn get_static_string_value<'a>(
     node: Node,
     context: &QueryMatchContext<'a>,
