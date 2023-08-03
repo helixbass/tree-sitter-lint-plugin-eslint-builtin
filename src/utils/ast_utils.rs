@@ -45,7 +45,7 @@ pub fn is_loop(node: Node) -> bool {
     any_loop_pattern.is_match(node.kind())
 }
 
-fn get_static_string_value<'a>(
+pub fn get_static_string_value<'a>(
     node: Node,
     context: &QueryMatchContext<'a>,
 ) -> Option<Cow<'a, str>> {
