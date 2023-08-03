@@ -23,8 +23,9 @@ use crate::{
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
         Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Pair, PairPattern,
         ParenthesizedExpression, PrivatePropertyIdentifier, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifierPattern, SubscriptExpression, TemplateString, TernaryExpression,
-        UnaryExpression, Undefined, UpdateExpression, YieldExpression,
+        ShorthandPropertyIdentifierPattern, SubscriptExpression, TemplateString,
+        TemplateSubstitution, TernaryExpression, UnaryExpression, Undefined, UpdateExpression,
+        YieldExpression,
     },
 };
 
@@ -486,4 +487,8 @@ pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
         }
         _ => false,
     }
+}
+
+pub fn is_static_template_literal(node: Node) -> bool {
+    node.kind() == TemplateString && !node.has_child_of_kind(TemplateSubstitution)
 }

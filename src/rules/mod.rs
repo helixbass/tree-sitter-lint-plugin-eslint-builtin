@@ -32,6 +32,7 @@ mod no_sequences;
 mod no_ternary;
 mod no_throw_literal;
 mod no_unneeded_ternary;
+mod no_unused_labels;
 
 pub use for_direction::for_direction_rule;
 pub use max_nested_callbacks::max_nested_callbacks_rule;
@@ -67,3 +68,4 @@ pub use no_sequences::no_sequences_rule;
 pub use no_ternary::no_ternary_rule;
 pub use no_throw_literal::no_throw_literal_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;
+pub use no_unused_labels::no_unused_labels_rule;

@@ -73,6 +73,7 @@ pub const SwitchCase: &str = "switch_case";
 pub const SwitchDefault: &str = "switch_default";
 pub const SwitchStatement: &str = "switch_statement";
 pub const TemplateString: &str = "template_string";
+pub const TemplateSubstitution: &str = "template_substitution";
 pub const TernaryExpression: &str = "ternary_expression";
 pub const This: &str = "this";
 pub const ThrowStatement: &str = "throw_statement";
