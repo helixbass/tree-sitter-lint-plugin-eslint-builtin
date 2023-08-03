@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
-
-use crate::ast_helpers::NodeExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 const DEFAULT_MAX: usize = 10;
 

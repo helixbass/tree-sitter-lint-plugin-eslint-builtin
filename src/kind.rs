@@ -106,3 +106,5 @@ pub fn is_declaration_kind(kind: &str) -> bool {
             | VariableDeclaration
     )
 }
+
+pub static LITERAL_KINDS: [Kind; 4] = [String, Number, Regex, Null];

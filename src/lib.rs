@@ -16,7 +16,8 @@ use rules::{
     for_direction_rule, max_nested_callbacks_rule, max_params_rule, no_array_constructor_rule,
     no_async_promise_executor_rule, no_await_in_loop_rule, no_compare_neg_zero_rule,
     no_cond_assign_rule, no_debugger_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
-    no_dupe_keys_rule, no_duplicate_case_rule, no_eq_null_rule, no_unneeded_ternary_rule,
+    no_dupe_keys_rule, no_duplicate_case_rule, no_eq_null_rule, no_extra_bind_rule,
+    no_unneeded_ternary_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -38,6 +39,7 @@ pub fn instantiate() -> Plugin {
             max_nested_callbacks_rule(),
             no_array_constructor_rule(),
             no_eq_null_rule(),
+            no_extra_bind_rule(),
         ],
     }
 }

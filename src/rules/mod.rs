@@ -12,6 +12,7 @@ mod no_dupe_else_if;
 mod no_dupe_keys;
 mod no_duplicate_case;
 mod no_eq_null;
+mod no_extra_bind;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
@@ -28,4 +29,5 @@ pub use no_dupe_else_if::no_dupe_else_if_rule;
 pub use no_dupe_keys::no_dupe_keys_rule;
 pub use no_duplicate_case::no_duplicate_case_rule;
 pub use no_eq_null::no_eq_null_rule;
+pub use no_extra_bind::no_extra_bind_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;

@@ -6,7 +6,7 @@ use regex::Regex;
 use squalid::{CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::{Node, Range},
-    QueryMatchContext,
+    NodeExt, QueryMatchContext,
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     ast_helpers::{
         get_binary_expression_operator, get_first_non_comment_child, get_method_definition_kind,
         get_number_literal_string_value, get_prev_non_comment_sibling, is_chain_expression,
-        skip_nodes_of_type, MethodDefinitionKind, NodeExt,
+        skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
     },
     kind::{
         self, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression, AwaitExpression,
@@ -82,11 +82,79 @@ pub fn get_static_property_name<'a>(
     get_static_string_value(skip_nodes_of_type(prop, ComputedPropertyName), context)
 }
 
+pub enum StrOrRegex<'a> {
+    Str(&'a str),
+    Regex(&'a Regex),
+}
+
+impl<'a> From<&'a str> for StrOrRegex<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::Str(value)
+    }
+}
+
+impl<'a> From<&'a Regex> for StrOrRegex<'a> {
+    fn from(value: &'a Regex) -> Self {
+        Self::Regex(value)
+    }
+}
+
+fn check_text<'a>(actual: &str, expected: impl Into<StrOrRegex<'a>>) -> bool {
+    let expected = expected.into();
+    match expected {
+        StrOrRegex::Str(expected) => expected == actual,
+        StrOrRegex::Regex(expected) => expected.is_match(actual),
+    }
+}
+
+fn is_specific_id<'a>(
+    node: Node,
+    name: impl Into<StrOrRegex<'a>>,
+    context: &QueryMatchContext,
+) -> bool {
+    node.kind() == Identifier && check_text(&node.text(context), name)
+}
+
+pub fn is_specific_member_access<'a>(
+    node: Node,
+    object_name: Option<impl Into<StrOrRegex<'a>>>,
+    property_name: Option<impl Into<StrOrRegex<'a>>>,
+    context: &QueryMatchContext,
+) -> bool {
+    let check_node = node;
+
+    if check_node.kind() != MemberExpression {
+        return false;
+    }
+
+    if object_name
+        .matches(|object_name| !is_specific_id(check_node.field("object"), object_name, context))
+    {
+        return false;
+    }
+
+    if let Some(property_name) = property_name {
+        let actual_property_name = get_static_property_name(check_node, context);
+
+        if actual_property_name.is_none_or_matches(|actual_property_name| {
+            !check_text(&actual_property_name, property_name)
+        }) {
+            return false;
+        }
+    }
+
+    true
+}
+
 pub fn is_parenthesised(node: Node) -> bool {
     node.kind() == ParenthesizedExpression
         || node
             .parent()
             .matches(|parent| parent.kind() == ParenthesizedExpression)
+}
+
+pub fn is_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
+    context.get_node_text(node) == "("
 }
 
 fn get_opening_paren_of_params(node: Node) -> Node {
@@ -120,6 +188,10 @@ pub fn equal_tokens(left: Node, right: Node, context: &QueryMatchContext) -> boo
 
 pub fn is_coalesce_expression(node: Node, context: &QueryMatchContext) -> bool {
     node.kind() == BinaryExpression && get_binary_expression_operator(node, context) == "??"
+}
+
+pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
+    !is_closing_paren_token(node, context)
 }
 
 pub fn get_precedence(node: Node, context: &QueryMatchContext) -> u32 {

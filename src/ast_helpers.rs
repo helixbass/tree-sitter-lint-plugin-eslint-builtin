@@ -1,5 +1,6 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, iter};
 
+use itertools::Either;
 use tree_sitter_lint::{
     regex,
     tree_sitter::{Node, TreeCursor},
@@ -327,16 +328,14 @@ pub fn get_first_non_comment_child(node: Node) -> Node {
     maybe_get_first_non_comment_child(node).unwrap()
 }
 
-pub trait NodeExt<'a> {
+pub trait NodeExtJs<'a> {
     fn non_comment_children(&self) -> NonCommentChildren<'a>;
     fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a>;
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str>;
-    fn is_descendant_of(&self, node: Node) -> bool;
-    fn field(&self, field_name: &str) -> Node<'a>;
     fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a>;
 }
 
-impl<'a> NodeExt<'a> for Node<'a> {
+impl<'a> NodeExtJs<'a> for Node<'a> {
     fn non_comment_children(&self) -> NonCommentChildren<'a> {
         NonCommentChildren::new(*self)
     }
@@ -347,17 +346,6 @@ impl<'a> NodeExt<'a> for Node<'a> {
 
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str> {
         source_text_provider.get_node_text(*self)
-    }
-
-    fn is_descendant_of(&self, node: Node) -> bool {
-        self.range().start_byte >= node.range().start_byte
-            && self.range().end_byte <= node.range().end_byte
-    }
-
-    fn field(&self, field_name: &str) -> Node<'a> {
-        self.child_by_field_name(field_name).unwrap_or_else(|| {
-            panic!("Expected field '{field_name}'");
-        })
     }
 
     fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a> {
@@ -450,13 +438,35 @@ impl<'a> Iterator for NonCommentNamedChildren<'a> {
     }
 }
 
-pub fn get_num_call_expression_arguments(node: Node) -> usize {
+pub fn get_num_call_expression_arguments(node: Node) -> Option<usize> {
+    get_call_expression_arguments(node).map(|arguments| arguments.count())
+}
+
+pub fn get_call_expression_arguments(node: Node) -> Option<impl Iterator<Item = Node>> {
     assert_one_of_kinds!(node, [CallExpression, NewExpression]);
 
-    let arguments = return_default_if_none!(node.child_by_field_name("arguments"));
+    let arguments = match node.child_by_field_name("arguments") {
+        Some(arguments) => arguments,
+        None => return Some(Either::Left(iter::empty())),
+    };
     match arguments.kind() {
-        TemplateString => 1,
-        Arguments => arguments.non_comment_named_children().count(),
+        TemplateString => None,
+        Arguments => Some(Either::Right(arguments.non_comment_named_children())),
         _ => unreachable!(),
     }
+}
+
+pub fn call_expression_has_single_matching_argument(
+    node: Node,
+    predicate: impl FnOnce(Node) -> bool,
+) -> bool {
+    let mut arguments = return_default_if_none!(get_call_expression_arguments(node));
+    let first_arg = return_default_if_none!(arguments.next());
+    if !predicate(first_arg) {
+        return false;
+    }
+    if arguments.next().is_some() {
+        return false;
+    }
+    true
 }

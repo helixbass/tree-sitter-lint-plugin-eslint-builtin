@@ -22,7 +22,7 @@ pub fn no_array_constructor_rule() -> Arc<dyn Rule> {
             "# => {
                 capture_name => "call_expression",
                 callback => |node, context| {
-                    if get_num_call_expression_arguments(node) != 1 {
+                    if get_num_call_expression_arguments(node) != Some(1) {
                         context.report(violation! {
                             node => node,
                             message_id => "prefer_literal",
