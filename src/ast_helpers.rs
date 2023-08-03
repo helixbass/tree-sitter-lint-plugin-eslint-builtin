@@ -337,6 +337,7 @@ pub trait NodeExtJs<'a> {
     fn skip_parentheses(&self) -> Node<'a>;
     fn is_only_non_comment_named_sibling(&self) -> bool;
     fn has_trailing_comments(&self, context: &QueryMatchContext) -> bool;
+    fn first_non_comment_named_child(&self) -> Node<'a>;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -387,6 +388,10 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
             )
             .kind()
             == Comment
+    }
+
+    fn first_non_comment_named_child(&self) -> Node<'a> {
+        self.non_comment_named_children().next().unwrap()
     }
 }
 

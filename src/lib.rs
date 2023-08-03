@@ -18,7 +18,7 @@ use rules::{
     no_cond_assign_rule, no_debugger_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
     no_dupe_keys_rule, no_duplicate_case_rule, no_eq_null_rule, no_extra_bind_rule,
     no_extra_label_rule, no_labels_rule, no_lonely_if_rule, no_multi_assign_rule,
-    no_unneeded_ternary_rule,
+    no_negated_condition_rule, no_unneeded_ternary_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -45,6 +45,7 @@ pub fn instantiate() -> Plugin {
             no_labels_rule(),
             no_lonely_if_rule(),
             no_multi_assign_rule(),
+            no_negated_condition_rule(),
         ],
     }
 }
