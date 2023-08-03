@@ -23,6 +23,7 @@ mod no_new;
 mod no_new_wrappers;
 mod no_octal;
 mod no_octal_escape;
+mod no_plusplus;
 mod no_unneeded_ternary;
 
 pub use for_direction::for_direction_rule;
@@ -50,4 +51,5 @@ pub use no_new::no_new_rule;
 pub use no_new_wrappers::no_new_wrappers_rule;
 pub use no_octal::no_octal_rule;
 pub use no_octal_escape::no_octal_escape_rule;
+pub use no_plusplus::no_plusplus_rule;
 pub use no_unneeded_ternary::no_unneeded_ternary_rule;
