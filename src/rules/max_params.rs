@@ -62,7 +62,7 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
                 });
                 if let Some(num_params) = num_params.filter(|&num_params| num_params > self.num_params) {
                     context.report(violation! {
-                        range => ast_utils::get_function_head_range(node, context),
+                        range => ast_utils::get_function_head_range(node),
                         node => node,
                         message_id => "exceed",
                         data => {

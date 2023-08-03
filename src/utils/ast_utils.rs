@@ -123,7 +123,7 @@ pub fn is_specific_member_access<'a>(
 ) -> bool {
     let check_node = node;
 
-    if check_node.kind() != MemberExpression {
+    if !matches!(check_node.kind(), MemberExpression | SubscriptExpression) {
         return false;
     }
 
@@ -154,7 +154,7 @@ pub fn is_parenthesised(node: Node) -> bool {
 }
 
 pub fn is_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
-    context.get_node_text(node) == "("
+    context.get_node_text(node) == ")"
 }
 
 fn get_opening_paren_of_params(node: Node) -> Node {
@@ -168,8 +168,8 @@ fn get_opening_paren_of_params(node: Node) -> Node {
 }
 
 pub fn equal_tokens(left: Node, right: Node, context: &QueryMatchContext) -> bool {
-    let mut tokens_l = context.get_tokens(left);
-    let mut tokens_r = context.get_tokens(right);
+    let mut tokens_l = context.get_tokens(left, Option::<fn(Node) -> bool>::None);
+    let mut tokens_r = context.get_tokens(right, Option::<fn(Node) -> bool>::None);
 
     loop {
         match (tokens_l.next(), tokens_r.next()) {
@@ -377,7 +377,7 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
     tokens.join(" ")
 }
 
-pub fn get_function_head_range(node: Node, context: &QueryMatchContext) -> Range {
+pub fn get_function_head_range(node: Node) -> Range {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     enum StartOrEnd {
         Start,

@@ -1,13 +1,15 @@
 use std::{collections::HashSet, sync::Arc};
 
 use once_cell::sync::Lazy;
-use squalid::OptionExt;
+use squalid::{EverythingExt, OptionExt};
 use tree_sitter_lint::{
     rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, ROOT_EXIT,
 };
 
 use crate::{
-    ast_helpers::{call_expression_has_single_matching_argument, get_call_expression_arguments},
+    ast_helpers::{
+        call_expression_has_single_matching_argument, get_call_expression_arguments, NodeExtJs,
+    },
     kind::{CallExpression, Function, Identifier, Kind, SpreadElement, This, LITERAL_KINDS},
     utils::ast_utils,
 };
@@ -25,13 +27,15 @@ fn is_side_effect_free(node: Node) -> bool {
 }
 
 fn report(node: Node, context: &QueryMatchContext) {
-    let member_node = node.parent().unwrap();
-    let call_node = member_node.parent().unwrap();
+    let member_node = node.next_non_parentheses_ancestor();
+    let call_node = member_node.next_non_parentheses_ancestor();
 
     context.report(violation! {
         node => call_node,
         message_id => "unexpected",
-        range => member_node.field("property").range(),
+        range => member_node.child_by_field_name("property").unwrap_or_else(|| {
+            member_node.field("index")
+        }).range(),
         fix => |fixer| {
             if !is_side_effect_free(get_call_expression_arguments(call_node).unwrap().next().unwrap()) {
                 return;
@@ -68,26 +72,23 @@ fn report(node: Node, context: &QueryMatchContext) {
 }
 
 fn is_callee_of_bind_method(node: Node, context: &QueryMatchContext) -> bool {
-    if !ast_utils::is_specific_member_access(
-        node.parent().unwrap(),
-        Option::<&str>::None,
-        Some("bind"),
-        context,
-    ) {
+    let parent = node.next_non_parentheses_ancestor();
+    if !ast_utils::is_specific_member_access(parent, Option::<&str>::None, Some("bind"), context) {
         return false;
     }
 
-    let bind_node = node.parent().unwrap();
+    let bind_node = parent;
 
-    bind_node.parent().matches(|parent| {
+    bind_node.next_non_parentheses_ancestor().thrush(|parent| {
         parent.kind() == CallExpression
-            && parent.field("function") == bind_node
+            && parent.field("function").skip_parentheses() == bind_node
             && call_expression_has_single_matching_argument(parent, |arg| {
                 arg.kind() != SpreadElement
             })
     })
 }
 
+#[derive(Debug)]
 struct ScopeInfo<'a> {
     is_bound: bool,
     this_found: bool,

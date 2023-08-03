@@ -333,6 +333,8 @@ pub trait NodeExtJs<'a> {
     fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a>;
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str>;
     fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a>;
+    fn next_non_parentheses_ancestor(&self) -> Node<'a>;
+    fn skip_parentheses(&self) -> Node<'a>;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -350,6 +352,18 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
 
     fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a> {
         NonCommentNamedChildren::new(*self)
+    }
+
+    fn next_non_parentheses_ancestor(&self) -> Node<'a> {
+        let mut node = self.parent().unwrap();
+        while node.kind() == ParenthesizedExpression {
+            node = node.parent().unwrap();
+        }
+        node
+    }
+
+    fn skip_parentheses(&self) -> Node<'a> {
+        skip_parenthesized_expressions(*self)
     }
 }
 
