@@ -1,18 +1,23 @@
+use std::cell::Cell;
+
 pub struct IdGenerator {
     prefix: String,
-    n: u32,
+    n: Cell<u32>,
 }
 
 impl IdGenerator {
     pub fn new(prefix: impl Into<String>) -> Self {
         let prefix = prefix.into();
 
-        Self { prefix, n: 0 }
+        Self {
+            prefix,
+            n: Default::default(),
+        }
     }
 
-    pub fn next(&mut self) -> String {
-        self.n += 1;
+    pub fn next(&self) -> String {
+        self.n.set(self.n.get() + 1);
 
-        format!("{}{}", self.prefix, self.n)
+        format!("{}{}", self.prefix, self.n.get())
     }
 }

@@ -9,7 +9,7 @@ pub struct CodePathSegment {
     prev_segments: Vec<Id<Self>>,
     all_next_segments: Vec<Id<Self>>,
     all_prev_segments: Vec<Id<Self>>,
-    reachable: bool,
+    pub reachable: bool,
     used: bool,
     looped_prev_segments: Vec<Id<Self>>,
 }
@@ -47,11 +47,15 @@ impl CodePathSegment {
         self.looped_prev_segments.contains(&segment)
     }
 
-    fn new_root(arena: &mut Arena<Self>, id: String) -> Id<Self> {
+    pub fn new_root(arena: &mut Arena<Self>, id: String) -> Id<Self> {
         Self::new(arena, id, Default::default(), true)
     }
 
-    fn new_next(arena: &mut Arena<Self>, id: String, all_prev_segments: &[Id<Self>]) -> Id<Self> {
+    pub fn new_next(
+        arena: &mut Arena<Self>,
+        id: String,
+        all_prev_segments: &[Id<Self>],
+    ) -> Id<Self> {
         let reachable = all_prev_segments
             .into_iter()
             .any(|segment| arena.get(*segment).unwrap().reachable);
@@ -63,7 +67,7 @@ impl CodePathSegment {
         )
     }
 
-    fn new_unreachable(
+    pub fn new_unreachable(
         arena: &mut Arena<Self>,
         id: String,
         all_prev_segments: &[Id<Self>],
@@ -80,7 +84,7 @@ impl CodePathSegment {
         segment
     }
 
-    fn new_disconnected(
+    pub fn new_disconnected(
         arena: &mut Arena<Self>,
         id: String,
         all_prev_segments: &[Id<Self>],
