@@ -35,6 +35,7 @@ mod no_unneeded_ternary;
 mod no_unused_labels;
 mod no_useless_call;
 mod no_useless_catch;
+mod sort_keys;
 
 pub use for_direction::for_direction_rule;
 pub use max_nested_callbacks::max_nested_callbacks_rule;
@@ -73,3 +74,4 @@ pub use no_unneeded_ternary::no_unneeded_ternary_rule;
 pub use no_unused_labels::no_unused_labels_rule;
 pub use no_useless_call::no_useless_call_rule;
 pub use no_useless_catch::no_useless_catch_rule;
+pub use sort_keys::sort_keys_rule;

@@ -9,9 +9,9 @@ use tree_sitter_lint::{
 
 use crate::{
     kind::{
-        self, Arguments, BinaryExpression, CallExpression, Comment, FieldDefinition,
-        ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression, Pair,
-        ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
+        self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
+        FieldDefinition, ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression,
+        Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
         ShorthandPropertyIdentifier, TemplateString, UnaryExpression,
     },
     return_default_if_none,
@@ -558,4 +558,22 @@ pub fn is_logical_expression(node: Node, context: &QueryMatchContext) -> bool {
     }
 
     matches!(&*node.field("operator").text(context), "&&" | "||" | "??")
+}
+
+pub fn get_object_property_computed_property_name(node: Node) -> Option<Node> {
+    match node.kind() {
+        Pair => Some(node.field("key")),
+        MethodDefinition => Some(node.field("name")),
+        _ => None,
+    }
+    .filter(|name| name.kind() == ComputedPropertyName)
+}
+
+pub fn get_object_property_key(node: Node) -> Node {
+    match node.kind() {
+        Pair => node.field("key"),
+        MethodDefinition => node.field("name"),
+        ShorthandPropertyIdentifier => node,
+        _ => unreachable!(),
+    }
 }

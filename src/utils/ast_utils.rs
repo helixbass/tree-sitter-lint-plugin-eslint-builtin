@@ -23,9 +23,9 @@ use crate::{
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
         Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Pair, PairPattern,
         ParenthesizedExpression, PrivatePropertyIdentifier, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifierPattern, SubscriptExpression, TemplateString,
-        TemplateSubstitution, TernaryExpression, UnaryExpression, Undefined, UpdateExpression,
-        YieldExpression,
+        ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, SubscriptExpression,
+        TemplateString, TemplateSubstitution, TernaryExpression, UnaryExpression, Undefined,
+        UpdateExpression, YieldExpression,
     },
 };
 
@@ -90,13 +90,16 @@ pub fn get_static_property_name<'a>(
         FieldDefinition | MemberExpression => node.child_by_field_name("property"),
         MethodDefinition => node.child_by_field_name("name"),
         SubscriptExpression => node.child_by_field_name("index"),
-        ShorthandPropertyIdentifierPattern => Some(node),
+        ShorthandPropertyIdentifierPattern | ShorthandPropertyIdentifier => Some(node),
         _ => None,
     }?;
 
     if matches!(
         prop.kind(),
-        Identifier | PropertyIdentifier | ShorthandPropertyIdentifierPattern
+        Identifier
+            | PropertyIdentifier
+            | ShorthandPropertyIdentifierPattern
+            | ShorthandPropertyIdentifier
     ) && node.kind() != SubscriptExpression
     {
         return Some(context.get_node_text(prop));

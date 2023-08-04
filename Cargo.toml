@@ -13,10 +13,12 @@ id-arena = "2.2.1"
 once_cell = "1.18.0"
 regex = "1.9.1"
 serde = "1.0.178"
-squalid = { git = "https://github.com/helixbass/squalid", rev = "7ea7971" }
+# squalid = { git = "https://github.com/helixbass/squalid", rev = "7ea7971" }
+squalid = { path = "../squalid" }
 tree-sitter-lint = { path = "../tree-sitter-lint" }
 itertools = "0.11.0"
 fancy-regex = "0.11.0"
+natord = "1.0.9"
 
 [patch.crates-io]
 tree-sitter = { git = "https://github.com/tree-sitter/tree-sitter", rev = "c16b90d" }
