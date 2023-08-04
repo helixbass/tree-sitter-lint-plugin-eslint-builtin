@@ -1,3 +1,4 @@
+mod default_case;
 mod for_direction;
 mod max_nested_callbacks;
 mod max_params;
@@ -37,6 +38,7 @@ mod no_useless_call;
 mod no_useless_catch;
 mod sort_keys;
 
+pub use default_case::default_case_rule;
 pub use for_direction::for_direction_rule;
 pub use max_nested_callbacks::max_nested_callbacks_rule;
 pub use max_params::max_params_rule;

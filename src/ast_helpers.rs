@@ -1,6 +1,7 @@
 use std::{borrow::Cow, iter};
 
 use itertools::Either;
+use squalid::CowStrExt;
 use tree_sitter_lint::{
     regex,
     tree_sitter::{Node, TreeCursor},
@@ -582,5 +583,16 @@ pub fn get_object_property_key(node: Node) -> Node {
         MethodDefinition => node.field("name"),
         ShorthandPropertyIdentifier => node,
         _ => unreachable!(),
+    }
+}
+
+pub fn get_comment_contents<'a>(comment: Node, context: &QueryMatchContext<'a>) -> Cow<'a, str> {
+    assert_kind!(comment, Comment);
+    let text = comment.text(context);
+    if text.starts_with("//") {
+        text.sliced(2..)
+    } else {
+        assert!(text.starts_with("/*"));
+        text.sliced(2..text.len() - 2)
     }
 }

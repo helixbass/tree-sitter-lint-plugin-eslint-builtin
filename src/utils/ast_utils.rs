@@ -67,14 +67,14 @@ pub fn get_static_string_value<'a>(
         kind::String => {
             let node_text = context.get_node_text(node);
             // TODO: this doesn't handle things like hex/unicode escapes
-            Some(node_text.sliced(|node_text| &node_text[1..node_text.len() - 1]))
+            Some(node_text.sliced(1..node_text.len() - 1))
         }
         Null => Some("null".into()),
         TemplateString => {
             (!context.has_named_child_of_kind(node, "template_substitution")).then(|| {
                 let node_text = context.get_node_text(node);
                 // TODO: this doesn't handle things like hex/unicode escapes
-                node_text.sliced(|node_text| &node_text[1..node_text.len() - 1])
+                node_text.sliced(1..node_text.len() - 1)
             })
         }
         _ => None,
