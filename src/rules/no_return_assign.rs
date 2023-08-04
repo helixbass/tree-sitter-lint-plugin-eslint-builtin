@@ -26,10 +26,10 @@ pub fn no_return_assign_rule() -> Arc<dyn Rule> {
             return_assignment => "Return statement should not contain assignment.",
             arrow_assignment => "Arrow function should not return assignment.",
         ],
-        options_type => Option<Always>,
+        options_type => Always,
         state => {
             [per-run]
-            always: bool = options.unwrap_or_default() != Always::ExceptParens,
+            always: bool = options != Always::ExceptParens,
         },
         listeners => [
             r#"

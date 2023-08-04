@@ -17,6 +17,7 @@ use crate::{
 };
 
 #[derive(Deserialize)]
+#[serde(default)]
 struct Options {
     default_assignment: bool,
 }
@@ -100,10 +101,10 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
             unnecessary_conditional_assignment => "Unnecessary use of conditional expression for default assignment.",
         ],
         fixable => true,
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            default_assignment: bool = options.unwrap_or_default().default_assignment,
+            default_assignment: bool = options.default_assignment,
         },
         listeners => [
             r#"(

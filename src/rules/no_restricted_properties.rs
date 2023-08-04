@@ -51,7 +51,7 @@ type RestrictedProperties = HashMap<String, HashMap<String, Option<String>>>;
 type GloballyRestrictedObjects = HashMap<String, Option<String>>;
 type GloballyRestrictedProperties = HashMap<String, Option<String>>;
 
-fn get_restricted_properties(restricted_calls: Vec<RestrictedCallSpec>) -> RestrictedProperties {
+fn get_restricted_properties(restricted_calls: &[RestrictedCallSpec]) -> RestrictedProperties {
     restricted_calls
         .into_iter()
         .filter(|restricted_call| {
@@ -73,7 +73,7 @@ fn get_restricted_properties(restricted_calls: Vec<RestrictedCallSpec>) -> Restr
 }
 
 fn get_globally_restricted_objects(
-    restricted_calls: Vec<RestrictedCallSpec>,
+    restricted_calls: &[RestrictedCallSpec],
 ) -> GloballyRestrictedObjects {
     restricted_calls
         .into_iter()
@@ -93,7 +93,7 @@ fn get_globally_restricted_objects(
 }
 
 fn get_globally_restricted_properties(
-    restricted_calls: Vec<RestrictedCallSpec>,
+    restricted_calls: &[RestrictedCallSpec],
 ) -> GloballyRestrictedProperties {
     restricted_calls
         .into_iter()
@@ -165,16 +165,16 @@ pub fn no_restricted_properties_rule() -> Arc<dyn Rule> {
             restricted_object_property => "'{{object_name}}.{{property_name}}' is restricted from being used.{{message}}",
             restricted_property => "'{{property_name}}' is restricted from being used.{{message}}",
         ],
-        options_type => Option<Vec<RestrictedCallSpec>>,
+        options_type => Vec<RestrictedCallSpec>,
         state => {
             [per-run]
-            is_configuration_empty: bool = options.clone().unwrap_or_default().is_empty(),
+            is_configuration_empty: bool = options.is_empty(),
             restricted_properties: RestrictedProperties =
-                get_restricted_properties(options.clone().unwrap_or_default()),
+                get_restricted_properties(&options),
             globally_restricted_objects: GloballyRestrictedObjects =
-                get_globally_restricted_objects(options.clone().unwrap_or_default()),
+                get_globally_restricted_objects(&options),
             globally_restricted_properties: GloballyRestrictedProperties =
-                get_globally_restricted_properties(options.unwrap_or_default()),
+                get_globally_restricted_properties(&options),
         },
         listeners => [
             r#"

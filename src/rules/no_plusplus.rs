@@ -10,14 +10,9 @@ use crate::{
 };
 
 #[derive(Default, Deserialize)]
+#[serde(default)]
 struct Options {
-    allow_for_loop_afterthoughts: Option<bool>,
-}
-
-impl Options {
-    pub fn allow_for_loop_afterthoughts(&self) -> bool {
-        self.allow_for_loop_afterthoughts.unwrap_or_default()
-    }
+    allow_for_loop_afterthoughts: bool,
 }
 
 fn is_for_statement_update(node: Node) -> bool {
@@ -47,10 +42,10 @@ pub fn no_plusplus_rule() -> Arc<dyn Rule> {
         messages => [
             unexpected_unary_op => "Unary operator '{{operator}}' used.",
         ],
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            allow_for_loop_afterthoughts: bool = options.unwrap_or_default().allow_for_loop_afterthoughts(),
+            allow_for_loop_afterthoughts: bool = options.allow_for_loop_afterthoughts,
         },
         listeners => [
             r#"

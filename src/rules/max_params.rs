@@ -8,9 +8,16 @@ use crate::{string_utils::upper_case_first, utils::ast_utils};
 const DEFAULT_MAX: usize = 3;
 
 #[derive(Deserialize)]
+#[serde(default)]
 struct OptionsObject {
     #[serde(alias = "maximum")]
-    max: Option<usize>,
+    max: usize,
+}
+
+impl Default for OptionsObject {
+    fn default() -> Self {
+        Self { max: DEFAULT_MAX }
+    }
 }
 
 #[derive(Deserialize)]
@@ -24,7 +31,7 @@ impl Options {
     pub fn max(&self) -> usize {
         match self {
             Self::Usize(value) => *value,
-            Self::Object(OptionsObject { max }) => max.unwrap_or(DEFAULT_MAX),
+            Self::Object(OptionsObject { max }) => *max,
         }
     }
 }
@@ -42,10 +49,10 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
         messages => [
             exceed => "{{name}} has too many parameters ({{count}}). Maximum allowed is {{max}}.",
         ],
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            num_params: usize = options.unwrap_or_default().max(),
+            num_params: usize = options.max(),
         },
         listeners => [
             r#"

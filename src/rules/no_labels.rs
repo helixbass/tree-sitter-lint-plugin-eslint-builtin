@@ -11,19 +11,10 @@ use crate::{
 };
 
 #[derive(Copy, Clone, Default, Deserialize)]
+#[serde(default)]
 struct Options {
-    allow_loop: Option<bool>,
-    allow_switch: Option<bool>,
-}
-
-impl Options {
-    pub fn allow_loop(&self) -> bool {
-        self.allow_loop.unwrap_or_default()
-    }
-
-    pub fn allow_switch(&self) -> bool {
-        self.allow_switch.unwrap_or_default()
-    }
+    allow_loop: bool,
+    allow_switch: bool,
 }
 
 struct ScopeInfo<'a> {
@@ -81,11 +72,11 @@ pub fn no_labels_rule() -> Arc<dyn Rule> {
             unexpected_label_in_break => "Unexpected label in break statement.",
             unexpected_label_in_continue => "Unexpected label in continue statement.",
         ],
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            allow_loop: bool = options.unwrap_or_default().allow_loop(),
-            allow_switch: bool = options.unwrap_or_default().allow_switch(),
+            allow_loop: bool = options.allow_loop,
+            allow_switch: bool = options.allow_switch,
 
             [per-file-run]
             scope_infos: Vec<ScopeInfo<'a>>,

@@ -75,10 +75,10 @@ pub fn no_cond_assign_rule() -> Arc<dyn Rule> {
             unexpected => "Unexpected assignment within {{type}}.",
             missing => "Expected a conditional expression and instead saw an assignment.",
         ],
-        options_type => Option<ProhibitAssign>,
+        options_type => ProhibitAssign,
         state => {
             [per-run]
-            prohibit_assign: ProhibitAssign = options.unwrap_or_default(),
+            prohibit_assign: ProhibitAssign = options,
         },
         listeners => [
             r#"(assignment_expression) @c"# => |node, context| {

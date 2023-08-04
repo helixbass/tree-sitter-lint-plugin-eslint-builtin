@@ -4,14 +4,9 @@ use serde::Deserialize;
 use tree_sitter_lint::{rule, violation, Rule};
 
 #[derive(Default, Deserialize)]
+#[serde(default)]
 struct Options {
-    ignore_non_declaration: Option<bool>,
-}
-
-impl Options {
-    pub fn ignore_non_declaration(&self) -> bool {
-        self.ignore_non_declaration.unwrap_or_default()
-    }
+    ignore_non_declaration: bool,
 }
 
 pub fn no_multi_assign_rule() -> Arc<dyn Rule> {
@@ -21,10 +16,10 @@ pub fn no_multi_assign_rule() -> Arc<dyn Rule> {
         messages => [
             unexpected_chain => "Unexpected chained assignment.",
         ],
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            ignore_non_declaration: bool = options.unwrap_or_default().ignore_non_declaration(),
+            ignore_non_declaration: bool = options.ignore_non_declaration,
         },
         listeners => [
             r#"

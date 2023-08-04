@@ -14,14 +14,17 @@ use crate::{
     utils::ast_utils,
 };
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
+#[serde(default)]
 struct Options {
-    allow_in_parentheses: Option<bool>,
+    allow_in_parentheses: bool,
 }
 
-impl Options {
-    pub fn allow_in_parentheses(&self) -> bool {
-        self.allow_in_parentheses.unwrap_or(true)
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            allow_in_parentheses: true,
+        }
     }
 }
 
@@ -62,10 +65,10 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
         messages => [
             unexpected_comma_expression => "Unexpected use of comma operator.",
         ],
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            allow_in_parentheses: bool = options.unwrap_or_default().allow_in_parentheses(),
+            allow_in_parentheses: bool = options.allow_in_parentheses,
         },
         listeners => [
             r#"

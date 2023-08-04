@@ -6,9 +6,16 @@ use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 const DEFAULT_MAX: usize = 10;
 
 #[derive(Deserialize)]
+#[serde(default)]
 struct OptionsObject {
     #[serde(alias = "maximum")]
-    max: Option<usize>,
+    max: usize,
+}
+
+impl Default for OptionsObject {
+    fn default() -> Self {
+        Self { max: DEFAULT_MAX }
+    }
 }
 
 #[derive(Deserialize)]
@@ -22,7 +29,7 @@ impl Options {
     pub fn max(&self) -> usize {
         match self {
             Self::Usize(value) => *value,
-            Self::Object(OptionsObject { max }) => max.unwrap_or(DEFAULT_MAX),
+            Self::Object(OptionsObject { max }) => *max,
         }
     }
 }
@@ -63,10 +70,10 @@ pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
         messages => [
             exceed => "Too many nested callbacks ({{num}}). Maximum allowed is {{max}}.",
         ],
-        options_type => Option<Options>,
+        options_type => Options,
         state => {
             [per-run]
-            threshold: usize = options.unwrap_or_default().max(),
+            threshold: usize = options.max(),
 
             [per-file-run]
             callback_stack: NestedNodeStack<'a> = Default::default(),
