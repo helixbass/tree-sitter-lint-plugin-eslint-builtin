@@ -4,12 +4,13 @@ use std::{
 };
 
 use id_arena::Id;
-use tree_sitter_lint::tree_sitter::Node;
+use tree_sitter_lint::{tree_sitter::Node, NodeExt};
 
 use crate::{
-    ast_helpers::get_first_child_of_kind,
+    ast_helpers::{get_first_child_of_kind, NodeExtJs},
     kind::{
-        ComputedPropertyName, ExportClause, Identifier, ImportStatement, LexicalDeclaration,
+        ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
+        FunctionDeclaration, Identifier, ImportStatement, LexicalDeclaration, StatementBlock,
         SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
     text::SourceTextProvider,
@@ -160,12 +161,24 @@ impl<'a, 'b> Referencer<'a, 'b> {
 
     fn referencing_default_value(
         &self,
-        pattern: Node,
-        assignments: &[Node],
-        maybe_implicit_global: Option<PatternAndNode>,
+        pattern: Node<'a>,
+        assignments: &[Node<'a>],
+        maybe_implicit_global: Option<PatternAndNode<'a>>,
         init: bool,
     ) {
-        unimplemented!();
+        let mut scope = self.current_scope_mut();
+
+        assignments.into_iter().for_each(|assignment| {
+            scope.__referencing(
+                &mut self.scope_manager.arena.references.borrow_mut(),
+                pattern,
+                Some(ReadWriteFlags::WRITE),
+                assignment.child_by_field_name("right"),
+                maybe_implicit_global,
+                Some(pattern != assignment.field("left")),
+                Some(init),
+            );
+        });
     }
 
     fn visit_pattern(
@@ -185,12 +198,126 @@ impl<'a, 'b> Referencer<'a, 'b> {
         );
     }
 
-    fn _visit_function(&mut self, node: Node) {
-        unimplemented!()
+    fn _visit_function(&mut self, node: Node<'a>) {
+        if node.kind() == FunctionDeclaration {
+            let definitions_arena = &self.scope_manager.arena.definitions;
+            self.current_scope_mut().__define(
+                &mut self.scope_manager.__declared_variables.borrow_mut(),
+                &self.scope_manager.arena.variables,
+                definitions_arena,
+                &*self,
+                node.field("name"),
+                Definition::new(
+                    definitions_arena,
+                    VariableType::FunctionName,
+                    node.field("name"),
+                    node,
+                    None,
+                    None,
+                    None,
+                ),
+            );
+        }
+
+        if node.kind() == Function && node.child_by_field_name("name").is_some() {
+            self.scope_manager
+                .__nest_function_expression_name_scope(node);
+        }
+
+        self.scope_manager
+            .__nest_function_scope(node, self.is_inner_method_definition);
+
+        for (param_index, param) in node
+            .field("parameters")
+            .non_comment_named_children()
+            .enumerate()
+        {
+            self.visit_pattern(
+                param,
+                Some(VisitPatternOptions {
+                    process_right_hand_nodes: true,
+                }),
+                |this, pattern: Node<'a>, info: PatternInfo<'a>| {
+                    let definitions_arena = &this.scope_manager.arena.definitions;
+                    this.current_scope_mut().__define(
+                        &mut this.scope_manager.__declared_variables.borrow_mut(),
+                        &this.scope_manager.arena.variables,
+                        definitions_arena,
+                        &*this,
+                        pattern,
+                        Definition::new_parameter(
+                            definitions_arena,
+                            pattern,
+                            node,
+                            Some(param_index),
+                            info.rest,
+                        ),
+                    );
+
+                    this.referencing_default_value(pattern, info.assignments, None, true);
+                },
+            );
+        }
+
+        let body = node.field("body");
+        match body.kind() {
+            StatementBlock => visit_statement_block(self, body),
+            _ => self.visit_expression(body),
+        }
+
+        self.close(node);
     }
 
-    fn _visit_class(&mut self, node: Node) {
-        unimplemented!()
+    fn _visit_class(&mut self, node: Node<'a>) {
+        if node.kind() == ClassDeclaration {
+            let definitions_arena = &self.scope_manager.arena.definitions;
+            self.current_scope_mut().__define(
+                &mut self.scope_manager.__declared_variables.borrow_mut(),
+                &self.scope_manager.arena.variables,
+                definitions_arena,
+                &*self,
+                node.field("name"),
+                Definition::new(
+                    definitions_arena,
+                    VariableType::ClassName,
+                    node.field("name"),
+                    node,
+                    None,
+                    None,
+                    None,
+                ),
+            );
+        }
+
+        if let Some(super_class) = node.maybe_first_child_of_kind(ClassHeritage) {
+            self.visit_class_heritage(super_class);
+        }
+
+        self.scope_manager.__nest_class_scope(node);
+
+        if let Some(name) = node.child_by_field_name("name") {
+            let definitions_arena = &self.scope_manager.arena.definitions;
+            self.current_scope_mut().__define(
+                &mut self.scope_manager.__declared_variables.borrow_mut(),
+                &self.scope_manager.arena.variables,
+                definitions_arena,
+                &*self,
+                name,
+                Definition::new(
+                    definitions_arena,
+                    VariableType::ClassName,
+                    name,
+                    node,
+                    None,
+                    None,
+                    None,
+                ),
+            );
+        }
+
+        self.visit_class_body(node.field("body"));
+
+        self.close(node);
     }
 
     fn _visit_variable_declaration(

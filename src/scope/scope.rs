@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use id_arena::{Arena, Id};
-use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none};
+use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none, NodeExt};
 
 use crate::{
     break_if_none,
@@ -14,7 +14,7 @@ use super::{
     reference::{ReadWriteFlags, Reference},
     referencer::PatternAndNode,
     scope_manager::{NodeId, ScopeManager},
-    variable::Variable,
+    variable::{Variable, VariableType},
 };
 
 fn is_strict_scope(
@@ -157,6 +157,48 @@ impl<'a> Scope<'a> {
         Self::new_base(scope_manager, ScopeType::Module, upper_scope, block, false)
     }
 
+    pub fn new_function_expression_name_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        let ret = Self::_new(
+            scope_manager,
+            ScopeType::FunctionExpressionName,
+            upper_scope,
+            block,
+            false,
+            |mut base| {
+                base.function_expression_scope = true;
+                Self::Base(base)
+            },
+        );
+        let definitions_arena = &scope_manager.arena.definitions;
+        scope_manager
+            .arena
+            .scopes
+            .borrow_mut()
+            .get_mut(ret)
+            .unwrap()
+            .__define(
+                &mut scope_manager.__declared_variables.borrow_mut(),
+                &scope_manager.arena.variables,
+                definitions_arena,
+                &*scope_manager,
+                block.field("name"),
+                Definition::new(
+                    definitions_arena,
+                    VariableType::FunctionName,
+                    block.field("name"),
+                    block,
+                    None,
+                    None,
+                    None,
+                ),
+            );
+        ret
+    }
+
     pub fn new_catch_scope(
         scope_manager: &mut ScopeManager<'a>,
         upper_scope: Option<Id<Scope<'a>>>,
@@ -218,6 +260,14 @@ impl<'a> Scope<'a> {
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::For, upper_scope, block, false)
+    }
+
+    pub fn new_class_scope(
+        scope_manager: &mut ScopeManager<'a>,
+        upper_scope: Option<Id<Scope<'a>>>,
+        block: Node<'a>,
+    ) -> Id<Self> {
+        Self::new_base(scope_manager, ScopeType::Class, upper_scope, block, false)
     }
 
     pub fn new_class_field_initializer_scope(

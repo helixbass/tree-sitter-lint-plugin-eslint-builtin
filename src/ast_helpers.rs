@@ -342,6 +342,7 @@ pub trait NodeExtJs<'a> {
     fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a>;
     fn next_ancestor_not_of_type(&self, kind: Kind) -> Node<'a>;
     fn has_child_of_kind(&self, kind: Kind) -> bool;
+    fn maybe_first_child_of_kind(&self, kind: Kind) -> Option<Node<'a>>;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -419,8 +420,14 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
     }
 
     fn has_child_of_kind(&self, kind: Kind) -> bool {
+        self.maybe_first_child_of_kind(kind).is_some()
+    }
+
+    fn maybe_first_child_of_kind(&self, kind: Kind) -> Option<Node<'a>> {
         let mut cursor = self.walk();
-        let ret = self.children(&mut cursor).any(|child| child.kind() == kind);
+        let ret = self
+            .children(&mut cursor)
+            .find(|child| child.kind() == kind);
         ret
     }
 }

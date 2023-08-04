@@ -25,6 +25,20 @@ impl<'a> Definition<'a> {
         )))
     }
 
+    pub fn new_parameter(
+        arena: &RefCell<Arena<Self>>,
+        name: Node<'a>,
+        node: Node<'a>,
+        index: Option<usize>,
+        rest: bool,
+    ) -> Id<Self> {
+        arena
+            .borrow_mut()
+            .alloc(Self::Parameter(ParameterDefinition::new(
+                name, node, index, rest,
+            )))
+    }
+
     pub fn node(&self) -> Node<'a> {
         unimplemented!()
     }

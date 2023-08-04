@@ -3,6 +3,7 @@
 use tree_sitter_lint::Plugin;
 
 mod ast_helpers;
+mod code_path_analysis;
 mod kind;
 mod macros;
 mod rules;

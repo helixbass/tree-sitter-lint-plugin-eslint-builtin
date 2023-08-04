@@ -2,16 +2,16 @@ use tree_sitter_lint::tree_sitter::Node;
 
 use crate::kind::{
     is_declaration_kind, is_statement_kind, ArrowFunction, AssignmentExpression,
-    AugmentedAssignmentExpression, BreakStatement, CallExpression, CatchClause, Class,
-    ClassDeclaration, ClassStaticBlock, Comment, ComputedPropertyName, ContinueStatement,
-    DebuggerStatement, DoStatement, EmptyStatement, ExportClause, ExportSpecifier, ExportStatement,
-    ExpressionStatement, FieldDefinition, ForInStatement, ForStatement, FormalParameters, Function,
-    FunctionDeclaration, GeneratorFunctionDeclaration, HashBangLine, Identifier, IfStatement,
-    ImportSpecifier, ImportStatement, LabeledStatement, LexicalDeclaration, MemberExpression,
-    MetaProperty, MethodDefinition, NamespaceImport, Pair, ParenthesizedExpression,
-    PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock, SubscriptExpression,
-    SwitchStatement, This, ThrowStatement, TryStatement, UpdateExpression, VariableDeclaration,
-    WhileStatement, WithStatement,
+    AugmentedAssignmentExpression, BreakStatement, CallExpression, CatchClause, Class, ClassBody,
+    ClassDeclaration, ClassHeritage, ClassStaticBlock, Comment, ComputedPropertyName,
+    ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement, ExportClause,
+    ExportSpecifier, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
+    ForStatement, FormalParameters, Function, FunctionDeclaration, GeneratorFunctionDeclaration,
+    HashBangLine, Identifier, IfStatement, ImportSpecifier, ImportStatement, LabeledStatement,
+    LexicalDeclaration, MemberExpression, MetaProperty, MethodDefinition, NamespaceImport, Pair,
+    ParenthesizedExpression, PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock,
+    SubscriptExpression, SwitchStatement, This, ThrowStatement, TryStatement, UpdateExpression,
+    VariableDeclaration, WhileStatement, WithStatement,
 };
 
 pub trait Visit<'a> {
@@ -232,6 +232,14 @@ pub trait Visit<'a> {
 
     fn visit_meta_property(&mut self, node: Node<'a>) {
         visit_meta_property(self, node);
+    }
+
+    fn visit_class_heritage(&mut self, node: Node<'a>) {
+        visit_class_heritage(self, node);
+    }
+
+    fn visit_class_body(&mut self, node: Node<'a>) {
+        visit_class_body(self, node);
     }
 }
 
@@ -645,5 +653,15 @@ pub fn visit_export_specifier<'a, TVisit: Visit<'a> + ?Sized>(
 
 pub fn visit_meta_property<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     assert_node_kind!(node, MetaProperty);
+    unimplemented!()
+}
+
+pub fn visit_class_heritage<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ClassHeritage);
+    unimplemented!()
+}
+
+pub fn visit_class_body<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ClassBody);
     unimplemented!()
 }
