@@ -3,6 +3,7 @@
 pub type Kind = &'static str;
 
 pub const Arguments: &str = "arguments";
+pub const Array: &str = "array";
 pub const ArrayPattern: &str = "array_pattern";
 pub const ArrowFunction: &str = "arrow_function";
 pub const AssignmentExpression: &str = "assignment_expression";

@@ -47,6 +47,16 @@ pub fn is_loop(node: Node) -> bool {
     any_loop_pattern.is_match(node.kind())
 }
 
+pub fn is_null_literal(node: Node) -> bool {
+    node.kind() == Null
+}
+
+pub fn is_null_or_undefined(node: Node, context: &QueryMatchContext) -> bool {
+    is_null_literal(node)
+        || node.kind() == Undefined
+        || node.kind() == UnaryExpression && node.field("operator").text(context) == "void"
+}
+
 pub fn get_static_string_value<'a>(
     node: Node,
     context: &QueryMatchContext<'a>,
