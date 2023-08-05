@@ -80,8 +80,12 @@ impl ForkContext {
         })
     }
 
-    fn head(&self) -> Option<&Vec<Id<CodePathSegment>>> {
+    fn maybe_head(&self) -> Option<&Vec<Id<CodePathSegment>>> {
         self.segments_list.last()
+    }
+
+    pub fn head(&self) -> &Vec<Id<CodePathSegment>> {
+        self.maybe_head().unwrap()
     }
 
     fn empty(&self) -> bool {
@@ -89,7 +93,7 @@ impl ForkContext {
     }
 
     fn reachable(&self, arena: &Arena<CodePathSegment>) -> bool {
-        self.head().matches(|head| {
+        self.maybe_head().matches(|head| {
             !head.is_empty()
                 && head
                     .into_iter()
@@ -190,7 +194,7 @@ impl ForkContext {
         self.segments_list.clear();
     }
 
-    fn new_root(
+    pub fn new_root(
         arena: &mut Arena<Self>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
         id_generator: Rc<IdGenerator>,
@@ -206,10 +210,10 @@ impl ForkContext {
         context
     }
 
-    fn new_empty(
+    pub fn new_empty(
         arena: &mut Arena<Self>,
         parent_context: Id<Self>,
-        fork_leaving_path: bool,
+        fork_leaving_path: Option<bool>,
     ) -> Id<Self> {
         let id_generator = arena.get(parent_context).unwrap().id_generator.clone();
         let parent_context_count = arena.get(parent_context).unwrap().count;
@@ -217,7 +221,11 @@ impl ForkContext {
             arena,
             id_generator,
             Some(parent_context),
-            if fork_leaving_path { 2 } else { 1 } * parent_context_count,
+            if fork_leaving_path.unwrap_or_default() {
+                2
+            } else {
+                1
+            } * parent_context_count,
         )
     }
 }
