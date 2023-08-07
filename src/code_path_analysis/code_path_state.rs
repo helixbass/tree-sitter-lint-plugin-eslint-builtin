@@ -7,6 +7,20 @@ use super::{
     code_path_segment::CodePathSegment, fork_context::ForkContext, id_generator::IdGenerator,
 };
 
+fn add_to_returned_or_thrown(
+    dest: &mut Vec<Id<CodePathSegment>>,
+    others: &[Id<CodePathSegment>],
+    all: &mut Vec<Id<CodePathSegment>>,
+    segments: &[Id<CodePathSegment>],
+) {
+    for &segment in segments {
+        dest.push(segment);
+        if !others.contains(&segment) {
+            all.push(segment);
+        }
+    }
+}
+
 pub struct CodePathState {
     id_generator: Rc<IdGenerator>,
     notify_looped: Rc<dyn Fn(Id<CodePathSegment>, Id<CodePathSegment>)>,
@@ -19,6 +33,9 @@ pub struct CodePathState {
     chain_context: Option<ChainContext>,
     current_segments: Vec<Id<CodePathSegment>>,
     initial_segment: Id<CodePathSegment>,
+    final_segments: Vec<Id<CodePathSegment>>,
+    returned_fork_context: Vec<Id<CodePathSegment>>,
+    thrown_fork_context: Vec<Id<CodePathSegment>>,
 }
 
 impl CodePathState {
@@ -46,7 +63,106 @@ impl CodePathState {
             chain_context: Default::default(),
             current_segments: Default::default(),
             initial_segment,
+            final_segments: Default::default(),
+            returned_fork_context: Default::default(),
+            thrown_fork_context: Default::default(),
         }
+    }
+
+    fn returned_fork_context_add(&mut self, segments: &[Id<CodePathSegment>]) {
+        add_to_returned_or_thrown(
+            &mut self.returned_fork_context,
+            &self.thrown_fork_context,
+            &mut self.final_segments,
+            segments,
+        );
+    }
+
+    fn thrown_fork_context_add(&mut self, segments: &[Id<CodePathSegment>]) {
+        add_to_returned_or_thrown(
+            &mut self.thrown_fork_context,
+            &self.returned_fork_context,
+            &mut self.final_segments,
+            segments,
+        );
+    }
+
+    fn head_segments<'a>(&self, arena: &'a Arena<ForkContext>) -> &'a [Id<CodePathSegment>] {
+        arena.get(self.fork_context).unwrap().head()
+    }
+
+    fn maybe_parent_fork_context(&self, arena: &Arena<ForkContext>) -> Option<Id<ForkContext>> {
+        let current = self.fork_context;
+
+        /*current &&*/
+        arena.get(current).unwrap().upper
+    }
+
+    fn parent_fork_context(&self, arena: &Arena<ForkContext>) -> Id<ForkContext> {
+        self.maybe_parent_fork_context(arena).unwrap()
+    }
+
+    fn push_fork_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        fork_leaving_path: Option<bool>,
+    ) -> Id<ForkContext> {
+        self.fork_context = ForkContext::new_empty(arena, self.fork_context, fork_leaving_path);
+
+        self.fork_context
+    }
+
+    fn pop_fork_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) -> Id<ForkContext> {
+        let last_context = self.fork_context;
+
+        self.fork_context = arena.get(last_context).unwrap().upper.unwrap();
+        let segments = arena
+            .get(last_context)
+            .unwrap()
+            .make_next(code_path_segment_arena, 0, -1);
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .replace_head(code_path_segment_arena, segments);
+
+        last_context
+    }
+
+    fn fork_path(
+        &self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let segments = arena
+            .get(self.parent_fork_context(arena))
+            .unwrap()
+            .make_next(code_path_segment_arena, -1, -1);
+
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, segments)
+    }
+
+    fn fork_bypass_path(
+        &self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let segments = arena
+            .get(self.parent_fork_context(arena))
+            .unwrap()
+            .head()
+            .clone();
+
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, segments)
     }
 
     fn push_choice_context(
@@ -64,6 +180,94 @@ impl CodePathState {
             qq_fork_context: ForkContext::new_empty(arena, self.fork_context, None),
             processed: Default::default(),
         });
+    }
+
+    fn pop_choice_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) -> ChoiceContext {
+        let mut context = self.choice_context.take().unwrap();
+
+        self.choice_context = context.upper.take().map(|box_| *box_);
+
+        let fork_context = self.fork_context;
+        let head_segments = arena.get(fork_context).unwrap().head().clone();
+
+        match context.kind {
+            ChoiceContextKind::LogicalAnd
+            | ChoiceContextKind::LogicalOr
+            | ChoiceContextKind::LogicalNullCoalesce => {
+                if !context.processed {
+                    arena
+                        .get_mut(context.true_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, head_segments.clone());
+                    arena
+                        .get_mut(context.false_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, head_segments.clone());
+                    arena
+                        .get_mut(context.qq_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, head_segments);
+                }
+
+                if context.is_forking_as_result {
+                    let parent_context = self.choice_context.as_mut().unwrap();
+
+                    ForkContext::add_all(
+                        arena,
+                        parent_context.true_fork_context,
+                        context.true_fork_context,
+                    );
+                    ForkContext::add_all(
+                        arena,
+                        parent_context.false_fork_context,
+                        context.false_fork_context,
+                    );
+                    ForkContext::add_all(
+                        arena,
+                        parent_context.qq_fork_context,
+                        context.qq_fork_context,
+                    );
+                    parent_context.processed = true;
+
+                    return context;
+                }
+            }
+            ChoiceContextKind::Test => {
+                if !context.processed {
+                    arena.get_mut(context.true_fork_context).unwrap().clear();
+                    arena
+                        .get_mut(context.true_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, head_segments);
+                } else {
+                    arena.get_mut(context.false_fork_context).unwrap().clear();
+                    arena
+                        .get_mut(context.false_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, head_segments);
+                }
+            }
+            ChoiceContextKind::Loop => return context,
+        }
+
+        let prev_fork_context = context.true_fork_context;
+
+        ForkContext::add_all(arena, prev_fork_context, context.false_fork_context);
+        let segments =
+            arena
+                .get(prev_fork_context)
+                .unwrap()
+                .make_next(code_path_segment_arena, 0, -1);
+        arena
+            .get_mut(fork_context)
+            .unwrap()
+            .replace_head(code_path_segment_arena, segments);
+
+        context
     }
 
     fn push_chain_context(&mut self) {

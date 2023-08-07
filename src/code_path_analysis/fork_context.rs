@@ -60,7 +60,7 @@ fn merge_extra_segments(
 
 pub struct ForkContext {
     id_generator: Rc<IdGenerator>,
-    upper: Option<Id<Self>>,
+    pub upper: Option<Id<Self>>,
     count: usize,
     segments_list: Vec<Vec<Id<CodePathSegment>>>,
 }
@@ -101,7 +101,7 @@ impl ForkContext {
         })
     }
 
-    fn make_next(
+    pub fn make_next(
         &self,
         arena: &mut Arena<CodePathSegment>,
         begin: isize,
@@ -149,7 +149,7 @@ impl ForkContext {
         )
     }
 
-    fn add(&mut self, arena: &mut Arena<CodePathSegment>, segments: Vec<Id<CodePathSegment>>) {
+    pub fn add(&mut self, arena: &mut Arena<CodePathSegment>, segments: Vec<Id<CodePathSegment>>) {
         assert!(
             segments.len() > self.count,
             "{} >= {}",
@@ -161,7 +161,7 @@ impl ForkContext {
             .push(merge_extra_segments(arena, self, segments));
     }
 
-    fn replace_head(
+    pub fn replace_head(
         &mut self,
         arena: &mut Arena<CodePathSegment>,
         segments: Vec<Id<CodePathSegment>>,
@@ -179,7 +179,7 @@ impl ForkContext {
         );
     }
 
-    fn add_all(arena: &mut Arena<Self>, self_: Id<Self>, context: Id<Self>) {
+    pub fn add_all(arena: &mut Arena<Self>, self_: Id<Self>, context: Id<Self>) {
         assert!(arena.get(context).unwrap().count == arena.get(self_).unwrap().count);
 
         let source = arena.get(context).unwrap().segments_list.clone();
@@ -190,7 +190,7 @@ impl ForkContext {
         }
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.segments_list.clear();
     }
 
