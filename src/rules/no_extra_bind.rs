@@ -9,7 +9,8 @@ use tree_sitter_lint::{
 
 use crate::{
     ast_helpers::{
-        call_expression_has_single_matching_argument, get_call_expression_arguments, NodeExtJs,
+        call_expression_has_single_matching_argument, get_call_expression_arguments,
+        range_between_start_and_end, NodeExtJs,
     },
     kind::{CallExpression, Function, Identifier, Kind, SpreadElement, This, LITERAL_KINDS},
     utils::ast_utils,
@@ -69,7 +70,7 @@ fn report<'a>(
             }
 
             token_pairs.into_iter().for_each(|(start, end)| {
-                fixer.remove_range(start.start_byte()..end.end_byte());
+                fixer.remove_range(range_between_start_and_end(start.range(), end.range()));
             });
         }
     });

@@ -5,7 +5,10 @@ use tree_sitter_lint::{
     rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule,
 };
 
-use crate::{ast_helpers::NodeExtJs, kind::StatementBlock};
+use crate::{
+    ast_helpers::{range_between_start_and_end, NodeExtJs},
+    kind::StatementBlock,
+};
 
 pub fn no_lonely_if_rule<
     TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
@@ -83,7 +86,10 @@ pub fn no_lonely_if_rule<
                         }
 
                         fixer.replace_text_range(
-                            opening_else_curly.start_byte()..closing_else_curly.end_byte(),
+                            range_between_start_and_end(
+                                opening_else_curly.range(),
+                                closing_else_curly.range(),
+                            ),
                             node.text(context).thrush(|node_text| {
                                 if else_keyword.end_byte() == opening_else_curly.start_byte() {
                                     format!(" {node_text}")

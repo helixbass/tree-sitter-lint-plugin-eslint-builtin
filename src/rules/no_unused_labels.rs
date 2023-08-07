@@ -7,7 +7,7 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::NodeExtJs,
+    ast_helpers::{range_between_starts, NodeExtJs},
     kind::{self, ExpressionStatement, LabeledStatement, Program, StatementBlock},
     utils::ast_utils,
 };
@@ -86,7 +86,7 @@ fn pop_scope_infos<'a>(
                         return;
                     }
 
-                    fixer.remove_range(node.start_byte()..node.field("body").start_byte());
+                    fixer.remove_range(range_between_starts(node.range(), node.field("body").range()));
                 }
             });
         }

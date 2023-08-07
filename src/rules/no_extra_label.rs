@@ -6,7 +6,11 @@ use tree_sitter_lint::{
     FromFileRunContextInstanceProviderFactory, NodeExt, QueryMatchContext, Rule,
 };
 
-use crate::{ast_helpers::NodeExtJs, kind::LabeledStatement, utils::ast_utils};
+use crate::{
+    ast_helpers::{range_between_ends, NodeExtJs},
+    kind::LabeledStatement,
+    utils::ast_utils,
+};
 
 #[derive(Debug)]
 struct ScopeInfo<'a> {
@@ -86,7 +90,10 @@ fn report_if_unnecessary<'a>(
                         }
 
                         fixer.remove_range(
-                            break_or_continue_token.end_byte()..label_node.end_byte()
+                            range_between_ends(
+                                break_or_continue_token.range(),
+                                label_node.range(),
+                            )
                         );
                     }
                 });
