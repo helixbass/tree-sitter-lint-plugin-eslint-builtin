@@ -88,7 +88,7 @@ impl ForkContext {
         self.maybe_head().unwrap()
     }
 
-    fn empty(&self) -> bool {
+    pub fn empty(&self) -> bool {
         self.segments_list.is_empty()
     }
 

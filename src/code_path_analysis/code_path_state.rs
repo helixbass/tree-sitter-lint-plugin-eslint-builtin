@@ -270,11 +270,175 @@ impl CodePathState {
         context
     }
 
+    fn make_logical_right(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let context = self.choice_context.as_mut().unwrap();
+        let fork_context = self.fork_context;
+
+        if context.processed {
+            let prev_fork_context = match context.kind {
+                ChoiceContextKind::LogicalAnd => context.true_fork_context,
+                ChoiceContextKind::LogicalOr => context.false_fork_context,
+                ChoiceContextKind::LogicalNullCoalesce => context.qq_fork_context,
+                _ => unreachable!(),
+            };
+
+            let segments =
+                arena
+                    .get(prev_fork_context)
+                    .unwrap()
+                    .make_next(code_path_segment_arena, 0, -1);
+            arena
+                .get_mut(fork_context)
+                .unwrap()
+                .replace_head(code_path_segment_arena, segments);
+            arena.get_mut(fork_context).unwrap().clear();
+            context.processed = false;
+        } else {
+            match context.kind {
+                ChoiceContextKind::LogicalAnd => {
+                    let segments = arena.get(fork_context).unwrap().head().clone();
+                    arena
+                        .get_mut(context.false_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, segments);
+                }
+                ChoiceContextKind::LogicalOr => {
+                    let segments = arena.get(fork_context).unwrap().head().clone();
+                    arena
+                        .get_mut(context.true_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, segments);
+                }
+                ChoiceContextKind::LogicalNullCoalesce => {
+                    let segments = arena.get(fork_context).unwrap().head().clone();
+                    arena
+                        .get_mut(context.true_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, segments.clone());
+                    arena
+                        .get_mut(context.false_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, segments);
+                }
+                _ => unreachable!(),
+            }
+
+            let segments =
+                arena
+                    .get(fork_context)
+                    .unwrap()
+                    .make_next(code_path_segment_arena, -1, -1);
+            arena
+                .get_mut(fork_context)
+                .unwrap()
+                .replace_head(code_path_segment_arena, segments);
+        }
+    }
+
+    fn make_if_consequent(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let context = self.choice_context.as_mut().unwrap();
+        let fork_context = self.fork_context;
+
+        if !context.processed {
+            let segments = arena.get(fork_context).unwrap().head().clone();
+            arena
+                .get_mut(context.true_fork_context)
+                .unwrap()
+                .add(code_path_segment_arena, segments.clone());
+            arena
+                .get_mut(context.false_fork_context)
+                .unwrap()
+                .add(code_path_segment_arena, segments.clone());
+            arena
+                .get_mut(context.qq_fork_context)
+                .unwrap()
+                .add(code_path_segment_arena, segments);
+        }
+
+        context.processed = false;
+
+        let segments =
+            arena
+                .get(context.true_fork_context)
+                .unwrap()
+                .make_next(code_path_segment_arena, 0, -1);
+        arena
+            .get_mut(fork_context)
+            .unwrap()
+            .replace_head(code_path_segment_arena, segments);
+    }
+
+    fn make_if_alternate(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let context = self.choice_context.as_mut().unwrap();
+        let fork_context = self.fork_context;
+
+        arena.get_mut(context.true_fork_context).unwrap().clear();
+        let segments = arena.get(fork_context).unwrap().head().clone();
+        arena
+            .get_mut(context.true_fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, segments);
+        context.processed = true;
+
+        let segments = arena.get(context.false_fork_context).unwrap().make_next(
+            code_path_segment_arena,
+            0,
+            -1,
+        );
+        arena
+            .get_mut(fork_context)
+            .unwrap()
+            .replace_head(code_path_segment_arena, segments);
+    }
+
     fn push_chain_context(&mut self) {
         self.chain_context = Some(ChainContext {
             upper: self.chain_context.take().map(Box::new),
             count_choice_contexts: Default::default(),
         });
+    }
+
+    fn pop_chain_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let mut context = self.chain_context.take().unwrap();
+
+        self.chain_context = context.upper.take().map(|box_| *box_);
+
+        for _ in 0..context.count_choice_contexts {
+            self.pop_choice_context(arena, code_path_segment_arena);
+        }
+    }
+
+    fn make_optional_node(&mut self, arena: &mut Arena<ForkContext>) {
+        if let Some(chain_context) = self.chain_context.as_mut() {
+            chain_context.count_choice_contexts += 1;
+            self.push_choice_context(arena, ChoiceContextKind::LogicalNullCoalesce, false);
+        }
+    }
+
+    fn make_optional_right(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        if self.chain_context.is_some() {
+            self.make_logical_right(arena, code_path_segment_arena);
+        }
     }
 
     fn push_switch_context(
@@ -294,6 +458,23 @@ impl CodePathState {
         });
 
         self.push_break_context(arena, true, label);
+    }
+
+    fn pop_switch_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let mut context = self.switch_context.take().unwrap();
+
+        self.switch_context = context.upper.take().map(|box_| *box_);
+
+        let fork_context = self.fork_context;
+        let broken_fork_context = self
+            .pop_break_context(arena, code_path_segment_arena)
+            .broken_fork_context;
+
+        unimplemented!()
     }
 
     fn push_try_context(&mut self, arena: &mut Arena<ForkContext>, has_finalizer: bool) {
@@ -322,6 +503,40 @@ impl CodePathState {
             broken_fork_context: ForkContext::new_empty(arena, self.fork_context, None),
         });
         self.break_context.as_ref().unwrap().broken_fork_context
+    }
+
+    fn pop_break_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) -> BreakContext {
+        let mut context = self.break_context.take().unwrap();
+        let fork_context = self.fork_context;
+
+        self.break_context = context.upper.take().map(|box_| *box_);
+
+        if !context.breakable {
+            let broken_fork_context = context.broken_fork_context;
+
+            if !arena.get(broken_fork_context).unwrap().empty() {
+                let segments = arena.get(fork_context).unwrap().head().clone();
+                arena
+                    .get_mut(broken_fork_context)
+                    .unwrap()
+                    .add(code_path_segment_arena, segments);
+                let segments = arena.get(broken_fork_context).unwrap().make_next(
+                    code_path_segment_arena,
+                    0,
+                    -1,
+                );
+                arena
+                    .get_mut(fork_context)
+                    .unwrap()
+                    .replace_head(code_path_segment_arena, segments);
+            }
+        }
+
+        context
     }
 }
 
