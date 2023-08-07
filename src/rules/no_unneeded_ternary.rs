@@ -5,7 +5,10 @@ use std::{
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory,
+    QueryMatchContext, Rule,
+};
 
 use crate::{
     ast_helpers::{
@@ -56,7 +59,10 @@ fn is_boolean_literal(node: Node) -> bool {
     matches!(node.kind(), True | False)
 }
 
-fn invert_expression(node: Node, context: &QueryMatchContext) -> String {
+fn invert_expression(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> String {
     if node.kind() == BinaryExpression {
         let operator_node = node.child_by_field_name("operator").unwrap();
         let operator = context.get_node_text(operator_node);
@@ -77,13 +83,19 @@ fn invert_expression(node: Node, context: &QueryMatchContext) -> String {
     }
 }
 
-fn is_boolean_expression(node: Node, context: &QueryMatchContext) -> bool {
+fn is_boolean_expression(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     node.kind() == BinaryExpression
         && BOOLEAN_OPERATORS.contains(&*get_binary_expression_operator(node, context))
         || node.kind() == UnaryExpression && get_unary_expression_operator(node, context) == "!"
 }
 
-fn matches_default_assignment(node: Node, context: &QueryMatchContext) -> bool {
+fn matches_default_assignment(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     let test = skip_parenthesized_expressions(node.child_by_field_name("condition").unwrap());
     let consequent =
         skip_parenthesized_expressions(node.child_by_field_name("consequence").unwrap());
@@ -92,7 +104,9 @@ fn matches_default_assignment(node: Node, context: &QueryMatchContext) -> bool {
         && context.get_node_text(test) == context.get_node_text(consequent)
 }
 
-pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
+pub fn no_unneeded_ternary_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-unneeded-ternary",
         languages => [Javascript],

@@ -2,7 +2,9 @@ use std::{borrow::Cow, sync::Arc};
 
 use serde::Deserialize;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule,
+};
 
 use crate::{
     ast_helpers::NodeExtJs,
@@ -63,7 +65,9 @@ fn get_kind(label: &str, scope_infos: &[ScopeInfo]) -> BodyKind {
         .map_or(BodyKind::Other, |info| info.kind)
 }
 
-pub fn no_labels_rule() -> Arc<dyn Rule> {
+pub fn no_labels_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-labels",
         languages => [Javascript],

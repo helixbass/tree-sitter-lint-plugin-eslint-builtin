@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
 
 use crate::{
     ast_helpers::{get_method_definition_kind, is_class_member_static, MethodDefinitionKind},
@@ -42,7 +42,9 @@ fn get_state(state_map: &mut StateMap, name: String, is_static: bool) -> &mut Se
     }
 }
 
-pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
+pub fn no_dupe_class_members_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-dupe-class-members",
         languages => [Javascript],

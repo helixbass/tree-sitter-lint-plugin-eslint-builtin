@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
 
-pub fn no_useless_catch_rule() -> Arc<dyn Rule> {
+pub fn no_useless_catch_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-useless-catch",
         languages => [Javascript],

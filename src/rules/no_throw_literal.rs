@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
 
 use crate::{ast_helpers::NodeExtJs, kind::Undefined, utils::ast_utils};
 
-pub fn no_throw_literal_rule() -> Arc<dyn Rule> {
+pub fn no_throw_literal_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-throw-literal",
         languages => [Javascript],

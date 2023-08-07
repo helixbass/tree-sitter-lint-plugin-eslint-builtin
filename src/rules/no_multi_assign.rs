@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -9,7 +9,9 @@ struct Options {
     ignore_non_declaration: bool,
 }
 
-pub fn no_multi_assign_rule() -> Arc<dyn Rule> {
+pub fn no_multi_assign_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-multi-assign",
         languages => [Javascript],

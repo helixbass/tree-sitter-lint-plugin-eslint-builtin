@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule};
 
 use crate::{ast_helpers::NodeExtJs, kind::IfStatement};
 
@@ -18,7 +18,9 @@ const NEGATED_EXPRESSION: &str = r#"
   ]
 "#;
 
-pub fn no_negated_condition_rule() -> Arc<dyn Rule> {
+pub fn no_negated_condition_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-negated-condition",
         languages => [Javascript],

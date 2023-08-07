@@ -3,7 +3,8 @@ use std::{borrow::Cow, cmp::Ordering, sync::Arc};
 use serde::Deserialize;
 use squalid::{continue_if_none, regex, EverythingExt};
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, QueryMatchContext, Rule, SkipOptionsBuilder,
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory,
+    QueryMatchContext, Rule, SkipOptionsBuilder,
 };
 
 use crate::{
@@ -109,7 +110,10 @@ impl<'de> Deserialize<'de> for Options {
     }
 }
 
-fn get_property_name<'a>(node: Node, context: &QueryMatchContext<'a>) -> Option<Cow<'a, str>> {
+fn get_property_name<'a>(
+    node: Node,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+) -> Option<Cow<'a, str>> {
     ast_utils::get_static_property_name(node, context).or_else(|| {
         get_object_property_computed_property_name(node)?
             .first_non_comment_named_child()
@@ -143,7 +147,9 @@ fn is_valid_order(order: Direction, insensitive: bool, natural: bool, a: &str, b
     }
 }
 
-pub fn sort_keys_rule() -> Arc<dyn Rule> {
+pub fn sort_keys_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "sort-keys",
         languages => [Javascript],

@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule,
+};
 
 use crate::{
     ast_helpers::NodeExtJs,
@@ -35,7 +37,9 @@ fn is_for_loop_afterthought(node: Node) -> bool {
     is_for_statement_update(node)
 }
 
-pub fn no_plusplus_rule() -> Arc<dyn Rule> {
+pub fn no_plusplus_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-plusplus",
         languages => [Javascript],

@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
 
 use crate::ast_helpers::get_binary_expression_operator;
 
-pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
+pub fn no_compare_neg_zero_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     const NEGATIVE_ZERO: &str = r#"
       (unary_expression
         operator: "-"

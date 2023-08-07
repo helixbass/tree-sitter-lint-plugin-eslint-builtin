@@ -6,7 +6,7 @@ use regex::Regex;
 use squalid::{CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::{Node, Range},
-    NodeExt, QueryMatchContext,
+    FromFileRunContextInstanceProviderFactory, NodeExt, QueryMatchContext,
 };
 
 use crate::{
@@ -51,7 +51,10 @@ pub fn is_null_literal(node: Node) -> bool {
     node.kind() == Null
 }
 
-pub fn is_null_or_undefined(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_null_or_undefined(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     is_null_literal(node)
         || node.kind() == Undefined
         || node.kind() == UnaryExpression && node.field("operator").text(context) == "void"
@@ -59,7 +62,7 @@ pub fn is_null_or_undefined(node: Node, context: &QueryMatchContext) -> bool {
 
 pub fn get_static_string_value<'a>(
     node: Node,
-    context: &QueryMatchContext<'a>,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
 ) -> Option<Cow<'a, str>> {
     match node.kind() {
         Number => Some(get_number_literal_string_value(node, context).into()),
@@ -83,7 +86,7 @@ pub fn get_static_string_value<'a>(
 
 pub fn get_static_property_name<'a>(
     node: Node,
-    context: &QueryMatchContext<'a>,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
 ) -> Option<Cow<'a, str>> {
     let prop = match node.kind() {
         Pair | PairPattern => node.child_by_field_name("key"),
@@ -136,7 +139,7 @@ fn check_text<'a>(actual: &str, expected: impl Into<StrOrRegex<'a>>) -> bool {
 fn is_specific_id<'a>(
     node: Node,
     name: impl Into<StrOrRegex<'a>>,
-    context: &QueryMatchContext,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
 ) -> bool {
     node.kind() == Identifier && check_text(&node.text(context), name)
 }
@@ -145,7 +148,7 @@ pub fn is_specific_member_access<'a>(
     node: Node,
     object_name: Option<impl Into<StrOrRegex<'a>>>,
     property_name: Option<impl Into<StrOrRegex<'a>>>,
-    context: &QueryMatchContext,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
 ) -> bool {
     let check_node = node;
 
@@ -179,11 +182,17 @@ pub fn is_parenthesised(node: Node) -> bool {
             .matches(|parent| parent.kind() == ParenthesizedExpression)
 }
 
-pub fn is_comma_token(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_comma_token(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     context.get_node_text(node) == ","
 }
 
-pub fn is_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_closing_paren_token(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     context.get_node_text(node) == ")"
 }
 
@@ -197,7 +206,11 @@ fn get_opening_paren_of_params(node: Node) -> Node {
     get_first_non_comment_child(node.child_by_field_name("parameters").unwrap())
 }
 
-pub fn equal_tokens(left: Node, right: Node, context: &QueryMatchContext) -> bool {
+pub fn equal_tokens<'a>(
+    left: Node<'a>,
+    right: Node<'a>,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     let mut tokens_l = context.get_tokens(left, Option::<fn(Node) -> bool>::None);
     let mut tokens_r = context.get_tokens(right, Option::<fn(Node) -> bool>::None);
 
@@ -216,11 +229,17 @@ pub fn equal_tokens(left: Node, right: Node, context: &QueryMatchContext) -> boo
     }
 }
 
-pub fn is_coalesce_expression(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_coalesce_expression(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     node.kind() == BinaryExpression && get_binary_expression_operator(node, context) == "??"
 }
 
-pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_not_closing_paren_token(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     !is_closing_paren_token(node, context)
 }
 
@@ -231,7 +250,10 @@ pub fn is_breakable_statement(node: Node) -> bool {
     BREAKABLE_TYPE_PATTERN.is_match(node.kind())
 }
 
-pub fn get_precedence(node: Node, context: &QueryMatchContext) -> u32 {
+pub fn get_precedence(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> u32 {
     _get_precedence(
         node.kind(),
         (node.kind() == BinaryExpression).then(|| get_binary_expression_operator(node, context)),
@@ -301,7 +323,10 @@ impl<'a> From<Kind> for NodeOrKind<'a> {
     }
 }
 
-pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> String {
+pub fn get_function_name_with_kind(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> String {
     if node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
     {
@@ -454,7 +479,10 @@ pub fn get_function_head_range(node: Node) -> Range {
     )
 }
 
-pub fn get_parenthesised_text<'a>(context: &'a QueryMatchContext, mut node: Node) -> Cow<'a, str> {
+pub fn get_parenthesised_text<'a>(
+    context: &'a QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+    mut node: Node,
+) -> Cow<'a, str> {
     loop {
         let parent = node.parent();
         if let Some(parent) = parent.filter(|parent| parent.kind() == ParenthesizedExpression) {
@@ -466,7 +494,10 @@ pub fn get_parenthesised_text<'a>(context: &'a QueryMatchContext, mut node: Node
     context.get_node_text(node)
 }
 
-pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
+pub fn could_be_error(
+    node: Node,
+    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     match node.kind() {
         Identifier | CallExpression | NewExpression | MemberExpression | SubscriptExpression
         | YieldExpression | AwaitExpression | Undefined => true,

@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
 use squalid::{regex, EverythingExt, OptionExt};
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule,
+};
 
 use crate::{ast_helpers::NodeExtJs, kind::StatementBlock};
 
-pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
+pub fn no_lonely_if_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-lonely-if",
         languages => [Javascript],

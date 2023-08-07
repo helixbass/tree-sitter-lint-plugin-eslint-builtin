@@ -5,7 +5,9 @@ use std::{
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, Rule,
+};
 
 use crate::{
     ast_helpers::skip_nodes_of_types,
@@ -67,7 +69,9 @@ fn find_conditional_ancestor(node: Node) -> Option<Node> {
     }
 }
 
-pub fn no_cond_assign_rule() -> Arc<dyn Rule> {
+pub fn no_cond_assign_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-cond-assign",
         languages => [Javascript],

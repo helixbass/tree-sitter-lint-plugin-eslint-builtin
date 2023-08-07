@@ -2,8 +2,8 @@ use std::{borrow::Cow, sync::Arc};
 
 use squalid::return_if_none;
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, SkipOptionsBuilder,
-    ROOT_EXIT,
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt,
+    QueryMatchContext, Rule, SkipOptionsBuilder, ROOT_EXIT,
 };
 
 use crate::{
@@ -18,7 +18,10 @@ struct ScopeInfo<'a> {
     node: Node<'a>,
 }
 
-fn is_fixable(node: Node, context: &QueryMatchContext) -> bool {
+fn is_fixable<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     let label = node.field("label");
     let body = node.field("body");
 
@@ -59,7 +62,11 @@ fn is_fixable(node: Node, context: &QueryMatchContext) -> bool {
     true
 }
 
-fn pop_scope_infos(node: Node, scope_infos: &mut Vec<ScopeInfo>, context: &QueryMatchContext) {
+fn pop_scope_infos<'a>(
+    node: Node<'a>,
+    scope_infos: &mut Vec<ScopeInfo<'a>>,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+) {
     while !scope_infos.is_empty() {
         if node.is_descendant_of(scope_infos[scope_infos.len() - 1].node) {
             break;
@@ -86,7 +93,9 @@ fn pop_scope_infos(node: Node, scope_infos: &mut Vec<ScopeInfo>, context: &Query
     }
 }
 
-pub fn no_unused_labels_rule() -> Arc<dyn Rule> {
+pub fn no_unused_labels_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-unused-labels",
         languages => [Javascript],

@@ -3,7 +3,7 @@ use std::{borrow::Cow, sync::Arc};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule};
 
 use crate::{
     ast_helpers::{get_comment_contents, NodeExtJs},
@@ -19,7 +19,9 @@ struct Options {
     comment_pattern: Option<String>,
 }
 
-pub fn default_case_rule() -> Arc<dyn Rule> {
+pub fn default_case_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "default-case",
         languages => [Javascript],

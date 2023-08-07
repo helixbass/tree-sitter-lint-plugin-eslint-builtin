@@ -1,10 +1,17 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory,
+    QueryMatchContext, Rule,
+};
 
 use crate::utils::ast_utils;
 
-fn equal(a: Node, b: Node, context: &QueryMatchContext) -> bool {
+fn equal<'a>(
+    a: Node<'a>,
+    b: Node<'a>,
+    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+) -> bool {
     if a.kind_id() != b.kind_id() {
         return false;
     }
@@ -12,7 +19,9 @@ fn equal(a: Node, b: Node, context: &QueryMatchContext) -> bool {
     ast_utils::equal_tokens(a, b, context)
 }
 
-pub fn no_duplicate_case_rule() -> Arc<dyn Rule> {
+pub fn no_duplicate_case_rule<
+    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
+>() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
     rule! {
         name => "no-duplicate-case",
         languages => [Javascript],
