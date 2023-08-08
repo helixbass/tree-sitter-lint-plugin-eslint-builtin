@@ -1033,6 +1033,89 @@ impl CodePathState {
         }
     }
 
+    fn pop_loop_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let mut context = self.loop_context.take().unwrap();
+
+        self.loop_context = context.take_upper().map(|box_| *box_);
+
+        let fork_context = self.fork_context;
+        let broken_fork_context = self
+            .pop_break_context(arena, code_path_segment_arena)
+            .broken_fork_context;
+
+        match context {
+            LoopContext::While(context) => {
+                self.pop_choice_context(arena, code_path_segment_arena);
+                make_looped(
+                    code_path_segment_arena,
+                    self,
+                    arena[fork_context].head(),
+                    context.continue_dest_segments.as_ref().unwrap(),
+                );
+            }
+            LoopContext::For(context) => {
+                self.pop_choice_context(arena, code_path_segment_arena);
+                make_looped(
+                    code_path_segment_arena,
+                    self,
+                    arena[fork_context].head(),
+                    context.continue_dest_segments.as_ref().unwrap(),
+                );
+            }
+            LoopContext::Do(context) => {
+                let choice_context = self.pop_choice_context(arena, code_path_segment_arena);
+
+                if !choice_context.processed {
+                    let segments = arena[fork_context].head().clone();
+                    arena[choice_context.true_fork_context]
+                        .add(code_path_segment_arena, segments.clone());
+                    arena[choice_context.false_fork_context].add(code_path_segment_arena, segments);
+                }
+                if context.test != Some(true) {
+                    ForkContext::add_all(
+                        arena,
+                        broken_fork_context,
+                        choice_context.false_fork_context,
+                    );
+                }
+
+                let segments_list = &arena[choice_context.true_fork_context].segments_list;
+
+                for segments in segments_list {
+                    make_looped(
+                        code_path_segment_arena,
+                        self,
+                        segments,
+                        context.entry_segments.as_ref().unwrap(),
+                    );
+                }
+            }
+            LoopContext::ForIn(context) => {
+                let segments = arena[fork_context].head().clone();
+                arena[broken_fork_context].add(code_path_segment_arena, segments);
+                make_looped(
+                    code_path_segment_arena,
+                    self,
+                    arena[fork_context].head(),
+                    context.left_segments.as_ref().unwrap(),
+                );
+            }
+        }
+
+        if arena[broken_fork_context].empty() {
+            let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
+            arena[fork_context].replace_head(code_path_segment_arena, segments);
+        } else {
+            let segments =
+                arena[broken_fork_context].make_unreachable(code_path_segment_arena, 0, -1);
+            arena[fork_context].replace_head(code_path_segment_arena, segments);
+        }
+    }
+
     fn make_while_test(
         &mut self,
         arena: &mut Arena<ForkContext>,
@@ -1589,6 +1672,15 @@ impl LoopContext {
             LoopContext::Do(value) => value.upper.as_deref(),
             LoopContext::For(value) => value.upper.as_deref(),
             LoopContext::ForIn(value) => value.upper.as_deref(),
+        }
+    }
+
+    pub fn take_upper(&mut self) -> Option<Box<Self>> {
+        match self {
+            LoopContext::While(value) => value.upper.take(),
+            LoopContext::Do(value) => value.upper.take(),
+            LoopContext::For(value) => value.upper.take(),
+            LoopContext::ForIn(value) => value.upper.take(),
         }
     }
 
