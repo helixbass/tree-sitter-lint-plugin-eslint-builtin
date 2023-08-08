@@ -22,6 +22,45 @@ fn add_to_returned_or_thrown(
     }
 }
 
+fn get_continue_context<'a>(
+    state: &'a CodePathState,
+    label: Option<&str>,
+) -> Option<&'a LoopContext> {
+    let label = match label {
+        None => return state.loop_context.as_ref(),
+        Some(label) => label,
+    };
+
+    let mut context = state.loop_context.as_ref();
+    while let Some(context_present) = context {
+        if context_present.label() == Some(label) {
+            return Some(context_present);
+        }
+        context = context_present.upper();
+    }
+
+    None
+}
+
+fn get_break_context<'a>(
+    state: &'a CodePathState,
+    label: Option<&str>,
+) -> Option<&'a BreakContext> {
+    let mut context = state.break_context.as_ref();
+
+    while let Some(context_present) = context {
+        if match label {
+            Some(label) => context_present.label.as_deref() == Some(label),
+            None => context_present.breakable,
+        } {
+            return Some(context_present);
+        }
+        context = context_present.upper.as_deref();
+    }
+
+    None
+}
+
 fn get_return_context(state: &CodePathState) -> Option<Id<ForkContext>> {
     let mut context = state.try_context.as_ref();
 
@@ -129,6 +168,30 @@ fn make_looped(
 
         (state.notify_looped)(from_segment, to_segment);
     }
+}
+
+fn finalize_test_segments_of_for(
+    arena: &mut Arena<ForkContext>,
+    code_path_segment_arena: &mut Arena<CodePathSegment>,
+    context: &mut ForLoopContext,
+    choice_context: &ChoiceContext,
+    head: Vec<Id<CodePathSegment>>,
+) {
+    if !choice_context.processed {
+        arena[choice_context.true_fork_context].add(code_path_segment_arena, head.clone());
+        arena[choice_context.false_fork_context].add(code_path_segment_arena, head.clone());
+        arena[choice_context.qq_fork_context].add(code_path_segment_arena, head.clone());
+    }
+
+    if context.test != Some(true) {
+        ForkContext::add_all(
+            arena,
+            context.broken_fork_context,
+            choice_context.false_fork_context,
+        );
+    }
+    context.end_of_test_segments =
+        Some(arena[choice_context.true_fork_context].make_next(code_path_segment_arena, 0, -1));
 }
 
 pub struct CodePathState {
@@ -907,6 +970,195 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, segments);
     }
 
+    fn make_for_body(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let choice_context = self.choice_context.as_ref().unwrap();
+        let fork_context = self.fork_context;
+
+        if self
+            .loop_context
+            .as_ref()
+            .unwrap()
+            .as_for_loop_context()
+            .update_segments
+            .is_some()
+        {
+            self.loop_context
+                .as_mut()
+                .unwrap()
+                .as_for_loop_context_mut()
+                .end_of_update_segments = Some(arena[fork_context].head().clone());
+
+            if let Some(test_segments) = self
+                .loop_context
+                .as_ref()
+                .unwrap()
+                .as_for_loop_context()
+                .test_segments
+                .as_ref()
+            {
+                make_looped(
+                    code_path_segment_arena,
+                    self,
+                    self.loop_context
+                        .as_ref()
+                        .unwrap()
+                        .as_for_loop_context()
+                        .end_of_update_segments
+                        .as_ref()
+                        .unwrap(),
+                    test_segments,
+                );
+            }
+        } else if self
+            .loop_context
+            .as_ref()
+            .unwrap()
+            .as_for_loop_context()
+            .test_segments
+            .is_some()
+        {
+            finalize_test_segments_of_for(
+                arena,
+                code_path_segment_arena,
+                self.loop_context
+                    .as_mut()
+                    .unwrap()
+                    .as_for_loop_context_mut(),
+                choice_context,
+                arena[fork_context].head().clone(),
+            );
+        } else {
+            self.loop_context
+                .as_mut()
+                .unwrap()
+                .as_for_loop_context_mut()
+                .end_of_init_segments = Some(arena[fork_context].head().clone());
+        }
+
+        let body_segments = self
+            .loop_context
+            .as_ref()
+            .unwrap()
+            .as_for_loop_context()
+            .end_of_test_segments
+            .clone();
+
+        let body_segments = body_segments.unwrap_or_else(|| {
+            let prev_fork_context = ForkContext::new_empty(arena, fork_context, None);
+
+            arena[prev_fork_context].add(
+                code_path_segment_arena,
+                self.loop_context
+                    .as_ref()
+                    .unwrap()
+                    .as_for_loop_context()
+                    .end_of_init_segments
+                    .clone()
+                    .unwrap(),
+            );
+            if let Some(end_of_update_segments) = self
+                .loop_context
+                .as_ref()
+                .unwrap()
+                .as_for_loop_context()
+                .end_of_update_segments
+                .clone()
+            {
+                arena[prev_fork_context].add(code_path_segment_arena, end_of_update_segments);
+            }
+
+            arena[prev_fork_context].make_next(code_path_segment_arena, 0, -1)
+        });
+        if self
+            .loop_context
+            .as_ref()
+            .unwrap()
+            .as_for_loop_context()
+            .continue_dest_segments
+            .is_none()
+        {
+            self.loop_context
+                .as_mut()
+                .unwrap()
+                .as_for_loop_context_mut()
+                .continue_dest_segments = Some(body_segments.clone());
+        }
+        arena[fork_context].replace_head(code_path_segment_arena, body_segments);
+    }
+
+    fn make_for_in_of_left(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let context = self
+            .loop_context
+            .as_mut()
+            .unwrap()
+            .as_for_in_loop_context_mut();
+        let fork_context = self.fork_context;
+        let left_segments = arena[fork_context].make_disconnected(code_path_segment_arena, -1, -1);
+
+        context.prev_segments = Some(arena[fork_context].head().clone());
+        context.continue_dest_segments = Some(left_segments.clone());
+        context.left_segments = Some(left_segments.clone());
+        arena[fork_context].replace_head(code_path_segment_arena, left_segments);
+    }
+
+    fn make_for_in_of_right(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let context = self
+            .loop_context
+            .as_mut()
+            .unwrap()
+            .as_for_in_loop_context_mut();
+        let fork_context = self.fork_context;
+        let temp = ForkContext::new_empty(arena, fork_context, None);
+
+        arena[temp].add(
+            code_path_segment_arena,
+            context.prev_segments.clone().unwrap(),
+        );
+        let right_segments = arena[temp].make_next(code_path_segment_arena, -1, -1);
+
+        context.end_of_left_segments = Some(arena[fork_context].head().clone());
+        arena[fork_context].replace_head(code_path_segment_arena, right_segments);
+    }
+
+    fn make_for_in_of_body(
+        &self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let context = self.loop_context.as_ref().unwrap().as_for_in_loop_context();
+        let fork_context = self.fork_context;
+        let temp = ForkContext::new_empty(arena, fork_context, None);
+
+        arena[temp].add(
+            code_path_segment_arena,
+            context.end_of_left_segments.clone().unwrap(),
+        );
+        let body_segments = arena[temp].make_next(code_path_segment_arena, -1, -1);
+
+        make_looped(
+            code_path_segment_arena,
+            self,
+            arena[fork_context].head(),
+            context.left_segments.as_ref().unwrap(),
+        );
+
+        let segments = arena[fork_context].head().clone();
+        arena[context.broken_fork_context].add(code_path_segment_arena, segments);
+        arena[fork_context].replace_head(code_path_segment_arena, body_segments);
+    }
+
     fn push_break_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
@@ -954,6 +1206,66 @@ impl CodePathState {
         }
 
         context
+    }
+
+    fn make_break(
+        &self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+        label: Option<&str>,
+    ) {
+        let fork_context = self.fork_context;
+
+        if !arena[fork_context].reachable(code_path_segment_arena) {
+            return;
+        }
+
+        let context = get_break_context(self, label);
+
+        if let Some(context) = context {
+            let segments = arena[fork_context].head().clone();
+            arena[context.broken_fork_context].add(code_path_segment_arena, segments);
+        }
+
+        let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
+        arena[fork_context].replace_head(code_path_segment_arena, segments);
+    }
+
+    fn make_continue(
+        &self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+        label: Option<&str>,
+    ) {
+        let fork_context = self.fork_context;
+
+        if !arena[fork_context].reachable(code_path_segment_arena) {
+            return;
+        }
+
+        let context = get_continue_context(self, label);
+
+        if let Some(context) = context {
+            if let Some(continue_dest_segments) = context.continue_dest_segments() {
+                make_looped(
+                    code_path_segment_arena,
+                    self,
+                    arena[fork_context].head(),
+                    continue_dest_segments,
+                );
+
+                if let LoopContext::ForIn(context) = context {
+                    let segments = arena[fork_context].head().clone();
+                    arena[context.broken_fork_context].add(code_path_segment_arena, segments);
+                }
+            } else {
+                let segments = arena[fork_context].head().clone();
+                arena[context.as_do_loop_context().continue_fork_context]
+                    .add(code_path_segment_arena, segments);
+            }
+        }
+        let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
+        arena[fork_context].replace_head(code_path_segment_arena, segments);
     }
 
     fn make_return(
@@ -1060,6 +1372,70 @@ enum LoopContext {
     Do(DoLoopContext),
     For(ForLoopContext),
     ForIn(ForInLoopContext),
+}
+
+impl LoopContext {
+    pub fn label(&self) -> Option<&str> {
+        match self {
+            LoopContext::While(value) => value.label.as_deref(),
+            LoopContext::Do(value) => value.label.as_deref(),
+            LoopContext::For(value) => value.label.as_deref(),
+            LoopContext::ForIn(value) => value.label.as_deref(),
+        }
+    }
+
+    pub fn upper(&self) -> Option<&Self> {
+        match self {
+            LoopContext::While(value) => value.upper.as_deref(),
+            LoopContext::Do(value) => value.upper.as_deref(),
+            LoopContext::For(value) => value.upper.as_deref(),
+            LoopContext::ForIn(value) => value.upper.as_deref(),
+        }
+    }
+
+    pub fn continue_dest_segments(&self) -> Option<&[Id<CodePathSegment>]> {
+        match self {
+            LoopContext::While(value) => value.continue_dest_segments.as_deref(),
+            LoopContext::Do(value) => None,
+            LoopContext::For(value) => value.continue_dest_segments.as_deref(),
+            LoopContext::ForIn(value) => value.continue_dest_segments.as_deref(),
+        }
+    }
+
+    pub fn as_do_loop_context(&self) -> &DoLoopContext {
+        match self {
+            Self::Do(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn as_for_in_loop_context(&self) -> &ForInLoopContext {
+        match self {
+            Self::ForIn(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn as_for_in_loop_context_mut(&mut self) -> &mut ForInLoopContext {
+        match self {
+            Self::ForIn(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn as_for_loop_context(&self) -> &ForLoopContext {
+        match self {
+            Self::For(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn as_for_loop_context_mut(&mut self) -> &mut ForLoopContext {
+        match self {
+            Self::For(value) => value,
+            _ => unreachable!(),
+        }
+    }
 }
 
 struct WhileLoopContext {

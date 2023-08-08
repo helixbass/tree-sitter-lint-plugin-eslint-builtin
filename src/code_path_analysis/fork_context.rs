@@ -133,7 +133,7 @@ impl ForkContext {
         )
     }
 
-    fn make_disconnected(
+    pub fn make_disconnected(
         &self,
         arena: &mut Arena<CodePathSegment>,
         begin: isize,
