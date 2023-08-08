@@ -18,6 +18,7 @@ tree-sitter-lint = { path = "../tree-sitter-lint" }
 itertools = "0.11.0"
 fancy-regex = "0.11.0"
 natord = "1.0.9"
+derive_builder = "0.12.0"
 
 [patch.crates-io]
 tree-sitter = { git = "https://github.com/tree-sitter/tree-sitter", rev = "c16b90d" }

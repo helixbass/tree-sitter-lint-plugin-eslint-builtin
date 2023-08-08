@@ -204,11 +204,11 @@ pub struct CodePathState {
     loop_context: Option<LoopContext>,
     break_context: Option<BreakContext>,
     chain_context: Option<ChainContext>,
-    current_segments: Vec<Id<CodePathSegment>>,
-    initial_segment: Id<CodePathSegment>,
-    final_segments: Vec<Id<CodePathSegment>>,
-    returned_fork_context: Vec<Id<CodePathSegment>>,
-    thrown_fork_context: Vec<Id<CodePathSegment>>,
+    pub current_segments: Vec<Id<CodePathSegment>>,
+    pub initial_segment: Id<CodePathSegment>,
+    pub final_segments: Vec<Id<CodePathSegment>>,
+    pub returned_fork_context: Vec<Id<CodePathSegment>>,
+    pub thrown_fork_context: Vec<Id<CodePathSegment>>,
 }
 
 impl CodePathState {

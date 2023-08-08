@@ -43,7 +43,7 @@ impl CodePathSegment {
         arena.alloc(segment)
     }
 
-    fn is_looped_prev_segment(&self, segment: Id<Self>) -> bool {
+    pub fn is_looped_prev_segment(&self, segment: Id<Self>) -> bool {
         self.looped_prev_segments.contains(&segment)
     }
 
