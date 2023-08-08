@@ -21,6 +21,36 @@ fn add_to_returned_or_thrown(
     }
 }
 
+fn get_return_context(state: &CodePathState) -> Option<Id<ForkContext>> {
+    let mut context = state.try_context.as_ref();
+
+    while let Some(context_present) = context {
+        if context_present.has_finalizer && context_present.position != TryContextPosition::Finally
+        {
+            return Some(context_present.returned_fork_context.unwrap());
+        }
+        context = context_present.upper.as_deref();
+    }
+
+    None
+}
+
+fn get_throw_context(state: &CodePathState) -> Option<Id<ForkContext>> {
+    let mut context = state.try_context.as_ref();
+
+    while let Some(context_present) = context {
+        if context_present.position == TryContextPosition::Try
+            || context_present.has_finalizer
+                && context_present.position == TryContextPosition::Catch
+        {
+            return Some(context_present.thrown_fork_context);
+        }
+        context = context_present.upper.as_deref();
+    }
+
+    None
+}
+
 fn remove<T: PartialEq>(xs: &mut Vec<T>, x: &T) {
     if let Some(found_index) = xs.iter().position(|item| item == x) {
         xs.remove(found_index);
@@ -621,6 +651,52 @@ impl CodePathState {
             .replace_head(code_path_segment_arena, segments);
     }
 
+    fn make_switch_case_body(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+        is_empty: bool,
+        is_default: bool,
+    ) {
+        if !self.switch_context.as_ref().unwrap().has_case {
+            return;
+        }
+
+        let parent_fork_context = self.fork_context;
+        let fork_context = self.push_fork_context(arena, None);
+
+        let segments =
+            arena
+                .get(parent_fork_context)
+                .unwrap()
+                .make_next(code_path_segment_arena, 0, -1);
+        arena
+            .get_mut(fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, segments);
+
+        #[allow(clippy::collapsible_else_if)]
+        if is_default {
+            self.switch_context.as_mut().unwrap().default_segments =
+                Some(arena.get(parent_fork_context).unwrap().head().clone());
+            if is_empty {
+                self.switch_context.as_mut().unwrap().found_default = true;
+            } else {
+                self.switch_context.as_mut().unwrap().default_body_segments =
+                    Some(arena.get(fork_context).unwrap().head().clone());
+            }
+        } else {
+            if !is_empty && self.switch_context.as_ref().unwrap().found_default {
+                self.switch_context.as_mut().unwrap().found_default = false;
+                self.switch_context.as_mut().unwrap().default_body_segments =
+                    Some(arena.get(fork_context).unwrap().head().clone());
+            }
+        }
+
+        self.switch_context.as_mut().unwrap().last_is_default = is_default;
+        self.switch_context.as_mut().unwrap().count_forks += 1;
+    }
+
     fn push_try_context(&mut self, arena: &mut Arena<ForkContext>, has_finalizer: bool) {
         self.try_context = Some(TryContext {
             upper: self.try_context.take().map(Box::new),
@@ -632,6 +708,71 @@ impl CodePathState {
             last_of_try_is_reachable: Default::default(),
             last_of_catch_is_reachable: Default::default(),
         });
+    }
+
+    fn pop_try_context(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let mut context = self.try_context.take().unwrap();
+
+        self.try_context = context.upper.take().map(|box_| *box_);
+
+        if context.position == TryContextPosition::Catch {
+            self.pop_fork_context(arena, code_path_segment_arena);
+            return;
+        }
+
+        let returned = context.returned_fork_context.unwrap();
+        let thrown = context.thrown_fork_context;
+
+        if arena.get(returned).unwrap().empty() && arena.get(thrown).unwrap().empty() {
+            return;
+        }
+
+        let head_segments = arena.get(self.fork_context).unwrap().head().clone();
+
+        self.fork_context = arena.get(self.fork_context).unwrap().upper.unwrap();
+        let normal_segments = &head_segments[..head_segments.len() / 2];
+        let leaving_segments = &head_segments[head_segments.len() / 2..];
+
+        if !arena.get(returned).unwrap().empty() {
+            match get_return_context(self) {
+                Some(returned_fork_context) => {
+                    arena
+                        .get_mut(returned_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, leaving_segments.to_owned());
+                }
+                None => {
+                    self.returned_fork_context_add(leaving_segments);
+                }
+            }
+        }
+        if !arena.get(thrown).unwrap().empty() {
+            match get_throw_context(self) {
+                Some(thrown_fork_context) => {
+                    arena
+                        .get_mut(thrown_fork_context)
+                        .unwrap()
+                        .add(code_path_segment_arena, leaving_segments.to_owned());
+                }
+                None => {
+                    self.thrown_fork_context_add(leaving_segments);
+                }
+            }
+        }
+
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .replace_head(code_path_segment_arena, normal_segments.to_owned());
+
+        if !context.last_of_try_is_reachable && !context.last_of_catch_is_reachable {
+            unreachable!("maybe? looks like passing no arguments to makeUnreachable() would result in some NaN's in makeSegments()");
+            // arena.get_mut(self.fork_context).unwrap().make_unreachable();
+        }
     }
 
     fn push_break_context(
