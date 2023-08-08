@@ -1,4 +1,5 @@
 use id_arena::{Arena, Id};
+use squalid::return_if_none;
 use std::{iter, rc::Rc};
 
 use crate::kind::Kind;
@@ -35,7 +36,7 @@ fn get_return_context(state: &CodePathState) -> Option<Id<ForkContext>> {
     None
 }
 
-fn get_throw_context(state: &CodePathState) -> Option<Id<ForkContext>> {
+fn get_throw_context(state: &CodePathState) -> Option<(Id<ForkContext>, TryContextPosition)> {
     let mut context = state.try_context.as_ref();
 
     while let Some(context_present) = context {
@@ -43,7 +44,10 @@ fn get_throw_context(state: &CodePathState) -> Option<Id<ForkContext>> {
             || context_present.has_finalizer
                 && context_present.position == TryContextPosition::Catch
         {
-            return Some(context_present.thrown_fork_context);
+            return Some((
+                context_present.thrown_fork_context,
+                context_present.position,
+            ));
         }
         context = context_present.upper.as_deref();
     }
@@ -752,7 +756,7 @@ impl CodePathState {
         }
         if !arena.get(thrown).unwrap().empty() {
             match get_throw_context(self) {
-                Some(thrown_fork_context) => {
+                Some((thrown_fork_context, _)) => {
                     arena
                         .get_mut(thrown_fork_context)
                         .unwrap()
@@ -773,6 +777,134 @@ impl CodePathState {
             unreachable!("maybe? looks like passing no arguments to makeUnreachable() would result in some NaN's in makeSegments()");
             // arena.get_mut(self.fork_context).unwrap().make_unreachable();
         }
+    }
+
+    fn make_catch_block(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let fork_context = self.fork_context;
+        let thrown = self.try_context.as_ref().unwrap().thrown_fork_context;
+
+        self.try_context.as_mut().unwrap().position = TryContextPosition::Catch;
+        self.try_context.as_mut().unwrap().thrown_fork_context =
+            ForkContext::new_empty(arena, fork_context, None);
+        self.try_context.as_mut().unwrap().last_of_try_is_reachable = arena
+            .get(fork_context)
+            .unwrap()
+            .reachable(code_path_segment_arena);
+
+        let segments = arena.get(fork_context).unwrap().head().clone();
+        arena
+            .get_mut(thrown)
+            .unwrap()
+            .add(code_path_segment_arena, segments);
+        let thrown_segments = arena
+            .get(thrown)
+            .unwrap()
+            .make_next(code_path_segment_arena, 0, -1);
+
+        self.push_fork_context(arena, None);
+        self.fork_bypass_path(arena, code_path_segment_arena);
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, thrown_segments);
+    }
+
+    fn make_finally_block(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let mut fork_context = self.fork_context;
+        let returned = self
+            .try_context
+            .as_ref()
+            .unwrap()
+            .returned_fork_context
+            .unwrap();
+        let thrown = self.try_context.as_ref().unwrap().thrown_fork_context;
+        let head_of_leaving_segments = arena.get(fork_context).unwrap().head().clone();
+
+        if self.try_context.as_ref().unwrap().position == TryContextPosition::Catch {
+            self.pop_fork_context(arena, code_path_segment_arena);
+            fork_context = self.fork_context;
+
+            self.try_context
+                .as_mut()
+                .unwrap()
+                .last_of_catch_is_reachable = arena
+                .get(fork_context)
+                .unwrap()
+                .reachable(code_path_segment_arena);
+        } else {
+            self.try_context.as_mut().unwrap().last_of_try_is_reachable = arena
+                .get(fork_context)
+                .unwrap()
+                .reachable(code_path_segment_arena);
+        }
+        self.try_context.as_mut().unwrap().position = TryContextPosition::Finally;
+
+        if arena.get(returned).unwrap().empty() && arena.get(thrown).unwrap().empty() {
+            return;
+        }
+
+        let mut segments =
+            arena
+                .get(fork_context)
+                .unwrap()
+                .make_next(code_path_segment_arena, -1, -1);
+
+        for i in 0..arena.get(fork_context).unwrap().count {
+            let mut prev_segs_of_leaving_segment = vec![head_of_leaving_segments[i]];
+
+            for segments in &arena.get(returned).unwrap().segments_list {
+                prev_segs_of_leaving_segment.push(segments[i]);
+            }
+            for segments in &arena.get(thrown).unwrap().segments_list {
+                prev_segs_of_leaving_segment.push(segments[i]);
+            }
+
+            segments.push(CodePathSegment::new_next(
+                code_path_segment_arena,
+                self.id_generator.next(),
+                &prev_segs_of_leaving_segment,
+            ));
+        }
+
+        self.push_fork_context(arena, Some(true));
+
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, segments);
+    }
+
+    fn make_first_throwable_path_in_try_block(
+        &self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let fork_context = self.fork_context;
+
+        if !arena[fork_context].reachable(code_path_segment_arena) {
+            return;
+        }
+
+        let (thrown_fork_context, position) = return_if_none!(get_throw_context(self));
+        if position != TryContextPosition::Try {
+            return;
+        }
+        if !arena[thrown_fork_context].empty() {
+            return;
+        }
+
+        let segments = arena[fork_context].head().clone();
+        arena[thrown_fork_context].add(code_path_segment_arena, segments);
+        let segments = arena[fork_context].make_next(code_path_segment_arena, -1, -1);
+        arena[fork_context].replace_head(code_path_segment_arena, segments);
     }
 
     fn push_break_context(
@@ -822,6 +954,58 @@ impl CodePathState {
         }
 
         context
+    }
+
+    fn make_return(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let fork_context = self.fork_context;
+
+        if arena[fork_context].reachable(code_path_segment_arena) {
+            let segments = arena[fork_context].head().clone();
+            match get_return_context(self) {
+                Some(returned_fork_context) => {
+                    arena[returned_fork_context].add(code_path_segment_arena, segments);
+                }
+                None => {
+                    self.returned_fork_context_add(&segments);
+                }
+            }
+            let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
+            arena[fork_context].replace_head(code_path_segment_arena, segments);
+        }
+    }
+
+    fn make_throw(
+        &mut self,
+        arena: &mut Arena<ForkContext>,
+        code_path_segment_arena: &mut Arena<CodePathSegment>,
+    ) {
+        let fork_context = self.fork_context;
+
+        if arena[fork_context].reachable(code_path_segment_arena) {
+            let segments = arena[fork_context].head().clone();
+            match get_throw_context(self) {
+                Some((thrown_fork_context, _)) => {
+                    arena[thrown_fork_context].add(code_path_segment_arena, segments);
+                }
+                None => {
+                    self.thrown_fork_context_add(&segments);
+                }
+            }
+            let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
+            arena[fork_context].replace_head(code_path_segment_arena, segments);
+        }
+    }
+
+    fn make_final(&mut self, code_path_segment_arena: &Arena<CodePathSegment>) {
+        let segments = self.current_segments.clone();
+
+        if !segments.is_empty() && code_path_segment_arena[segments[0]].reachable {
+            self.returned_fork_context_add(&segments);
+        }
     }
 }
 

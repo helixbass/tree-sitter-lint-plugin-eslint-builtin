@@ -61,8 +61,8 @@ fn merge_extra_segments(
 pub struct ForkContext {
     id_generator: Rc<IdGenerator>,
     pub upper: Option<Id<Self>>,
-    count: usize,
-    segments_list: Vec<Vec<Id<CodePathSegment>>>,
+    pub count: usize,
+    pub segments_list: Vec<Vec<Id<CodePathSegment>>>,
 }
 
 impl ForkContext {
@@ -92,7 +92,7 @@ impl ForkContext {
         self.segments_list.is_empty()
     }
 
-    fn reachable(&self, arena: &Arena<CodePathSegment>) -> bool {
+    pub fn reachable(&self, arena: &Arena<CodePathSegment>) -> bool {
         self.maybe_head().matches(|head| {
             !head.is_empty()
                 && head
@@ -117,7 +117,7 @@ impl ForkContext {
         )
     }
 
-    fn make_unreachable(
+    pub fn make_unreachable(
         &self,
         arena: &mut Arena<CodePathSegment>,
         begin: isize,
