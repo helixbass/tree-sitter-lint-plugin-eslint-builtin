@@ -5,10 +5,10 @@ use id_arena::{Arena, Id};
 pub struct CodePathSegment {
     // TODO: can I just use the id_arena::Id for this?
     id: String,
-    next_segments: Vec<Id<Self>>,
-    prev_segments: Vec<Id<Self>>,
-    all_next_segments: Vec<Id<Self>>,
-    all_prev_segments: Vec<Id<Self>>,
+    pub next_segments: Vec<Id<Self>>,
+    pub prev_segments: Vec<Id<Self>>,
+    pub all_next_segments: Vec<Id<Self>>,
+    pub all_prev_segments: Vec<Id<Self>>,
     pub reachable: bool,
     used: bool,
     looped_prev_segments: Vec<Id<Self>>,
@@ -118,7 +118,7 @@ impl CodePathSegment {
         }
     }
 
-    fn mark_prev_segment_as_looped(
+    pub fn mark_prev_segment_as_looped(
         arena: &mut Arena<Self>,
         segment: Id<Self>,
         prev_segment: Id<Self>,
@@ -130,7 +130,7 @@ impl CodePathSegment {
             .push(prev_segment);
     }
 
-    fn flatten_unused_segments(arena: &Arena<Self>, segments: &[Id<Self>]) -> Vec<Id<Self>> {
+    pub fn flatten_unused_segments(arena: &Arena<Self>, segments: &[Id<Self>]) -> Vec<Id<Self>> {
         let mut done: HashSet<Id<Self>> = Default::default();
         let mut retv: Vec<Id<Self>> = Default::default();
 

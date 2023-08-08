@@ -1,5 +1,5 @@
 use id_arena::{Arena, Id};
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 use crate::kind::Kind;
 
@@ -18,6 +18,82 @@ fn add_to_returned_or_thrown(
         if !others.contains(&segment) {
             all.push(segment);
         }
+    }
+}
+
+fn remove<T: PartialEq>(xs: &mut Vec<T>, x: &T) {
+    if let Some(found_index) = xs.iter().position(|item| item == x) {
+        xs.remove(found_index);
+    }
+}
+
+fn remove_connection(
+    arena: &mut Arena<CodePathSegment>,
+    prev_segments: &[Id<CodePathSegment>],
+    next_segments: &[Id<CodePathSegment>],
+) {
+    for (i, &prev_segment) in prev_segments.into_iter().enumerate() {
+        let next_segment = next_segments[i];
+
+        remove(
+            &mut arena.get_mut(prev_segment).unwrap().next_segments,
+            &next_segment,
+        );
+        remove(
+            &mut arena.get_mut(prev_segment).unwrap().all_next_segments,
+            &next_segment,
+        );
+        remove(
+            &mut arena.get_mut(next_segment).unwrap().prev_segments,
+            &prev_segment,
+        );
+        remove(
+            &mut arena.get_mut(next_segment).unwrap().all_prev_segments,
+            &prev_segment,
+        );
+    }
+}
+
+fn make_looped(
+    arena: &mut Arena<CodePathSegment>,
+    state: &CodePathState,
+    unflattened_from_segments: &[Id<CodePathSegment>],
+    unflattened_to_segments: &[Id<CodePathSegment>],
+) {
+    let from_segments = CodePathSegment::flatten_unused_segments(arena, unflattened_from_segments);
+    let to_segments = CodePathSegment::flatten_unused_segments(arena, unflattened_to_segments);
+
+    for (from_segment, to_segment) in iter::zip(from_segments, to_segments) {
+        if arena.get(to_segment).unwrap().reachable {
+            arena
+                .get_mut(from_segment)
+                .unwrap()
+                .next_segments
+                .push(to_segment);
+        }
+        if arena.get(from_segment).unwrap().reachable {
+            arena
+                .get_mut(to_segment)
+                .unwrap()
+                .prev_segments
+                .push(from_segment);
+        }
+        arena
+            .get_mut(from_segment)
+            .unwrap()
+            .all_next_segments
+            .push(to_segment);
+        arena
+            .get_mut(to_segment)
+            .unwrap()
+            .all_prev_segments
+            .push(from_segment);
+
+        if arena.get(to_segment).unwrap().all_prev_segments.len() >= 2 {
+            CodePathSegment::mark_prev_segment_as_looped(arena, to_segment, from_segment);
+        }
+
+        (state.notify_looped)(from_segment, to_segment);
     }
 }
 
@@ -474,7 +550,75 @@ impl CodePathState {
             .pop_break_context(arena, code_path_segment_arena)
             .broken_fork_context;
 
-        unimplemented!()
+        if context.count_forks == 0 {
+            if !arena.get(broken_fork_context).unwrap().empty() {
+                let segments =
+                    arena
+                        .get(fork_context)
+                        .unwrap()
+                        .make_next(code_path_segment_arena, -1, -1);
+                arena
+                    .get_mut(broken_fork_context)
+                    .unwrap()
+                    .add(code_path_segment_arena, segments);
+                let segments = arena.get(broken_fork_context).unwrap().make_next(
+                    code_path_segment_arena,
+                    0,
+                    -1,
+                );
+                arena
+                    .get_mut(fork_context)
+                    .unwrap()
+                    .replace_head(code_path_segment_arena, segments);
+            }
+
+            return;
+        }
+
+        let last_segments = arena.get(fork_context).unwrap().head().clone();
+
+        self.fork_bypass_path(arena, code_path_segment_arena);
+        let last_case_segments = arena.get(fork_context).unwrap().head().clone();
+
+        arena
+            .get_mut(broken_fork_context)
+            .unwrap()
+            .add(code_path_segment_arena, last_segments);
+
+        if !context.last_is_default {
+            if let Some(default_body_segments) = context.default_body_segments.as_ref() {
+                remove_connection(
+                    code_path_segment_arena,
+                    context.default_segments.as_ref().unwrap(),
+                    default_body_segments,
+                );
+                make_looped(
+                    code_path_segment_arena,
+                    self,
+                    &last_case_segments,
+                    default_body_segments,
+                );
+            } else {
+                arena
+                    .get_mut(broken_fork_context)
+                    .unwrap()
+                    .add(code_path_segment_arena, last_case_segments);
+            }
+        }
+
+        for _ in 0..context.count_forks {
+            self.fork_context = arena.get(self.fork_context).unwrap().upper.unwrap();
+        }
+
+        let segments =
+            arena
+                .get(broken_fork_context)
+                .unwrap()
+                .make_next(code_path_segment_arena, 0, -1);
+        arena
+            .get_mut(self.fork_context)
+            .unwrap()
+            .replace_head(code_path_segment_arena, segments);
     }
 
     fn push_try_context(&mut self, arena: &mut Arena<ForkContext>, has_finalizer: bool) {
