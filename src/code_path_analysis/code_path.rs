@@ -1,4 +1,4 @@
-use std::{cell::Cell, cmp::Ordering, collections::HashMap, rc::Rc};
+use std::{cmp::Ordering, collections::HashMap, rc::Rc};
 
 use derive_builder::Builder;
 use id_arena::{Arena, Id};

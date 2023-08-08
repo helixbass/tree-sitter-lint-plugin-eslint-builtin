@@ -37,6 +37,7 @@ mod no_unneeded_ternary;
 mod no_unused_labels;
 mod no_useless_call;
 mod no_useless_catch;
+mod require_yield;
 mod sort_keys;
 
 pub use default_case::default_case_rule;
@@ -78,4 +79,5 @@ pub use no_unneeded_ternary::no_unneeded_ternary_rule;
 pub use no_unused_labels::no_unused_labels_rule;
 pub use no_useless_call::no_useless_call_rule;
 pub use no_useless_catch::no_useless_catch_rule;
+pub use require_yield::require_yield_rule;
 pub use sort_keys::sort_keys_rule;
