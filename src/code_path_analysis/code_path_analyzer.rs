@@ -2,27 +2,31 @@ use std::{borrow::Cow, rc::Rc};
 
 use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
-use squalid::OptionExt;
+use squalid::{NonEmpty, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::Node, tree_sitter_grep::SupportedLanguage, EventEmitter, FileRunContext, NodeExt,
     SourceTextProvider,
 };
 
 use crate::{
-    ast_helpers::{get_binary_expression_operator, NodeExtJs, Number},
+    ast_helpers::{
+        get_binary_expression_operator, is_chain_expression, is_for_of, NodeExtJs, Number,
+    },
     kind::{
         self, is_literal_kind, ArrowFunction, AssignmentPattern, AugmentedAssignmentExpression,
         BinaryExpression, CallExpression, ClassStaticBlock, DoStatement, FieldDefinition,
         ForInStatement, ForStatement, Function, FunctionDeclaration, GeneratorFunction,
-        GeneratorFunctionDeclaration, IfStatement, ObjectAssignmentPattern, Program,
-        SubscriptExpression, SwitchCase, SwitchDefault, TernaryExpression, TryStatement,
-        WhileStatement,
+        GeneratorFunctionDeclaration, IfStatement, LabeledStatement, MemberExpression, Null,
+        ObjectAssignmentPattern, Program, SubscriptExpression, SwitchCase, SwitchDefault,
+        SwitchStatement, TernaryExpression, TryStatement, WhileStatement,
     },
+    utils::ast_utils::BREAKABLE_TYPE_PATTERN,
 };
 
 use super::{
     code_path::{CodePath, CodePathOrigin},
     code_path_segment::CodePathSegment,
+    code_path_state::ChoiceContextKind,
     fork_context::ForkContext,
     id_generator::IdGenerator,
 };
@@ -35,12 +39,47 @@ fn is_property_definition_value(node: Node) -> bool {
     })
 }
 
-fn is_handled_logical_operator(operator: &str) -> bool {
+fn is_handled_logical_operator_str(operator: &str) -> bool {
     matches!(operator, "&&" | "||" | "??")
+}
+
+fn is_handled_logical_operator<'a>(
+    node: Node,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> bool {
+    is_handled_logical_operator_str(&*get_binary_expression_operator(node, source_text_provider))
 }
 
 fn is_logical_assignment_operator(operator: &str) -> bool {
     matches!(operator, "&&=" | "||=" | "??=")
+}
+
+fn get_label<'a>(
+    node: Node,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> Option<Cow<'a, str>> {
+    node.parent()
+        .unwrap()
+        .when_kind(LabeledStatement)
+        .map(|parent| parent.field("label").text(source_text_provider))
+}
+
+fn is_forking_by_true_or_false<'a>(
+    node: Node,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> bool {
+    let parent = node.parent().unwrap();
+
+    match parent.kind() {
+        TernaryExpression | IfStatement | WhileStatement | DoStatement | ForStatement => {
+            parent.field("condition") == node
+        }
+        BinaryExpression => is_handled_logical_operator(node, source_text_provider),
+        AugmentedAssignmentExpression => {
+            is_logical_assignment_operator(&node.field("operator").text(source_text_provider))
+        }
+        _ => false,
+    }
 }
 
 fn get_boolean_value_if_simple_constant<'a>(
@@ -50,8 +89,9 @@ fn get_boolean_value_if_simple_constant<'a>(
     is_literal_kind(node.kind()).then(|| match node.kind() {
         kind::String => !node.text(source_text_provider).is_empty(),
         kind::Number => Number::from(&*node.text(source_text_provider)).is_truthy(),
-        Regex => true,
+        kind::Regex => true,
         Null => false,
+        _ => unreachable!(),
     })
 }
 
@@ -63,7 +103,7 @@ pub struct CodePathAnalyzer<'a, 'b> {
     fork_context_arena: Arena<ForkContext>,
     code_path_segment_arena: Arena<CodePathSegment>,
     file_run_context: FileRunContext<'a, 'b>,
-    pending_events: Vec<Event<'a>>,
+    current_events: Vec<Event<'a>>,
 }
 
 impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
@@ -76,7 +116,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             fork_context_arena: Default::default(),
             code_path_segment_arena: Default::default(),
             file_run_context,
-            pending_events: Default::default(),
+            current_events: Default::default(),
         }
     }
 
@@ -94,7 +134,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                     // debug.dump(`onCodePathSegmentEnd ${currentSegment.id}`);
 
                     if self.code_path_segment_arena[*current_segment].reachable {
-                        self.pending_events
+                        self.current_events
                             .push(Event::OnCodePathSegmentEnd(*current_segment, node));
                     }
                 }
@@ -102,7 +142,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                     // debug.dump(`onCodePathSegmentEnd ${currentSegment.id}`);
 
                     if self.code_path_segment_arena[*current_segment].reachable {
-                        self.pending_events
+                        self.current_events
                             .push(Event::OnCodePathSegmentEnd(*current_segment, node));
                     }
                 }
@@ -121,7 +161,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
 
                     CodePathSegment::mark_used(&mut self.code_path_segment_arena, *head_segment);
                     if self.code_path_segment_arena[*head_segment].reachable {
-                        self.pending_events
+                        self.current_events
                             .push(Event::OnCodePathSegmentStart(*head_segment, node));
                     }
                 }
@@ -130,7 +170,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
 
                     CodePathSegment::mark_used(&mut self.code_path_segment_arena, *head_segment);
                     if self.code_path_segment_arena[*head_segment].reachable {
-                        self.pending_events
+                        self.current_events
                             .push(Event::OnCodePathSegmentStart(*head_segment, node));
                     }
                 }
@@ -177,10 +217,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             }
             BinaryExpression => {
                 if parent.field("right") == node
-                    && is_handled_logical_operator(&get_binary_expression_operator(
-                        parent,
-                        &self.file_run_context,
-                    ))
+                    && is_handled_logical_operator(parent, &self.file_run_context)
                 {
                     state.make_logical_right(
                         &mut self.fork_context_arena,
@@ -283,7 +320,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
                         self.current_node.unwrap(),
-                        &mut self.pending_events,
+                        &mut self.current_events,
                     );
                 }
             }
@@ -304,7 +341,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
                         self.current_node.unwrap(),
-                        &mut self.pending_events,
+                        &mut self.current_events,
                     );
                 }
             }
@@ -349,8 +386,123 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             ClassStaticBlock => {
                 self.start_code_path(node, CodePathOrigin::ClassStaticBlock);
             }
+            CallExpression | MemberExpression | SubscriptExpression => {
+                if is_chain_expression(node) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .push_chain_context();
+                }
+                if node.child_by_field_name("optional_chain").is_some() {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .make_optional_node(&mut self.fork_context_arena);
+                }
+            }
+            BinaryExpression => {
+                let operator = get_binary_expression_operator(node, &self.file_run_context);
+                if is_handled_logical_operator_str(&operator) {
+                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .push_choice_context(
+                            &mut self.fork_context_arena,
+                            match &*operator {
+                                "&&" => ChoiceContextKind::LogicalAnd,
+                                "||" => ChoiceContextKind::LogicalOr,
+                                "??" => ChoiceContextKind::LogicalNullCoalesce,
+                                _ => unreachable!(),
+                            },
+                            is_forking_as_result,
+                        );
+                }
+            }
+            AugmentedAssignmentExpression => {
+                let operator = node.field("operator").text(self);
+                if is_logical_assignment_operator(&operator) {
+                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .push_choice_context(
+                            &mut self.fork_context_arena,
+                            match operator.strip_suffix("=").unwrap() {
+                                "&&" => ChoiceContextKind::LogicalAnd,
+                                "||" => ChoiceContextKind::LogicalOr,
+                                "??" => ChoiceContextKind::LogicalNullCoalesce,
+                                _ => unreachable!(),
+                            },
+                            is_forking_as_result,
+                        );
+                }
+            }
+            TernaryExpression | IfStatement => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .push_choice_context(
+                        &mut self.fork_context_arena,
+                        ChoiceContextKind::Test,
+                        false,
+                    );
+            }
+            SwitchStatement => {
+                let label = get_label(node, self).map(Cow::into_owned);
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .push_switch_context(
+                        &mut self.fork_context_arena,
+                        node.field("body").has_child_of_kind(SwitchCase),
+                        label,
+                    );
+            }
+            TryStatement => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .push_try_context(
+                        &mut self.fork_context_arena,
+                        node.child_by_field_name("finalizer").is_some(),
+                    );
+            }
+            SwitchCase | SwitchDefault => {
+                if !node.is_first_non_comment_named_child() {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .fork_path(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                }
+            }
+            WhileStatement | DoStatement | ForStatement | ForInStatement => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .push_loop_context(
+                        &mut self.fork_context_arena,
+                        self.current_node.unwrap(),
+                        &mut self.current_events,
+                        node.kind(),
+                        get_label(node, &self.file_run_context).map(Cow::into_owned),
+                        is_for_of(node, &self.file_run_context),
+                    );
+            }
+            LabeledStatement => {
+                if !BREAKABLE_TYPE_PATTERN.is_match(node.field("body").kind()) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .push_break_context(
+                            &mut self.fork_context_arena,
+                            false,
+                            Some(
+                                node.field("label")
+                                    .text(&self.file_run_context)
+                                    .into_owned(),
+                            ),
+                        );
+                }
+            }
             _ => (),
         }
+
+        self.forward_current_to_head(node);
+        // debug.dumpState(node, state, false);
     }
 
     fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
@@ -370,7 +522,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
         ));
 
         // debug.dump(`onCodePathStart ${codePath.id}`);
-        self.pending_events.push(Event::OnCodePathStart(node));
+        self.current_events.push(Event::OnCodePathStart(node));
     }
 }
 
@@ -392,7 +544,14 @@ impl<'a, 'b> EventEmitter<'a> for CodePathAnalyzer<'a, 'b> {
 
         self.process_code_path_to_enter(node);
 
-        unimplemented!()
+        self.current_node = None;
+
+        return (&self.current_events).non_empty().map(|current_events| {
+            current_events
+                .into_iter()
+                .map(|event| event.name().to_owned())
+                .collect()
+        });
     }
 
     fn exit_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::Event>> {
@@ -413,6 +572,17 @@ pub enum Event<'a> {
     OnCodePathStart(Node<'a>),
 }
 
+impl<'a> Event<'a> {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Event::OnCodePathSegmentStart(_, _) => "on-code-path-segment-start",
+            Event::OnCodePathSegmentEnd(_, _) => "on-code-path-segment-end",
+            Event::OnCodePathSegmentLoop(_, _, _) => "on-code-path-segment-loop",
+            Event::OnCodePathStart(_) => "on-code-path-start",
+        }
+    }
+}
+
 pub struct OnLooped;
 
 impl OnLooped {
@@ -420,13 +590,13 @@ impl OnLooped {
         &self,
         arena: &Arena<CodePathSegment>,
         current_node: Node<'a>,
-        pending_events: &mut Vec<Event<'a>>,
+        current_events: &mut Vec<Event<'a>>,
         from_segment: Id<CodePathSegment>,
         to_segment: Id<CodePathSegment>,
     ) {
         if arena[from_segment].reachable && arena[to_segment].reachable {
             // debug.dump(`onCodePathSegmentLoop ${fromSegment.id} -> ${toSegment.id}`);
-            pending_events.push(Event::OnCodePathSegmentLoop(
+            current_events.push(Event::OnCodePathSegmentLoop(
                 from_segment,
                 to_segment,
                 current_node,

@@ -13,7 +13,7 @@ use crate::{
         self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
         FieldDefinition, ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression,
         Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifier, TemplateString, UnaryExpression,
+        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString, UnaryExpression,
     },
     return_default_if_none,
 };
@@ -51,11 +51,11 @@ macro_rules! return_default_if_false {
     };
 }
 
-pub fn is_for_of(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_for_of<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
     assert_kind!(node, ForInStatement);
     matches!(
         node.child_by_field_name("operator"),
-        Some(child) if context.get_node_text(child) == "of"
+        Some(child) if source_text_provider.node_text(child) == "of"
     )
 }
 
@@ -290,18 +290,6 @@ pub fn is_binary_expression_with_one_of_operators(
         .any(|operator| operator_text == operator.as_ref())
 }
 
-pub fn is_chain_expression(mut node: Node) -> bool {
-    loop {
-        if node.kind() != MemberExpression {
-            return false;
-        }
-        if node.child_by_field_name("optional_chain").is_some() {
-            return true;
-        }
-        node = return_default_if_none!(node.parent());
-    }
-}
-
 pub fn get_binary_expression_operator<'a>(
     node: Node,
     source_text_provider: &impl SourceTextProvider<'a>,
@@ -350,6 +338,7 @@ pub trait NodeExtJs<'a> {
     fn skip_parentheses(&self) -> Node<'a>;
     fn is_only_non_comment_named_sibling(&self) -> bool;
     fn has_trailing_comments(&self, context: &QueryMatchContext<'a, '_>) -> bool;
+    fn maybe_first_non_comment_named_child(&self) -> Option<Node<'a>>;
     fn first_non_comment_named_child(&self) -> Node<'a>;
     fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a>;
     fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a>;
@@ -359,6 +348,7 @@ pub trait NodeExtJs<'a> {
     fn has_non_comment_named_children(&self) -> bool;
     fn is_first_call_expression_argument(&self, call_expression: Node) -> bool;
     fn when_kind(&self, kind: Kind) -> Option<Node<'a>>;
+    fn is_first_non_comment_named_child(&self) -> bool;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -409,6 +399,10 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
             )
             .kind()
             == Comment
+    }
+
+    fn maybe_first_non_comment_named_child(&self) -> Option<Node<'a>> {
+        self.non_comment_named_children().next()
     }
 
     fn first_non_comment_named_child(&self) -> Node<'a> {
@@ -467,6 +461,11 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
 
     fn when_kind(&self, kind: Kind) -> Option<Node<'a>> {
         (self.kind() == kind).then_some(*self)
+    }
+
+    fn is_first_non_comment_named_child(&self) -> bool {
+        self.parent()
+            .matches(|parent| parent.maybe_first_non_comment_named_child() == Some(*self))
     }
 }
 
@@ -661,5 +660,19 @@ pub fn range_between_ends(a: Range, b: Range) -> Range {
         end_byte: b.end_byte,
         start_point: a.end_point,
         end_point: b.end_point,
+    }
+}
+
+pub fn is_chain_expression(node: Node) -> bool {
+    match node.kind() {
+        CallExpression => {
+            node.child_by_field_name("optional_chain").is_some()
+                || is_chain_expression(node.field("function"))
+        }
+        MemberExpression | SubscriptExpression => {
+            node.child_by_field_name("optional_chain").is_some()
+                || is_chain_expression(node.field("object"))
+        }
+        _ => false,
     }
 }
