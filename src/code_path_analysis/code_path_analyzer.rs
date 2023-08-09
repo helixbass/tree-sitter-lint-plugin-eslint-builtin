@@ -10,15 +10,19 @@ use tree_sitter_lint::{
 
 use crate::{
     ast_helpers::{
-        get_binary_expression_operator, is_chain_expression, is_for_of, NodeExtJs, Number,
+        get_binary_expression_operator, is_for_of, is_outermost_chain_expression, NodeExtJs, Number,
     },
     kind::{
-        self, is_literal_kind, ArrowFunction, AssignmentPattern, AugmentedAssignmentExpression,
-        BinaryExpression, CallExpression, ClassStaticBlock, DoStatement, FieldDefinition,
-        ForInStatement, ForStatement, Function, FunctionDeclaration, GeneratorFunction,
-        GeneratorFunctionDeclaration, IfStatement, LabeledStatement, MemberExpression, Null,
-        ObjectAssignmentPattern, Program, SubscriptExpression, SwitchCase, SwitchDefault,
-        SwitchStatement, TernaryExpression, TryStatement, WhileStatement,
+        self, is_literal_kind, ArrayPattern, ArrowFunction, AssignmentPattern,
+        AugmentedAssignmentExpression, BinaryExpression, BreakStatement, CallExpression,
+        CatchClause, Class, ClassDeclaration, ClassStaticBlock, ContinueStatement, DoStatement,
+        FieldDefinition, ForInStatement, ForStatement, Function, FunctionDeclaration,
+        GeneratorFunction, GeneratorFunctionDeclaration, Identifier, IfStatement, ImportClause,
+        ImportSpecifier, LabeledStatement, MemberExpression, MethodDefinition, NamespaceImport,
+        NewExpression, Null, ObjectAssignmentPattern, Pair, PairPattern, Program,
+        PropertyIdentifier, RestElement, ReturnStatement, ShorthandPropertyIdentifier,
+        SubscriptExpression, SwitchCase, SwitchDefault, SwitchStatement, TernaryExpression,
+        ThrowStatement, TryStatement, VariableDeclarator, WhileStatement, YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
 };
@@ -93,6 +97,30 @@ fn get_boolean_value_if_simple_constant<'a>(
         Null => false,
         _ => unreachable!(),
     })
+}
+
+fn is_identifier_reference(node: Node) -> bool {
+    let parent = node.parent().unwrap();
+
+    match parent.kind() {
+        LabeledStatement | BreakStatement | ContinueStatement | ArrayPattern | RestElement
+        | ImportClause | ImportSpecifier | NamespaceImport | CatchClause => false,
+        FunctionDeclaration
+        | GeneratorFunctionDeclaration
+        | Function
+        | GeneratorFunction
+        | ArrowFunction
+        | ClassDeclaration
+        | Class
+        | VariableDeclarator
+        | MethodDefinition => !parent
+            .child_by_field_name("name")
+            .matches(|name| name == node),
+        FieldDefinition => parent.field("property") != node,
+        Pair | PairPattern => parent.field("key") != node,
+        AssignmentPattern | ObjectAssignmentPattern => parent.field("left") != node,
+        _ => true,
+    }
 }
 
 pub struct CodePathAnalyzer<'a, 'b> {
@@ -387,7 +415,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                 self.start_code_path(node, CodePathOrigin::ClassStaticBlock);
             }
             CallExpression | MemberExpression | SubscriptExpression => {
-                if is_chain_expression(node) {
+                if is_outermost_chain_expression(node) {
                     self.code_path_arena[self.code_path.unwrap()]
                         .state
                         .push_chain_context();
@@ -505,6 +533,194 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
         // debug.dumpState(node, state, false);
     }
 
+    fn process_code_path_to_exit(&mut self, node: Node<'a>) {
+        let mut dont_forward = false;
+
+        match node.kind() {
+            IfStatement | TernaryExpression => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .pop_choice_context(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
+            }
+            BinaryExpression => {
+                if is_handled_logical_operator(node, self) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .pop_choice_context(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                }
+            }
+            AugmentedAssignmentExpression => {
+                if is_logical_assignment_operator(&node.field("operator").text(self)) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .pop_choice_context(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                }
+            }
+            SwitchStatement => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .pop_switch_context(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
+                        &mut self.current_events,
+                    );
+            }
+            SwitchCase | SwitchDefault => {
+                if !node.field("body").has_non_comment_named_children() {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .make_switch_case_body(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                            true,
+                            node.kind() == SwitchDefault,
+                        );
+                }
+                if self.fork_context_arena[self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .fork_context]
+                    .reachable(&self.code_path_segment_arena)
+                {
+                    dont_forward = true;
+                }
+            }
+            TryStatement => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .pop_try_context(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
+            }
+            BreakStatement => {
+                self.forward_current_to_head(node);
+                let label = node
+                    .child_by_field_name("label")
+                    .map(|label| label.text(self));
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .make_break(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                        label.as_deref(),
+                    );
+                dont_forward = true;
+            }
+            ContinueStatement => {
+                self.forward_current_to_head(node);
+                let label = node
+                    .child_by_field_name("label")
+                    .map(|label| label.text(self));
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .make_continue(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
+                        &mut self.current_events,
+                        label.as_deref(),
+                    );
+                dont_forward = true;
+            }
+            ReturnStatement => {
+                self.forward_current_to_head(node);
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .make_return(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
+                dont_forward = true;
+            }
+            ThrowStatement => {
+                self.forward_current_to_head(node);
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .make_throw(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
+                dont_forward = true;
+            }
+            Identifier | PropertyIdentifier | ShorthandPropertyIdentifier => {
+                if is_identifier_reference(node) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .make_first_throwable_path_in_try_block(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                    dont_forward = true;
+                }
+            }
+            CallExpression | MemberExpression | SubscriptExpression | NewExpression
+            | YieldExpression => {
+                if is_outermost_chain_expression(node) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .pop_chain_context(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                }
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .make_first_throwable_path_in_try_block(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
+            }
+            WhileStatement | DoStatement | ForStatement | ForInStatement => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .pop_loop_context(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
+                        &mut self.current_events,
+                    );
+            }
+            AssignmentPattern => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .pop_fork_context(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
+            }
+            LabeledStatement => {
+                if !BREAKABLE_TYPE_PATTERN.is_match(node.field("body").kind()) {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .pop_break_context(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                }
+            }
+            _ => (),
+        }
+
+        if !dont_forward {
+            self.forward_current_to_head(node);
+        }
+        // debug.dumpState(node, state, true);
+    }
+
+    fn postprocess(&mut self, node: Node<'a>) {
+        unimplemented!()
+    }
+
     fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
         if let Some(code_path) = self.code_path {
             self.forward_current_to_head(node);
@@ -536,6 +752,7 @@ impl<'a, 'b> EventEmitter<'a> for CodePathAnalyzer<'a, 'b> {
     }
 
     fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::Event>> {
+        self.current_events.clear();
         self.current_node = Some(node);
 
         if node.parent().is_some() {
@@ -554,8 +771,22 @@ impl<'a, 'b> EventEmitter<'a> for CodePathAnalyzer<'a, 'b> {
         });
     }
 
-    fn exit_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::Event>> {
-        todo!()
+    fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::Event>> {
+        self.current_events.clear();
+        self.current_node = Some(node);
+
+        self.process_code_path_to_exit(node);
+
+        self.postprocess(node);
+
+        self.current_node = None;
+
+        return (&self.current_events).non_empty().map(|current_events| {
+            current_events
+                .into_iter()
+                .map(|event| event.name().to_owned())
+                .collect()
+        });
     }
 }
 

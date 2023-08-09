@@ -209,7 +209,7 @@ fn finalize_test_segments_of_for(
 pub struct CodePathState {
     id_generator: Rc<IdGenerator>,
     notify_looped: OnLooped,
-    fork_context: Id<ForkContext>,
+    pub fork_context: Id<ForkContext>,
     choice_context: Option<ChoiceContext>,
     switch_context: Option<SwitchContext>,
     try_context: Option<TryContext>,
@@ -297,7 +297,7 @@ impl CodePathState {
         self.fork_context
     }
 
-    fn pop_fork_context(
+    pub fn pop_fork_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -367,7 +367,7 @@ impl CodePathState {
         });
     }
 
-    fn pop_choice_context(
+    pub fn pop_choice_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -595,7 +595,7 @@ impl CodePathState {
         });
     }
 
-    fn pop_chain_context(
+    pub fn pop_chain_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -645,7 +645,7 @@ impl CodePathState {
         self.push_break_context(arena, true, label);
     }
 
-    fn pop_switch_context<'a>(
+    pub fn pop_switch_context<'a>(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -793,7 +793,7 @@ impl CodePathState {
         });
     }
 
-    fn pop_try_context(
+    pub fn pop_try_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -961,7 +961,7 @@ impl CodePathState {
             .add(code_path_segment_arena, segments);
     }
 
-    fn make_first_throwable_path_in_try_block(
+    pub fn make_first_throwable_path_in_try_block(
         &self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1051,7 +1051,7 @@ impl CodePathState {
         }
     }
 
-    fn pop_loop_context<'a>(
+    pub fn pop_loop_context<'a>(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1492,7 +1492,7 @@ impl CodePathState {
         self.break_context.as_ref().unwrap().broken_fork_context
     }
 
-    fn pop_break_context(
+    pub fn pop_break_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1526,7 +1526,7 @@ impl CodePathState {
         context
     }
 
-    fn make_break(
+    pub fn make_break(
         &self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1549,7 +1549,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, segments);
     }
 
-    fn make_continue<'a>(
+    pub fn make_continue<'a>(
         &self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1590,7 +1590,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, segments);
     }
 
-    fn make_return(
+    pub fn make_return(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1612,7 +1612,7 @@ impl CodePathState {
         }
     }
 
-    fn make_throw(
+    pub fn make_throw(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1652,7 +1652,7 @@ pub enum ChoiceContextKind {
     Loop,
 }
 
-struct ChoiceContext {
+pub struct ChoiceContext {
     upper: Option<Box<ChoiceContext>>,
     kind: ChoiceContextKind,
     is_forking_as_result: bool,
@@ -1831,7 +1831,7 @@ struct ForInLoopContext {
     broken_fork_context: Id<ForkContext>,
 }
 
-struct BreakContext {
+pub struct BreakContext {
     upper: Option<Box<BreakContext>>,
     breakable: bool,
     label: Option<String>,

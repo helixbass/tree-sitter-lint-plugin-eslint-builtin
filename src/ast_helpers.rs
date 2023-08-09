@@ -676,3 +676,7 @@ pub fn is_chain_expression(node: Node) -> bool {
         _ => false,
     }
 }
+
+pub fn is_outermost_chain_expression(node: Node) -> bool {
+    is_chain_expression(node) && !is_chain_expression(node.parent().unwrap())
+}

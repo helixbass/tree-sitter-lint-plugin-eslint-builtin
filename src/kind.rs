@@ -47,6 +47,7 @@ pub const GeneratorFunctionDeclaration: &str = "generator_function_declaration";
 pub const HashBangLine: &str = "hash_bang_line";
 pub const Identifier: &str = "identifier";
 pub const IfStatement: &str = "if_statement";
+pub const ImportClause: &str = "import_clause";
 pub const ImportSpecifier: &str = "import_specifier";
 pub const ImportStatement: &str = "import_statement";
 pub const LabeledStatement: &str = "labeled_statement";
