@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+use std::collections::HashSet;
+
+use once_cell::sync::Lazy;
+
 pub type Kind = &'static str;
 
 pub const Arguments: &str = "arguments";
@@ -91,7 +95,7 @@ pub const WhileStatement: &str = "while_statement";
 pub const WithStatement: &str = "with_statement";
 pub const YieldExpression: &str = "yield_expression";
 
-pub fn is_statement_kind(kind: &str) -> bool {
+pub fn is_statement_kind(kind: Kind) -> bool {
     match kind {
         ExportStatement | ImportStatement | DebuggerStatement | ExpressionStatement
         | StatementBlock | IfStatement | SwitchStatement | ForStatement | ForInStatement
@@ -103,7 +107,7 @@ pub fn is_statement_kind(kind: &str) -> bool {
     }
 }
 
-pub fn is_declaration_kind(kind: &str) -> bool {
+pub fn is_declaration_kind(kind: Kind) -> bool {
     matches!(
         kind,
         FunctionDeclaration
@@ -114,4 +118,8 @@ pub fn is_declaration_kind(kind: &str) -> bool {
     )
 }
 
-pub static LITERAL_KINDS: [Kind; 4] = [String, Number, Regex, Null];
+pub static LITERAL_KINDS: Lazy<HashSet<Kind>> = Lazy::new(|| [String, Number, Regex, Null].into());
+
+pub fn is_literal_kind(kind: Kind) -> bool {
+    LITERAL_KINDS.contains(kind)
+}

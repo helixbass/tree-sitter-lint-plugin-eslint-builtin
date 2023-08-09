@@ -443,7 +443,7 @@ impl CodePathState {
         context
     }
 
-    fn make_logical_right(
+    pub fn make_logical_right(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -512,7 +512,7 @@ impl CodePathState {
         }
     }
 
-    fn make_if_consequent(
+    pub fn make_if_consequent(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -549,7 +549,7 @@ impl CodePathState {
             .replace_head(code_path_segment_arena, segments);
     }
 
-    fn make_if_alternate(
+    pub fn make_if_alternate(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -718,7 +718,7 @@ impl CodePathState {
             .replace_head(code_path_segment_arena, segments);
     }
 
-    fn make_switch_case_body(
+    pub fn make_switch_case_body(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -842,7 +842,7 @@ impl CodePathState {
         }
     }
 
-    fn make_catch_block(
+    pub fn make_catch_block(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -876,7 +876,7 @@ impl CodePathState {
             .add(code_path_segment_arena, thrown_segments);
     }
 
-    fn make_finally_block(
+    pub fn make_finally_block(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1116,7 +1116,7 @@ impl CodePathState {
         }
     }
 
-    fn make_while_test(
+    pub fn make_while_test(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1135,7 +1135,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, test_segments);
     }
 
-    fn make_while_body(
+    pub fn make_while_body(
         &self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1162,7 +1162,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, segments);
     }
 
-    fn make_do_while_body(
+    pub fn make_do_while_body(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1175,7 +1175,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, body_segments);
     }
 
-    fn make_do_while_test(
+    pub fn make_do_while_test(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1196,7 +1196,7 @@ impl CodePathState {
         }
     }
 
-    fn make_for_test(
+    pub fn make_for_test(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1218,7 +1218,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, test_segments);
     }
 
-    fn make_for_update(
+    pub fn make_for_update(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
@@ -1252,7 +1252,7 @@ impl CodePathState {
         arena[fork_context].replace_head(code_path_segment_arena, update_segments);
     }
 
-    fn make_for_body(
+    pub fn make_for_body(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,

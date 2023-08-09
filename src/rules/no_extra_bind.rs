@@ -16,7 +16,7 @@ use crate::{
 };
 
 static SIDE_EFFECT_FREE_NODE_TYPES: Lazy<HashSet<Kind>> = Lazy::new(|| {
-    let mut ret: HashSet<Kind> = LITERAL_KINDS.into();
+    let mut ret: HashSet<Kind> = LITERAL_KINDS.clone();
     ret.insert(Identifier);
     ret.insert(This);
     ret.insert(Function);

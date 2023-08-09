@@ -197,10 +197,21 @@ pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
     context.get_node_text(cursor.node()) == "static"
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum Number {
     NaN,
     Integer(u64),
     Float(f64),
+}
+
+impl Number {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Number::NaN => false,
+            Number::Integer(value) => *value != 0,
+            Number::Float(value) => *value != 0.0,
+        }
+    }
 }
 
 impl From<&str> for Number {
