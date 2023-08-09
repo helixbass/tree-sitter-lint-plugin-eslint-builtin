@@ -1,6 +1,6 @@
 #![allow(non_upper_case_globals, clippy::into_iter_on_ref)]
 
-use tree_sitter_lint::{FromFileRunContextInstanceProviderFactory, Plugin};
+use tree_sitter_lint::Plugin;
 
 mod ast_helpers;
 mod code_path_analysis;
@@ -26,9 +26,7 @@ use rules::{
     no_useless_call_rule, no_useless_catch_rule, require_yield_rule, sort_keys_rule,
 };
 
-pub fn instantiate<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Plugin<TFromFileRunContextInstanceProviderFactory> {
+pub fn instantiate() -> Plugin {
     Plugin {
         name: "eslint-builtin".to_owned(),
         rules: vec![

@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
 use squalid::fancy_regex;
-use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
 use crate::ast_helpers::NodeExtJs;
 
-pub fn no_octal_escape_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_octal_escape_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-octal-escape",
         languages => [Javascript],

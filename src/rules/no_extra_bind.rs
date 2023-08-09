@@ -3,8 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use once_cell::sync::Lazy;
 use squalid::{EverythingExt, OptionExt};
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt,
-    QueryMatchContext, Rule, ROOT_EXIT,
+    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, ROOT_EXIT,
 };
 
 use crate::{
@@ -28,10 +27,7 @@ fn is_side_effect_free(node: Node) -> bool {
     SIDE_EFFECT_FREE_NODE_TYPES.contains(node.kind())
 }
 
-fn report<'a>(
-    node: Node<'a>,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
-) {
+fn report<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
     let member_node = node.next_non_parentheses_ancestor();
     let call_node = member_node.next_non_parentheses_ancestor();
 
@@ -76,10 +72,7 @@ fn report<'a>(
     });
 }
 
-fn is_callee_of_bind_method(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+fn is_callee_of_bind_method(node: Node, context: &QueryMatchContext) -> bool {
     let parent = node.next_non_parentheses_ancestor();
     if !ast_utils::is_specific_member_access(parent, Option::<&str>::None, Some("bind"), context) {
         return false;
@@ -104,10 +97,7 @@ struct ScopeInfo<'a> {
     node: Node<'a>,
 }
 
-fn maybe_report_scope_info<'a>(
-    scope_info: &ScopeInfo<'a>,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
-) {
+fn maybe_report_scope_info<'a>(scope_info: &ScopeInfo<'a>, context: &QueryMatchContext<'a, '_>) {
     if scope_info.is_bound && !scope_info.this_found {
         report(scope_info.node, context);
     }
@@ -116,7 +106,7 @@ fn maybe_report_scope_info<'a>(
 fn pop_scope_infos<'a>(
     node: Node<'a>,
     scope_info: &mut Option<ScopeInfo<'a>>,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     while scope_info
         .as_ref()
@@ -130,7 +120,7 @@ fn pop_scope_infos<'a>(
 
 fn pop_remaining_scope_infos<'a>(
     scope_info: &mut Option<ScopeInfo<'a>>,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     while scope_info.is_some() {
         let scope_info_present = scope_info.take().unwrap();
@@ -139,9 +129,7 @@ fn pop_remaining_scope_infos<'a>(
     }
 }
 
-pub fn no_extra_bind_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-extra-bind",
         languages => [Javascript],

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use squalid::OptionExt;
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation,
-    FromFileRunContextInstanceProviderFactory, NodeExt, QueryMatchContext, Rule,
+    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation, NodeExt,
+    QueryMatchContext, Rule,
 };
 
 use crate::{
@@ -59,7 +59,7 @@ fn enter_labeled_statement<'a>(node: Node<'a>, scope_info: &mut Option<ScopeInfo
 
 fn report_if_unnecessary<'a>(
     node: Node<'a>,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
     mut scope_info: Option<&ScopeInfo>,
 ) {
     let label_node = return_if_none!(node.child_by_field_name("label"));
@@ -104,9 +104,7 @@ fn report_if_unnecessary<'a>(
     }
 }
 
-pub fn no_extra_label_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_extra_label_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-extra-label",
         languages => [Javascript],

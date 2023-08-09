@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use squalid::{BoolExt, VecExt};
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory,
-    QueryMatchContext, Rule,
-};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::{
@@ -28,7 +25,7 @@ fn is_subset_by_comparator<TItem>(
 fn split_by_logical_operator<'a, 'b>(
     operator: &str,
     node: Node<'b>,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext,
 ) -> Vec<Node<'b>> {
     let node = skip_parenthesized_expressions(node);
     if is_binary_expression_with_operator(node, operator, context) {
@@ -43,11 +40,7 @@ fn split_by_logical_operator<'a, 'b>(
     }
 }
 
-fn equal<'a>(
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
-    a: Node<'a>,
-    b: Node<'a>,
-) -> bool {
+fn equal<'a>(context: &QueryMatchContext<'a, '_>, a: Node<'a>, b: Node<'a>) -> bool {
     if a.kind_id() != b.kind_id() {
         return false;
     }
@@ -81,9 +74,7 @@ fn equal<'a>(
     ast_utils::equal_tokens(a, b, context)
 }
 
-pub fn no_dupe_else_if_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_dupe_else_if_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-dupe-else-if",
         languages => [Javascript],

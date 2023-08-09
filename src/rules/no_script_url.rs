@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation,
-    FromFileRunContextInstanceProviderFactory, QueryMatchContext, Rule,
+    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation, QueryMatchContext, Rule,
 };
 
 use crate::{kind::CallExpression, utils::ast_utils};
 
-fn check(node: Node, context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>) {
+fn check(node: Node, context: &QueryMatchContext) {
     let value = return_if_none!(ast_utils::get_static_string_value(node, context));
 
     if value.to_lowercase().starts_with("javascript:") {
@@ -18,9 +17,7 @@ fn check(node: Node, context: &QueryMatchContext<impl FromFileRunContextInstance
     }
 }
 
-pub fn no_script_url_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_script_url_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-script-url",
         languages => [Javascript],

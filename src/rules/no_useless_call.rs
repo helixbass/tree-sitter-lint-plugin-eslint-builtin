@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use squalid::return_default_if_none;
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt,
-    QueryMatchContext, Rule,
-};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::{get_call_expression_arguments, get_num_call_expression_arguments, NodeExtJs},
@@ -12,10 +9,7 @@ use crate::{
     utils::ast_utils,
 };
 
-fn is_call_or_non_variadic_apply(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+fn is_call_or_non_variadic_apply(node: Node, context: &QueryMatchContext) -> bool {
     match &*node
         .field("function")
         .skip_parentheses()
@@ -35,7 +29,7 @@ fn is_call_or_non_variadic_apply(
 fn is_valid_this_arg<'a>(
     expected_this: Option<Node<'a>>,
     this_arg: Node<'a>,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
 ) -> bool {
     match expected_this {
         None => ast_utils::is_null_or_undefined(this_arg, context),
@@ -43,9 +37,7 @@ fn is_valid_this_arg<'a>(
     }
 }
 
-pub fn no_useless_call_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_useless_call_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-useless-call",
         languages => [Javascript],

@@ -1,17 +1,12 @@
 use std::sync::Arc;
 
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt,
-    QueryMatchContext, Rule, ROOT_EXIT,
+    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, ROOT_EXIT,
 };
 
 use crate::ast_helpers::NodeExtJs;
 
-fn pop_stack(
-    stack: &mut Vec<(Node, usize)>,
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) {
+fn pop_stack(stack: &mut Vec<(Node, usize)>, node: Node, context: &QueryMatchContext) {
     while !stack.is_empty() {
         let (current, count_yield) = stack.last().copied().unwrap();
         if !node.is_descendant_of(current) {
@@ -28,9 +23,7 @@ fn pop_stack(
     }
 }
 
-pub fn require_yield_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn require_yield_rule() -> Arc<dyn Rule> {
     rule! {
         name => "require-yield",
         languages => [Javascript],

@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, NodeExt, Rule,
-};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 const DEFAULT_MAX: usize = 10;
 
@@ -65,9 +63,7 @@ impl<'a> NestedNodeStack<'a> {
     }
 }
 
-pub fn max_nested_callbacks_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
     rule! {
         name => "max-nested-callbacks",
         languages => [Javascript],

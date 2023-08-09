@@ -1,9 +1,7 @@
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 use squalid::OptionExt;
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory, Rule,
-};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
 
 use crate::{
     ast_helpers::{get_object_property_kind, ObjectPropertyKind},
@@ -49,9 +47,7 @@ impl<'a> ObjectInfo<'a> {
     }
 }
 
-pub fn no_dupe_keys_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_dupe_keys_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-dupe-keys",
         languages => [Javascript],

@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
-pub fn for_direction_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn for_direction_rule() -> Arc<dyn Rule> {
     rule! {
         name => "for-direction",
         languages => [Javascript],

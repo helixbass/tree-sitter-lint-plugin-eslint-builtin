@@ -3,10 +3,7 @@ use std::sync::Arc;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
-use tree_sitter_lint::{
-    rule, tree_sitter_grep::return_if_none, violation, FromFileRunContextInstanceProviderFactory,
-    NodeExt, Rule,
-};
+use tree_sitter_lint::{rule, tree_sitter_grep::return_if_none, violation, NodeExt, Rule};
 
 use crate::kind::{ArrowFunction, ParenthesizedExpression, ReturnStatement};
 
@@ -21,9 +18,7 @@ enum Always {
 static SENTINEL_TYPE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"^(?:[a-z_]+_statement|arrow_function|function|class)$"#).unwrap());
 
-pub fn no_return_assign_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_return_assign_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-return-assign",
         languages => [Javascript],

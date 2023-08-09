@@ -2,8 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use serde::Deserialize;
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation,
-    FromFileRunContextInstanceProviderFactory, NodeExt, QueryMatchContext, Rule,
+    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation, NodeExt,
+    QueryMatchContext, Rule,
 };
 
 use crate::{ast_helpers::NodeExtJs, kind::Identifier, utils::ast_utils};
@@ -116,7 +116,7 @@ fn check_property_access(
     node: Node,
     object_name: Option<&str>,
     property_name: Option<&str>,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext,
     restricted_properties: &RestrictedProperties,
     globally_restricted_objects: &GloballyRestrictedObjects,
     globally_restricted_properties: &GloballyRestrictedProperties,
@@ -157,9 +157,7 @@ fn check_property_access(
     }
 }
 
-pub fn no_restricted_properties_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_restricted_properties_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-restricted-properties",
         languages => [Javascript],

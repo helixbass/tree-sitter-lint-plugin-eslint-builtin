@@ -5,8 +5,7 @@ use squalid::CowStrExt;
 use tree_sitter_lint::{
     regex,
     tree_sitter::{Node, Range, TreeCursor},
-    FromFileRunContextInstanceProviderFactory, NodeExt, QueryMatchContext, SkipOptions,
-    SkipOptionsBuilder,
+    NodeExt, QueryMatchContext, SkipOptions, SkipOptionsBuilder,
 };
 
 use crate::{
@@ -53,10 +52,7 @@ macro_rules! return_default_if_false {
     };
 }
 
-pub fn is_for_of(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+pub fn is_for_of(node: Node, context: &QueryMatchContext) -> bool {
     assert_kind!(node, ForInStatement);
     matches!(
         node.child_by_field_name("operator"),
@@ -64,10 +60,7 @@ pub fn is_for_of(
     )
 }
 
-pub fn is_for_of_await(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+pub fn is_for_of_await(node: Node, context: &QueryMatchContext) -> bool {
     assert_kind!(node, ForInStatement);
     is_for_of(node, context)
         && matches!(
@@ -134,10 +127,7 @@ pub enum MethodDefinitionKind {
     Set,
 }
 
-pub fn get_method_definition_kind(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> MethodDefinitionKind {
+pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> MethodDefinitionKind {
     assert_kind!(node, MethodDefinition);
     let name = node.child_by_field_name("name").unwrap();
     if name.kind() == PropertyIdentifier
@@ -169,10 +159,7 @@ pub enum ObjectPropertyKind {
     Set,
 }
 
-pub fn get_object_property_kind(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> ObjectPropertyKind {
+pub fn get_object_property_kind(node: Node, context: &QueryMatchContext) -> ObjectPropertyKind {
     match node.kind() {
         Pair | ShorthandPropertyIdentifier => ObjectPropertyKind::Init,
         MethodDefinition => {
@@ -194,20 +181,13 @@ pub fn get_object_property_kind(
     }
 }
 
-fn string_node_equals(
-    node: Node,
-    value: &str,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+fn string_node_equals(node: Node, value: &str, context: &QueryMatchContext) -> bool {
     assert_kind!(node, kind::String);
     let node_text = context.get_node_text(node);
     &node_text[1..node_text.len() - 1] == value
 }
 
-pub fn is_class_member_static(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
     assert_one_of_kinds!(node, [MethodDefinition, FieldDefinition]);
 
     let mut cursor = node.walk();
@@ -264,10 +244,7 @@ fn is_octal_literal(number_node_text: &str) -> bool {
     number_node_text.starts_with("0o") || number_node_text.starts_with("0O")
 }
 
-pub fn get_number_literal_string_value(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> String {
+pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) -> String {
     assert_kind!(node, "number");
 
     match Number::from(&*context.get_node_text(node)) {
@@ -277,17 +254,14 @@ pub fn get_number_literal_string_value(
     }
 }
 
-pub fn is_logical_and(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+pub fn is_logical_and(node: Node, context: &QueryMatchContext) -> bool {
     is_binary_expression_with_operator(node, "&&", context)
 }
 
 pub fn is_binary_expression_with_operator(
     node: Node,
     operator: &str,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext,
 ) -> bool {
     node.kind() == BinaryExpression && get_binary_expression_operator(node, context) == operator
 }
@@ -295,7 +269,7 @@ pub fn is_binary_expression_with_operator(
 pub fn is_binary_expression_with_one_of_operators(
     node: Node,
     operators: &[impl AsRef<str>],
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext,
 ) -> bool {
     if node.kind() != BinaryExpression {
         return false;
@@ -320,7 +294,7 @@ pub fn is_chain_expression(mut node: Node) -> bool {
 
 pub fn get_binary_expression_operator<'a>(
     node: Node,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
 ) -> Cow<'a, str> {
     assert_kind!(node, BinaryExpression);
     context.get_node_text(node.child_by_field_name("operator").unwrap())
@@ -328,7 +302,7 @@ pub fn get_binary_expression_operator<'a>(
 
 pub fn get_unary_expression_operator<'a>(
     node: Node,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
 ) -> Cow<'a, str> {
     assert_kind!(node, UnaryExpression);
     context.get_node_text(node.child_by_field_name("operator").unwrap())
@@ -363,10 +337,7 @@ pub trait NodeExtJs<'a> {
     fn next_non_parentheses_ancestor(&self) -> Node<'a>;
     fn skip_parentheses(&self) -> Node<'a>;
     fn is_only_non_comment_named_sibling(&self) -> bool;
-    fn has_trailing_comments(
-        &self,
-        context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
-    ) -> bool;
+    fn has_trailing_comments(&self, context: &QueryMatchContext<'a, '_>) -> bool;
     fn first_non_comment_named_child(&self) -> Node<'a>;
     fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a>;
     fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a>;
@@ -411,10 +382,7 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
         parent.non_comment_named_children().count() == 1
     }
 
-    fn has_trailing_comments(
-        &self,
-        context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
-    ) -> bool {
+    fn has_trailing_comments(&self, context: &QueryMatchContext<'a, '_>) -> bool {
         context
             .get_last_token(
                 *self,
@@ -597,10 +565,7 @@ pub fn get_last_expression_of_sequence_expression(mut node: Node) -> Node {
     node
 }
 
-pub fn is_logical_expression(
-    node: Node,
-    context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-) -> bool {
+pub fn is_logical_expression(node: Node, context: &QueryMatchContext) -> bool {
     if node.kind() != BinaryExpression {
         return false;
     }
@@ -628,7 +593,7 @@ pub fn get_object_property_key(node: Node) -> Node {
 
 pub fn get_comment_contents<'a>(
     comment: Node,
-    context: &QueryMatchContext<'a, '_, impl FromFileRunContextInstanceProviderFactory>,
+    context: &QueryMatchContext<'a, '_>,
 ) -> Cow<'a, str> {
     assert_kind!(comment, Comment);
     let text = comment.text(context);

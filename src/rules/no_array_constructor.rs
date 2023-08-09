@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
 use crate::ast_helpers::get_num_call_expression_arguments;
 
-pub fn no_array_constructor_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_array_constructor_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-array-constructor",
         languages => [Javascript],

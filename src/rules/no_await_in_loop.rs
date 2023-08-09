@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, FromFileRunContextInstanceProviderFactory,
-    QueryMatchContext, Rule,
-};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::is_for_of_await,
@@ -13,13 +10,8 @@ use crate::{
     },
 };
 
-pub fn no_await_in_loop_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
-    fn is_boundary(
-        node: Node,
-        context: &QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-    ) -> bool {
+pub fn no_await_in_loop_rule() -> Arc<dyn Rule> {
+    fn is_boundary(node: Node, context: &QueryMatchContext) -> bool {
         let t = node.kind();
 
         matches!(
@@ -47,10 +39,7 @@ pub fn no_await_in_loop_rule<
         }
     }
 
-    fn validate(
-        await_node: Node,
-        context: &mut QueryMatchContext<impl FromFileRunContextInstanceProviderFactory>,
-    ) {
+    fn validate(await_node: Node, context: &mut QueryMatchContext) {
         let mut node = await_node;
         let mut parent = node.parent();
 

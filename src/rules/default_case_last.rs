@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
-pub fn default_case_last_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn default_case_last_rule() -> Arc<dyn Rule> {
     rule! {
         name => "default-case-last",
         languages => [Javascript],

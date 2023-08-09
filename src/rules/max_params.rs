@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
 use crate::{string_utils::upper_case_first, utils::ast_utils};
 
@@ -42,9 +42,7 @@ impl Default for Options {
     }
 }
 
-pub fn max_params_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn max_params_rule() -> Arc<dyn Rule> {
     rule! {
         name => "max-params",
         languages => [Javascript],

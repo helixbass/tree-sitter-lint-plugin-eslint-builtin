@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, FromFileRunContextInstanceProviderFactory, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
 use crate::utils::ast_utils::get_static_property_name;
 
-pub fn no_proto_rule<
-    TFromFileRunContextInstanceProviderFactory: FromFileRunContextInstanceProviderFactory,
->() -> Arc<dyn Rule<TFromFileRunContextInstanceProviderFactory>> {
+pub fn no_proto_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-proto",
         languages => [Javascript],
