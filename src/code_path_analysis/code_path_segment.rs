@@ -95,7 +95,7 @@ impl CodePathSegment {
         Self::new(arena, id, Default::default(), reachable)
     }
 
-    fn mark_used(arena: &mut Arena<Self>, segment: Id<Self>) {
+    pub fn mark_used(arena: &mut Arena<Self>, segment: Id<Self>) {
         if arena.get(segment).unwrap().used {
             return;
         }

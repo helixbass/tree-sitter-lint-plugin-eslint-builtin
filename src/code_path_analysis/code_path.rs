@@ -3,9 +3,13 @@ use std::{cmp::Ordering, collections::HashMap, rc::Rc};
 use derive_builder::Builder;
 use id_arena::{Arena, Id};
 use squalid::OptionExt;
+use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
-    code_path_segment::CodePathSegment, code_path_state::CodePathState, fork_context::ForkContext,
+    code_path_analyzer::{Event, OnLooped},
+    code_path_segment::CodePathSegment,
+    code_path_state::CodePathState,
+    fork_context::ForkContext,
     id_generator::IdGenerator,
 };
 
@@ -33,7 +37,7 @@ impl CodePath {
         id: String,
         origin: CodePathOrigin,
         upper: Option<Id<Self>>,
-        on_looped: Rc<dyn Fn(Id<CodePathSegment>, Id<CodePathSegment>)>,
+        on_looped: OnLooped,
     ) -> Id<Self> {
         let id_generator = Rc::new(IdGenerator::new(format!("{id}_")));
         let ret = arena.alloc(Self {
