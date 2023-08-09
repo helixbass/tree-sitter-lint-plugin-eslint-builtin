@@ -3,14 +3,10 @@ use std::{cmp::Ordering, collections::HashMap, rc::Rc};
 use derive_builder::Builder;
 use id_arena::{Arena, Id};
 use squalid::OptionExt;
-use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
-    code_path_analyzer::{Event, OnLooped},
-    code_path_segment::CodePathSegment,
-    code_path_state::CodePathState,
-    fork_context::ForkContext,
-    id_generator::IdGenerator,
+    code_path_analyzer::OnLooped, code_path_segment::CodePathSegment,
+    code_path_state::CodePathState, fork_context::ForkContext, id_generator::IdGenerator,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

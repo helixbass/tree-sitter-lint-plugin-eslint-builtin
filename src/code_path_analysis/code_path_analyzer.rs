@@ -11,10 +11,12 @@ use tree_sitter_lint::{
 use crate::{
     ast_helpers::{get_binary_expression_operator, NodeExtJs, Number},
     kind::{
-        self, is_literal_kind, AssignmentPattern, AugmentedAssignmentExpression, BinaryExpression,
-        CallExpression, DoStatement, FieldDefinition, ForInStatement, ForStatement, IfStatement,
-        ObjectAssignmentPattern, SubscriptExpression, SwitchCase, SwitchDefault, TernaryExpression,
-        TryStatement, WhileStatement,
+        self, is_literal_kind, ArrowFunction, AssignmentPattern, AugmentedAssignmentExpression,
+        BinaryExpression, CallExpression, ClassStaticBlock, DoStatement, FieldDefinition,
+        ForInStatement, ForStatement, Function, FunctionDeclaration, GeneratorFunction,
+        GeneratorFunctionDeclaration, IfStatement, ObjectAssignmentPattern, Program,
+        SubscriptExpression, SwitchCase, SwitchDefault, TernaryExpression, TryStatement,
+        WhileStatement,
     },
 };
 
@@ -324,13 +326,30 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
     }
 
     fn process_code_path_to_enter(&mut self, node: Node<'a>) {
-        let state = self
-            .code_path
-            .map(|code_path| &mut self.code_path_arena[code_path].state);
+        // let state = self
+        //     .code_path
+        //     .map(|code_path| &mut self.code_path_arena[code_path].state);
         let parent = node.parent();
 
         if is_property_definition_value(node) {
             self.start_code_path(node, CodePathOrigin::ClassFieldInitializer);
+        }
+
+        match node.kind() {
+            Program => {
+                self.start_code_path(node, CodePathOrigin::Program);
+            }
+            FunctionDeclaration
+            | GeneratorFunctionDeclaration
+            | Function
+            | GeneratorFunction
+            | ArrowFunction => {
+                self.start_code_path(node, CodePathOrigin::Function);
+            }
+            ClassStaticBlock => {
+                self.start_code_path(node, CodePathOrigin::ClassStaticBlock);
+            }
+            _ => (),
         }
     }
 
@@ -349,28 +368,9 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             self.code_path,
             OnLooped,
         ));
-    }
-}
 
-pub struct OnLooped;
-
-impl OnLooped {
-    pub fn on_looped<'a>(
-        &self,
-        arena: &Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        pending_events: &mut Vec<Event<'a>>,
-        from_segment: Id<CodePathSegment>,
-        to_segment: Id<CodePathSegment>,
-    ) {
-        if arena[from_segment].reachable && arena[to_segment].reachable {
-            // debug.dump(`onCodePathSegmentLoop ${fromSegment.id} -> ${toSegment.id}`);
-            pending_events.push(Event::OnCodePathSegmentLoop(
-                from_segment,
-                to_segment,
-                current_node,
-            ));
-        }
+        // debug.dump(`onCodePathStart ${codePath.id}`);
+        self.pending_events.push(Event::OnCodePathStart(node));
     }
 }
 
@@ -410,4 +410,27 @@ pub enum Event<'a> {
     OnCodePathSegmentStart(Id<CodePathSegment>, Node<'a>),
     OnCodePathSegmentEnd(Id<CodePathSegment>, Node<'a>),
     OnCodePathSegmentLoop(Id<CodePathSegment>, Id<CodePathSegment>, Node<'a>),
+    OnCodePathStart(Node<'a>),
+}
+
+pub struct OnLooped;
+
+impl OnLooped {
+    pub fn on_looped<'a>(
+        &self,
+        arena: &Arena<CodePathSegment>,
+        current_node: Node<'a>,
+        pending_events: &mut Vec<Event<'a>>,
+        from_segment: Id<CodePathSegment>,
+        to_segment: Id<CodePathSegment>,
+    ) {
+        if arena[from_segment].reachable && arena[to_segment].reachable {
+            // debug.dump(`onCodePathSegmentLoop ${fromSegment.id} -> ${toSegment.id}`);
+            pending_events.push(Event::OnCodePathSegmentLoop(
+                from_segment,
+                to_segment,
+                current_node,
+            ));
+        }
+    }
 }
