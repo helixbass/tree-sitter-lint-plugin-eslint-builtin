@@ -4,7 +4,7 @@ use std::{
 };
 
 use id_arena::Id;
-use tree_sitter_lint::{tree_sitter::Node, NodeExt};
+use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
 
 use crate::{
     ast_helpers::{get_first_child_of_kind, NodeExtJs},
@@ -13,7 +13,6 @@ use crate::{
         FunctionDeclaration, Identifier, ImportStatement, LexicalDeclaration, StatementBlock,
         SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
-    text::SourceTextProvider,
     visit::{
         visit_call_expression, visit_class_static_block, visit_expression, visit_expressions,
         visit_for_statement, visit_program, visit_statement_block, visit_update_expression, Visit,
@@ -579,7 +578,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         let callee = node.child_by_field_name("function").unwrap();
         if !self.scope_manager.__ignore_eval()
             && callee.kind() == Identifier
-            && self.get_node_text(callee) == "eval"
+            && self.node_text(callee) == "eval"
         {
             let variable_scope = self.current_scope().variable_scope();
             Scope::__detect_eval(
@@ -662,7 +661,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         let kind = node.child_by_field_name("kind");
         if matches!(
             kind,
-            Some(kind) if ["let", "const"].contains(&&*self.get_node_text(kind))
+            Some(kind) if ["let", "const"].contains(&&*self.node_text(kind))
         ) {
             self.scope_manager.__nest_for_scope(node);
         }
@@ -729,7 +728,7 @@ pub struct PatternAndNode<'a> {
 }
 
 impl<'a> SourceTextProvider<'a> for Referencer<'a, '_> {
-    fn get_node_text(&self, node: Node) -> Cow<'a, str> {
-        self.scope_manager.get_node_text(node)
+    fn node_text(&self, node: Node) -> Cow<'a, str> {
+        self.scope_manager.node_text(node)
     }
 }

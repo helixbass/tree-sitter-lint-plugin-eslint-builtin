@@ -1,11 +1,11 @@
 use std::{borrow::Cow, iter};
 
 use itertools::Either;
-use squalid::CowStrExt;
+use squalid::{CowStrExt, OptionExt};
 use tree_sitter_lint::{
     regex,
     tree_sitter::{Node, Range, TreeCursor},
-    NodeExt, QueryMatchContext, SkipOptions, SkipOptionsBuilder,
+    NodeExt, QueryMatchContext, SkipOptions, SkipOptionsBuilder, SourceTextProvider,
 };
 
 use crate::{
@@ -16,7 +16,6 @@ use crate::{
         ShorthandPropertyIdentifier, TemplateString, UnaryExpression,
     },
     return_default_if_none,
-    text::SourceTextProvider,
 };
 
 #[macro_export]
@@ -294,10 +293,12 @@ pub fn is_chain_expression(mut node: Node) -> bool {
 
 pub fn get_binary_expression_operator<'a>(
     node: Node,
-    context: &QueryMatchContext<'a, '_>,
+    source_text_provider: &impl SourceTextProvider<'a>,
 ) -> Cow<'a, str> {
     assert_kind!(node, BinaryExpression);
-    context.get_node_text(node.child_by_field_name("operator").unwrap())
+    node.child_by_field_name("operator")
+        .unwrap()
+        .text(source_text_provider)
 }
 
 pub fn get_unary_expression_operator<'a>(
@@ -345,6 +346,8 @@ pub trait NodeExtJs<'a> {
     fn has_child_of_kind(&self, kind: Kind) -> bool;
     fn maybe_first_child_of_kind(&self, kind: Kind) -> Option<Node<'a>>;
     fn has_non_comment_named_children(&self) -> bool;
+    fn is_first_call_expression_argument(&self, call_expression: Node) -> bool;
+    fn when_kind(&self, kind: Kind) -> Option<Node<'a>>;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -357,7 +360,7 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
     }
 
     fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str> {
-        source_text_provider.get_node_text(*self)
+        source_text_provider.node_text(*self)
     }
 
     fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a> {
@@ -435,6 +438,24 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
 
     fn has_non_comment_named_children(&self) -> bool {
         self.non_comment_named_children().count() > 0
+    }
+
+    fn is_first_call_expression_argument(&self, call_expression: Node) -> bool {
+        assert_kind!(call_expression, CallExpression);
+
+        call_expression
+            .field("arguments")
+            .when_kind(Arguments)
+            .matches(|arguments| {
+                arguments
+                    .non_comment_named_children()
+                    .next()
+                    .matches(|first| first == *self)
+            })
+    }
+
+    fn when_kind(&self, kind: Kind) -> Option<Node<'a>> {
+        (self.kind() == kind).then_some(*self)
     }
 }
 

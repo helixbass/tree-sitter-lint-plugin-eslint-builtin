@@ -22,7 +22,7 @@ pub struct CodePath {
     origin: CodePathOrigin,
     upper: Option<Id<Self>>,
     child_code_paths: Vec<Id<Self>>,
-    state: CodePathState,
+    pub state: CodePathState,
 }
 
 impl CodePath {
@@ -52,10 +52,6 @@ impl CodePath {
             arena[upper].child_code_paths.push(ret);
         }
         ret
-    }
-
-    fn get_state(&self) -> &CodePathState {
-        &self.state
     }
 
     fn initial_segment(&self) -> Id<CodePathSegment> {

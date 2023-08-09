@@ -604,7 +604,7 @@ impl CodePathState {
         }
     }
 
-    fn make_optional_right(
+    pub fn make_optional_right(
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,

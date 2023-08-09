@@ -1,12 +1,13 @@
 use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use id_arena::{Arena, Id};
-use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::return_if_none, NodeExt};
+use tree_sitter_lint::{
+    tree_sitter::Node, tree_sitter_grep::return_if_none, NodeExt, SourceTextProvider,
+};
 
 use crate::{
     break_if_none,
     kind::{ArrowFunction, Identifier},
-    text::SourceTextProvider,
 };
 
 use super::{
@@ -373,7 +374,7 @@ impl<'a> Scope<'a> {
                 __declared_variables,
                 variable_arena,
                 definition_arena,
-                source_text_provider.get_node_text(node),
+                source_text_provider.node_text(node),
                 |this, name| {
                     let mut did_insert = false;
                     let id = this.id();

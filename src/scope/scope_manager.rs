@@ -5,9 +5,7 @@ use std::{
 };
 
 use id_arena::Id;
-use tree_sitter_lint::tree_sitter::Node;
-
-use crate::text::SourceTextProvider;
+use tree_sitter_lint::{tree_sitter::Node, SourceTextProvider};
 
 use super::{
     arena::AllArenas,
@@ -168,7 +166,7 @@ impl<'a> ScopeManager<'a> {
 }
 
 impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {
-    fn get_node_text(&self, node: Node) -> Cow<'a, str> {
+    fn node_text(&self, node: Node) -> Cow<'a, str> {
         node.utf8_text(self.source_text).unwrap().into()
     }
 }
