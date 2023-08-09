@@ -1634,7 +1634,7 @@ impl CodePathState {
         }
     }
 
-    fn make_final(&mut self, code_path_segment_arena: &Arena<CodePathSegment>) {
+    pub fn make_final(&mut self, code_path_segment_arena: &Arena<CodePathSegment>) {
         let segments = self.current_segments.clone();
 
         if !segments.is_empty() && code_path_segment_arena[segments[0]].reachable {

@@ -10,7 +10,8 @@ use tree_sitter_lint::{
 
 use crate::{
     ast_helpers::{
-        get_binary_expression_operator, is_for_of, is_outermost_chain_expression, NodeExtJs, Number,
+        get_binary_expression_operator, get_num_call_expression_arguments, is_for_of,
+        is_outermost_chain_expression, NodeExtJs, Number,
     },
     kind::{
         self, is_literal_kind, ArrayPattern, ArrowFunction, AssignmentPattern,
@@ -205,6 +206,25 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                 _ => (),
             }
         }
+    }
+
+    fn leave_from_current_segment(&mut self, node: Node<'a>) {
+        self.code_path_arena[self.code_path.unwrap()]
+            .state
+            .current_segments
+            .iter()
+            .for_each(|&current_segment| {
+                // debug.dump(`onCodePathSegmentEnd ${currentSegment.id}`);
+                if self.code_path_segment_arena[current_segment].reachable {
+                    self.current_events
+                        .push(Event::OnCodePathSegmentEnd(current_segment, node));
+                }
+            });
+
+        self.code_path_arena[self.code_path.unwrap()]
+            .state
+            .current_segments
+            .clear();
     }
 
     fn preprocess(&mut self, node: Node<'a>) {
@@ -533,6 +553,26 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
         // debug.dumpState(node, state, false);
     }
 
+    fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
+        if let Some(code_path) = self.code_path {
+            self.forward_current_to_head(node);
+            // debug.dumpState(node, state, false);
+        }
+
+        self.code_path = Some(CodePath::new(
+            &mut self.code_path_arena,
+            &mut self.fork_context_arena,
+            &mut self.code_path_segment_arena,
+            self.id_generator.next(),
+            origin,
+            self.code_path,
+            OnLooped,
+        ));
+
+        // debug.dump(`onCodePathStart ${codePath.id}`);
+        self.current_events.push(Event::OnCodePathStart(node));
+    }
+
     fn process_code_path_to_exit(&mut self, node: Node<'a>) {
         let mut dont_forward = false;
 
@@ -718,27 +758,51 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
     }
 
     fn postprocess(&mut self, node: Node<'a>) {
-        unimplemented!()
-    }
-
-    fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
-        if let Some(code_path) = self.code_path {
-            self.forward_current_to_head(node);
-            // debug.dumpState(node, state, false);
+        match node.kind() {
+            Program
+            | FunctionDeclaration
+            | GeneratorFunctionDeclaration
+            | Function
+            | GeneratorFunction
+            | ArrowFunction
+            | ClassStaticBlock => {
+                self.end_code_path(node);
+            }
+            CallExpression => {
+                if node.child_by_field_name("optional_chain").is_some()
+                    && get_num_call_expression_arguments(node) == Some(0)
+                {
+                    self.code_path_arena[self.code_path.unwrap()]
+                        .state
+                        .make_optional_right(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
+                }
+            }
+            _ => (),
         }
 
-        self.code_path = Some(CodePath::new(
-            &mut self.code_path_arena,
-            &mut self.fork_context_arena,
-            &mut self.code_path_segment_arena,
-            self.id_generator.next(),
-            origin,
-            self.code_path,
-            OnLooped,
-        ));
+        if is_property_definition_value(node) {
+            self.end_code_path(node);
+        }
+    }
 
-        // debug.dump(`onCodePathStart ${codePath.id}`);
-        self.current_events.push(Event::OnCodePathStart(node));
+    fn end_code_path(&mut self, node: Node<'a>) {
+        self.code_path_arena[self.code_path.unwrap()]
+            .state
+            .make_final(&mut self.code_path_segment_arena);
+
+        self.leave_from_current_segment(node);
+
+        // debug.dump(`onCodePathEnd ${codePath.id}`);
+        self.current_events.push(Event::OnCodePathEnd(node));
+        // debug.dumpDot(codePath);
+
+        self.code_path = self.code_path_arena[self.code_path.unwrap()].upper;
+        // if (codePath) {
+        //     debug.dumpState(node, CodePath.getState(codePath), true);
+        // }
     }
 }
 
@@ -801,6 +865,7 @@ pub enum Event<'a> {
     OnCodePathSegmentEnd(Id<CodePathSegment>, Node<'a>),
     OnCodePathSegmentLoop(Id<CodePathSegment>, Id<CodePathSegment>, Node<'a>),
     OnCodePathStart(Node<'a>),
+    OnCodePathEnd(Node<'a>),
 }
 
 impl<'a> Event<'a> {
@@ -810,6 +875,7 @@ impl<'a> Event<'a> {
             Event::OnCodePathSegmentEnd(_, _) => "on-code-path-segment-end",
             Event::OnCodePathSegmentLoop(_, _, _) => "on-code-path-segment-loop",
             Event::OnCodePathStart(_) => "on-code-path-start",
+            Event::OnCodePathEnd(_) => "on-code-path-end",
         }
     }
 }
