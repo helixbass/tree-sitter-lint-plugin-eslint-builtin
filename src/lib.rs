@@ -1,5 +1,7 @@
 #![allow(non_upper_case_globals, clippy::into_iter_on_ref)]
 
+use std::sync::Arc;
+
 use tree_sitter_lint::Plugin;
 
 mod ast_helpers;
@@ -12,6 +14,7 @@ mod string_utils;
 mod utils;
 mod visit;
 
+use code_path_analysis::CodePathAnalyzerFactory;
 use rules::{
     default_case_last_rule, default_case_rule, for_direction_rule, max_nested_callbacks_rule,
     max_params_rule, no_array_constructor_rule, no_async_promise_executor_rule,
@@ -74,5 +77,6 @@ pub fn instantiate() -> Plugin {
             no_multi_str_rule(),
             no_mixed_operators_rule(),
         ],
+        event_emitter_factories: vec![Arc::new(CodePathAnalyzerFactory)],
     }
 }

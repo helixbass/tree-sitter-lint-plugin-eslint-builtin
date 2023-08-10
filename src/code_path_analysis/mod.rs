@@ -5,3 +5,5 @@ mod code_path_state;
 mod debug_helpers;
 mod fork_context;
 mod id_generator;
+
+pub use code_path_analyzer::CodePathAnalyzerFactory;

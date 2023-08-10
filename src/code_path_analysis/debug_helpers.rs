@@ -47,7 +47,7 @@ pub fn make_dot_arrows(
                 code_path_segment_arena[segment].id, code_path_segment_arena[next_segment].id,
             ));
         }
-        last_id = Some(code_path_segment_arena[next_segment].id);
+        last_id = Some(code_path_segment_arena[next_segment].id.clone());
 
         stack.insert(0, (segment, 1 + index));
         stack.push((next_segment, 0));
@@ -57,7 +57,7 @@ pub fn make_dot_arrows(
         .returned_segments()
         .into_iter()
         .for_each(|&final_segment| {
-            if last_id == Some(code_path_segment_arena[final_segment].id) {
+            if last_id.as_ref() == Some(&code_path_segment_arena[final_segment].id) {
                 text.push_str("->final");
             } else {
                 text.push_str(&format!(
@@ -72,7 +72,7 @@ pub fn make_dot_arrows(
         .thrown_segments()
         .into_iter()
         .for_each(|&final_segment| {
-            if last_id == Some(code_path_segment_arena[final_segment].id) {
+            if last_id.as_ref() == Some(&code_path_segment_arena[final_segment].id) {
                 text.push_str("->thrown");
             } else {
                 text.push_str(&format!(

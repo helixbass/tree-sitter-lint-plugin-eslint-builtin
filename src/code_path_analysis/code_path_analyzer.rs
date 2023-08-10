@@ -4,8 +4,11 @@ use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
 use squalid::{NonEmpty, OptionExt};
 use tree_sitter_lint::{
-    tree_sitter::Node, tree_sitter_grep::SupportedLanguage, EventEmitter, FileRunContext, NodeExt,
-    SourceTextProvider,
+    event_emitter::{EventEmitterName, EventType},
+    get_const_listener_selector,
+    tree_sitter::Node,
+    tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
+    EventEmitter, EventEmitterFactory, FileRunContext, NodeExt, SourceTextProvider,
 };
 
 use crate::{
@@ -124,19 +127,19 @@ fn is_identifier_reference(node: Node) -> bool {
     }
 }
 
-pub struct CodePathAnalyzer<'a, 'b> {
+pub struct CodePathAnalyzer<'a> {
     code_path: Option<Id<CodePath>>,
     id_generator: Rc<IdGenerator>,
     current_node: Option<Node<'a>>,
     code_path_arena: Arena<CodePath>,
     fork_context_arena: Arena<ForkContext>,
     code_path_segment_arena: Arena<CodePathSegment>,
-    file_run_context: FileRunContext<'a, 'b>,
+    file_contents: RopeOrSlice<'a>,
     current_events: Vec<Event<'a>>,
 }
 
-impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
-    pub fn new(file_run_context: FileRunContext<'a, 'b>) -> Self {
+impl<'a> CodePathAnalyzer<'a> {
+    pub fn new(file_contents: RopeOrSlice<'a>) -> Self {
         Self {
             code_path: Default::default(),
             id_generator: Rc::new(IdGenerator::new("s")),
@@ -144,7 +147,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             code_path_arena: Default::default(),
             fork_context_arena: Default::default(),
             code_path_segment_arena: Default::default(),
-            file_run_context,
+            file_contents,
             current_events: Default::default(),
         }
     }
@@ -265,7 +268,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             }
             BinaryExpression => {
                 if parent.field("right") == node
-                    && is_handled_logical_operator(parent, &self.file_run_context)
+                    && is_handled_logical_operator(parent, &self.file_contents)
                 {
                     state.make_logical_right(
                         &mut self.fork_context_arena,
@@ -276,7 +279,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
             AugmentedAssignmentExpression => {
                 if parent.field("right") == node
                     && is_logical_assignment_operator(
-                        &parent.field("operator").text(&self.file_run_context),
+                        &parent.field("operator").text(&self.file_contents),
                     )
                 {
                     state.make_logical_right(
@@ -326,7 +329,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                     state.make_while_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        get_boolean_value_if_simple_constant(node, &self.file_run_context),
+                        get_boolean_value_if_simple_constant(node, &self.file_contents),
                     );
                 } else {
                     assert!(parent.field("body") == node);
@@ -347,7 +350,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                     state.make_do_while_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        get_boolean_value_if_simple_constant(node, &self.file_run_context),
+                        get_boolean_value_if_simple_constant(node, &self.file_contents),
                     );
                 }
             }
@@ -356,7 +359,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                     state.make_for_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        get_boolean_value_if_simple_constant(node, &self.file_run_context),
+                        get_boolean_value_if_simple_constant(node, &self.file_contents),
                     );
                 } else if parent.child_by_field_name("increment") == Some(node) {
                     state.make_for_update(
@@ -447,7 +450,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                 }
             }
             BinaryExpression => {
-                let operator = get_binary_expression_operator(node, &self.file_run_context);
+                let operator = get_binary_expression_operator(node, &self.file_contents);
                 if is_handled_logical_operator_str(&operator) {
                     let is_forking_as_result = is_forking_by_true_or_false(node, self);
                     self.code_path_arena[self.code_path.unwrap()]
@@ -527,8 +530,8 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                         self.current_node.unwrap(),
                         &mut self.current_events,
                         node.kind(),
-                        get_label(node, &self.file_run_context).map(Cow::into_owned),
-                        is_for_of(node, &self.file_run_context),
+                        get_label(node, &self.file_contents).map(Cow::into_owned),
+                        is_for_of(node, &self.file_contents),
                     );
             }
             LabeledStatement => {
@@ -538,11 +541,7 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
                         .push_break_context(
                             &mut self.fork_context_arena,
                             false,
-                            Some(
-                                node.field("label")
-                                    .text(&self.file_run_context)
-                                    .into_owned(),
-                            ),
+                            Some(node.field("label").text(&self.file_contents).into_owned()),
                         );
                 }
             }
@@ -806,16 +805,8 @@ impl<'a, 'b> CodePathAnalyzer<'a, 'b> {
     }
 }
 
-impl<'a, 'b> EventEmitter<'a> for CodePathAnalyzer<'a, 'b> {
-    fn name(&self) -> String {
-        "code-path-analyzer".to_owned()
-    }
-
-    fn languages(&self) -> Vec<SupportedLanguage> {
-        vec![SupportedLanguage::Javascript]
-    }
-
-    fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::Event>> {
+impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
+    fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::EventTypeIndex>> {
         self.current_events.clear();
         self.current_node = Some(node);
 
@@ -830,12 +821,12 @@ impl<'a, 'b> EventEmitter<'a> for CodePathAnalyzer<'a, 'b> {
         return (&self.current_events).non_empty().map(|current_events| {
             current_events
                 .into_iter()
-                .map(|event| event.name().to_owned())
+                .map(|event| event.index())
                 .collect()
         });
     }
 
-    fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::Event>> {
+    fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::EventTypeIndex>> {
         self.current_events.clear();
         self.current_node = Some(node);
 
@@ -848,17 +839,43 @@ impl<'a, 'b> EventEmitter<'a> for CodePathAnalyzer<'a, 'b> {
         return (&self.current_events).non_empty().map(|current_events| {
             current_events
                 .into_iter()
-                .map(|event| event.name().to_owned())
+                .map(|event| event.index())
                 .collect()
         });
     }
 }
 
-impl<'a, 'b> SourceTextProvider<'a> for CodePathAnalyzer<'a, 'b> {
+impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
     fn node_text(&self, node: Node) -> Cow<'a, str> {
-        self.file_run_context.node_text(node)
+        self.file_contents.node_text(node)
     }
 }
+
+const EVENT_EMITTER_NAME: &str = "code-path-analyzer";
+const ON_CODE_PATH_SEGMENT_START_NAME: &str = "on-code-path-segment-start";
+const ON_CODE_PATH_SEGMENT_END_NAME: &str = "on-code-path-segment-end";
+const ON_CODE_PATH_SEGMENT_LOOP_NAME: &str = "on-code-path-segment-loop";
+const ON_CODE_PATH_START_NAME: &str = "on-code-path-start";
+const ON_CODE_PATH_END_NAME: &str = "on-code-path-end";
+
+const ALL_EVENT_TYPES: [&str; 5] = [
+    ON_CODE_PATH_SEGMENT_START_NAME,
+    ON_CODE_PATH_SEGMENT_END_NAME,
+    ON_CODE_PATH_SEGMENT_LOOP_NAME,
+    ON_CODE_PATH_START_NAME,
+    ON_CODE_PATH_END_NAME,
+];
+
+pub const ON_CODE_PATH_SEGMENT_START: &str =
+    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_SEGMENT_START_NAME);
+pub const ON_CODE_PATH_SEGMENT_END: &str =
+    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_SEGMENT_END_NAME);
+pub const ON_CODE_PATH_SEGMENT_LOOP: &str =
+    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_SEGMENT_LOOP_NAME);
+pub const ON_CODE_PATH_START: &str =
+    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_START_NAME);
+pub const ON_CODE_PATH_END: &str =
+    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_END_NAME);
 
 pub enum Event<'a> {
     OnCodePathSegmentStart(Id<CodePathSegment>, Node<'a>),
@@ -869,13 +886,13 @@ pub enum Event<'a> {
 }
 
 impl<'a> Event<'a> {
-    pub fn name(&self) -> &'static str {
+    pub fn index(&self) -> usize {
         match self {
-            Event::OnCodePathSegmentStart(_, _) => "on-code-path-segment-start",
-            Event::OnCodePathSegmentEnd(_, _) => "on-code-path-segment-end",
-            Event::OnCodePathSegmentLoop(_, _, _) => "on-code-path-segment-loop",
-            Event::OnCodePathStart(_) => "on-code-path-start",
-            Event::OnCodePathEnd(_) => "on-code-path-end",
+            Event::OnCodePathSegmentStart(_, _) => 0,
+            Event::OnCodePathSegmentEnd(_, _) => 1,
+            Event::OnCodePathSegmentLoop(_, _, _) => 2,
+            Event::OnCodePathStart(_) => 3,
+            Event::OnCodePathEnd(_) => 4,
         }
     }
 }
@@ -899,5 +916,75 @@ impl OnLooped {
                 current_node,
             ));
         }
+    }
+}
+
+pub struct CodePathAnalyzerFactory;
+
+impl EventEmitterFactory for CodePathAnalyzerFactory {
+    fn name(&self) -> EventEmitterName {
+        EVENT_EMITTER_NAME.to_owned()
+    }
+
+    fn languages(&self) -> Vec<SupportedLanguage> {
+        vec![SupportedLanguage::Javascript]
+    }
+
+    fn event_types(&self) -> Vec<EventType> {
+        ALL_EVENT_TYPES.into_iter().map(ToOwned::to_owned).collect()
+    }
+
+    fn create<'a>(&self, file_contents: RopeOrSlice<'a>) -> Box<dyn EventEmitter<'a> + 'a> {
+        Box::new(CodePathAnalyzer::new(file_contents))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use squalid::regex;
+    use std::{path::PathBuf, sync::Mutex};
+    use tree_sitter_lint::rule;
+
+    use super::{super::debug_helpers::make_dot_arrows, *};
+
+    fn get_expected_dot_arrows(source: &str) -> Vec<String> {
+        regex!(r#"/\*expected\s+((?:.|[\r\n])+?)\s*\*/"#)
+            .captures_iter(source)
+            .map(|captures| {
+                regex!(r#"\r?\n"#)
+                    .replace_all(&captures[1], "\n")
+                    .into_owned()
+            })
+            .collect()
+    }
+
+    #[rstest]
+    fn test_completed_code_paths(#[files("tests/fixtures/code_path_analysis/*.js")] path: PathBuf) {
+        let source = std::fs::read_to_string(&path).unwrap();
+        let expected = get_expected_dot_arrows(&source);
+        let mut actual: Vec<String> = Default::default();
+
+        assert!(!expected.is_empty(), "/*expected */ comments not found.");
+
+        let rule = rule! {
+            name => "testing-code-path-analyzer-paths",
+            languages => [Javascript],
+            state => {
+                [per-run]
+                actual: Mutex<Vec<String>>,
+                [per-file-run]
+                actual_local: Vec<String>,
+            },
+            listeners => [
+                ON_CODE_PATH_END => |node, context| {
+                    let (code_path, _) = get_on_code_path_end_payload(context);
+                    self.actual_local.push(make_dot_arrows(code_path));
+                },
+                "program:exit" => |node, context| {
+                    *self.actual.lock().unwrap() = self.actual_local.clone();
+                }
+            ]
+        };
     }
 }
