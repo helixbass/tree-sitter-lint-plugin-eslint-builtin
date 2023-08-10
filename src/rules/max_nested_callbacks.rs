@@ -40,16 +40,6 @@ impl Default for Options {
     }
 }
 
-// TODO: the fact that it's _always_ popping (even for
-// functions that didn't meet the condition to get
-// pushed) looks to me like a bug in the ESLint version,
-// upstream?
-fn pop_stack(node: Node, callback_stack: &mut Vec<Node>) {
-    if Some(node) == callback_stack.last().copied() {
-        callback_stack.pop().unwrap();
-    }
-}
-
 pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
     rule! {
         name => "max-nested-callbacks",
@@ -92,7 +82,13 @@ pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
               arrow_function:exit,
               function:exit
             "# => |node, context| {
-                pop_stack(node, &mut self.callback_stack);
+                // TODO: the fact that it's _always_ popping (even for
+                // functions that didn't meet the condition to get
+                // pushed) looks to me like a bug in the ESLint version,
+                // upstream?
+                if Some(node) == self.callback_stack.last().copied() {
+                    self.callback_stack.pop().unwrap();
+                }
             },
         ]
     }

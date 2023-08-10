@@ -16,56 +16,17 @@ use crate::{
 struct ScopeInfo<'a> {
     label: Option<Node<'a>>,
     breakable: bool,
-    upper: Option<Box<ScopeInfo<'a>>>,
-    node: Node<'a>,
-}
-
-fn pop_scope_infos(node: Node, scope_info: &mut Option<ScopeInfo>) {
-    while scope_info
-        .as_ref()
-        .matches(|scope_info| !node.is_descendant_of(scope_info.node))
-    {
-        let scope_info_present = scope_info.take().unwrap();
-        *scope_info = scope_info_present.upper.map(|upper| *upper);
-    }
-}
-
-fn enter_breakable_statement<'a>(node: Node<'a>, scope_info: &mut Option<ScopeInfo<'a>>) {
-    let old_scope_info = scope_info.take();
-    let parent = node.next_non_parentheses_ancestor();
-    *scope_info = Some(ScopeInfo {
-        label: if parent.kind() == LabeledStatement {
-            Some(parent.field("label"))
-        } else {
-            None
-        },
-        breakable: true,
-        upper: old_scope_info.map(Box::new),
-        node,
-    });
-}
-
-fn enter_labeled_statement<'a>(node: Node<'a>, scope_info: &mut Option<ScopeInfo<'a>>) {
-    if !ast_utils::is_breakable_statement(node.field("body")) {
-        let old_scope_info = scope_info.take();
-        *scope_info = Some(ScopeInfo {
-            label: Some(node.field("label")),
-            breakable: false,
-            upper: old_scope_info.map(Box::new),
-            node,
-        });
-    }
 }
 
 fn report_if_unnecessary<'a>(
     node: Node<'a>,
     context: &QueryMatchContext<'a, '_>,
-    mut scope_info: Option<&ScopeInfo>,
+    scope_infos: &[ScopeInfo],
 ) {
     let label_node = return_if_none!(node.child_by_field_name("label"));
     let label_node_name = label_node.text(context);
 
-    while let Some(info) = scope_info {
+    for info in scope_infos.into_iter().rev() {
         if info.breakable
             || info
                 .label
@@ -100,7 +61,6 @@ fn report_if_unnecessary<'a>(
             }
             return;
         }
-        scope_info = info.upper.as_deref();
     }
 }
 
@@ -114,7 +74,7 @@ pub fn no_extra_label_rule() -> Arc<dyn Rule> {
         fixable => true,
         state => {
             [per-file-run]
-            scope_info: Option<ScopeInfo<'a>>,
+            scope_infos: Vec<ScopeInfo<'a>>,
         },
         listeners => [
             r#"
@@ -124,21 +84,43 @@ pub fn no_extra_label_rule() -> Arc<dyn Rule> {
               (for_in_statement) @c
               (switch_statement) @c
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_info);
-                enter_breakable_statement(node, &mut self.scope_info);
+                let parent = node.next_non_parentheses_ancestor();
+                self.scope_infos.push(ScopeInfo {
+                    label: if parent.kind() == LabeledStatement {
+                        Some(parent.field("label"))
+                    } else {
+                        None
+                    },
+                    breakable: true,
+                });
             },
             r#"
-              (labeled_statement) @c
+              while_statement:exit,
+              do_statement:exit,
+              for_statement:exit,
+              for_in_statement:exit,
+              switch_statement:exit
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_info);
-                enter_labeled_statement(node, &mut self.scope_info);
+                self.scope_infos.pop().unwrap();
+            },
+            LabeledStatement => |node, context| {
+                if !ast_utils::is_breakable_statement(node.field("body")) {
+                    self.scope_infos.push(ScopeInfo {
+                        label: Some(node.field("label")),
+                        breakable: false,
+                    });
+                }
+            },
+            "labeled_statement:exit" => |node, context| {
+                if !ast_utils::is_breakable_statement(node.field("body")) {
+                    self.scope_infos.pop().unwrap();
+                }
             },
             r#"
               (break_statement) @c
               (continue_statement) @c
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_info);
-                report_if_unnecessary(node, context, self.scope_info.as_ref());
+                report_if_unnecessary(node, context, &self.scope_infos);
             },
         ]
     }

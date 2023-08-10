@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use once_cell::sync::Lazy;
-use squalid::{EverythingExt, OptionExt};
+use squalid::EverythingExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
@@ -96,33 +96,6 @@ struct ScopeInfo<'a> {
     this_found: bool,
     upper: Option<Box<ScopeInfo<'a>>>,
     node: Node<'a>,
-}
-
-fn maybe_report_scope_info<'a>(scope_info: &ScopeInfo<'a>, context: &QueryMatchContext<'a, '_>) {}
-
-fn pop_scope_infos<'a>(
-    node: Node<'a>,
-    scope_info: &mut Option<ScopeInfo<'a>>,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    while scope_info
-        .as_ref()
-        .matches(|scope_info| !node.is_descendant_of(scope_info.node))
-    {
-        let scope_info_present = scope_info.take().unwrap();
-        maybe_report_scope_info(&scope_info_present, context);
-    }
-}
-
-fn pop_remaining_scope_infos<'a>(
-    scope_info: &mut Option<ScopeInfo<'a>>,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    while scope_info.is_some() {
-        let scope_info_present = scope_info.take().unwrap();
-        maybe_report_scope_info(&scope_info_present, context);
-        *scope_info = scope_info_present.upper.map(|upper| *upper);
-    }
 }
 
 pub fn no_extra_bind_rule() -> Arc<dyn Rule> {

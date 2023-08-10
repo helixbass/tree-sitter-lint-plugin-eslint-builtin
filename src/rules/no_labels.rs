@@ -6,7 +6,7 @@ use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::{
     ast_helpers::NodeExtJs,
-    kind::{BreakStatement, SwitchStatement},
+    kind::{BreakStatement, LabeledStatement, SwitchStatement},
     utils::ast_utils,
 };
 
@@ -20,14 +20,6 @@ struct Options {
 struct ScopeInfo<'a> {
     label: Cow<'a, str>,
     kind: BodyKind,
-    node: Node<'a>,
-}
-
-fn pop_scope_infos(node: Node, scope_infos: &mut Vec<ScopeInfo>) {
-    while !scope_infos.is_empty() && !node.is_descendant_of(scope_infos[scope_infos.len() - 1].node)
-    {
-        scope_infos.pop().unwrap();
-    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -82,16 +74,12 @@ pub fn no_labels_rule() -> Arc<dyn Rule> {
             scope_infos: Vec<ScopeInfo<'a>>,
         },
         listeners => [
-            r#"(
-              (labeled_statement) @c
-            )"# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_infos);
+            LabeledStatement => |node, context| {
                 let body_kind = get_body_kind(node.field("body"));
 
                 self.scope_infos.push(ScopeInfo {
                     label: node.field("label").text(context),
                     kind: body_kind,
-                    node,
                 });
 
                 if !is_allowed(body_kind, self.allow_loop, self.allow_switch) {
@@ -101,11 +89,13 @@ pub fn no_labels_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
+            "labeled_statement:exit" => |node, context| {
+                self.scope_infos.pop().unwrap();
+            },
             r#"
-              (break_statement) @c
-              (continue_statement) @c
+              break_statement,
+              continue_statement
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_infos);
                 if node.child_by_field_name("label").matches(|label| {
                     !is_allowed(
                         get_kind(&label.text(context), &self.scope_infos),
