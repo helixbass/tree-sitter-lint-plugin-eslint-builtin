@@ -29,6 +29,11 @@ use crate::{
     },
 };
 
+pub const LINE_BREAK_PATTERN_STR: &str = r#"\r\n|[\r\n\u2028\u2029]"#;
+
+pub static LINE_BREAK_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(LINE_BREAK_PATTERN_STR).unwrap());
+
 static any_function_pattern: Lazy<Regex> = Lazy::new(|| {
     Regex::new(formatcp!(
         r#"^(?:{FunctionDeclaration}|{Function}|{ArrowFunction})$"#
