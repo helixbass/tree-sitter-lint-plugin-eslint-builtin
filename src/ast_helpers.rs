@@ -680,3 +680,16 @@ pub fn is_chain_expression(node: Node) -> bool {
 pub fn is_outermost_chain_expression(node: Node) -> bool {
     is_chain_expression(node) && !is_chain_expression(node.parent().unwrap())
 }
+
+pub fn is_generator_method_definition(node: Node, context: &QueryMatchContext) -> bool {
+    assert_kind!(node, MethodDefinition);
+    let mut cursor = node.walk();
+    assert!(cursor.goto_first_child());
+    while cursor.field_name() != Some("name") {
+        if cursor.node().text(context) == "*" {
+            return true;
+        }
+        assert!(cursor.goto_next_sibling());
+    }
+    false
+}

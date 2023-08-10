@@ -2,16 +2,17 @@ use std::{collections::HashSet, sync::Arc};
 
 use once_cell::sync::Lazy;
 use squalid::{EverythingExt, OptionExt};
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, ROOT_EXIT,
-};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::{
         call_expression_has_single_matching_argument, get_call_expression_arguments,
         range_between_start_and_end, NodeExtJs,
     },
-    kind::{CallExpression, Function, Identifier, Kind, SpreadElement, This, LITERAL_KINDS},
+    kind::{
+        ArrowFunction, CallExpression, Function, Identifier, Kind, SpreadElement, This,
+        LITERAL_KINDS,
+    },
     utils::ast_utils,
 };
 
@@ -97,11 +98,7 @@ struct ScopeInfo<'a> {
     node: Node<'a>,
 }
 
-fn maybe_report_scope_info<'a>(scope_info: &ScopeInfo<'a>, context: &QueryMatchContext<'a, '_>) {
-    if scope_info.is_bound && !scope_info.this_found {
-        report(scope_info.node, context);
-    }
-}
+fn maybe_report_scope_info<'a>(scope_info: &ScopeInfo<'a>, context: &QueryMatchContext<'a, '_>) {}
 
 fn pop_scope_infos<'a>(
     node: Node<'a>,
@@ -114,7 +111,6 @@ fn pop_scope_infos<'a>(
     {
         let scope_info_present = scope_info.take().unwrap();
         maybe_report_scope_info(&scope_info_present, context);
-        *scope_info = scope_info_present.upper.map(|upper| *upper);
     }
 }
 
@@ -142,9 +138,7 @@ pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
             scope_info: Option<ScopeInfo<'a>>,
         },
         listeners => [
-            r#"
-              (arrow_function) @c
-            "# => |node, context| {
+            ArrowFunction => |node, context| {
                 if is_callee_of_bind_method(node, context) {
                     report(node, context);
                 }
@@ -156,7 +150,6 @@ pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
               (generator_function_declaration) @c
               (method_definition) @c
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_info, context);
                 let old_scope_info = self.scope_info.take();
                 self.scope_info = Some(ScopeInfo {
                     is_bound: is_callee_of_bind_method(node, context),
@@ -166,16 +159,24 @@ pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
                 });
             },
             r#"
+              function:exit,
+              generator_function:exit,
+              function_declaration:exit,
+              generator_function_declaration:exit
+            "# => |node, context| {
+                let scope_info = self.scope_info.take().unwrap();
+                if scope_info.is_bound && !scope_info.this_found {
+                    report(scope_info.node, context);
+                }
+                self.scope_info = scope_info.upper.map(|upper| *upper);
+            },
+            r#"
               (this) @c
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_info, context);
                 if let Some(scope_info) = self.scope_info.as_mut() {
                     scope_info.this_found = true;
                 }
             },
-            ROOT_EXIT => |node, context| {
-                pop_remaining_scope_infos(&mut self.scope_info, context);
-            }
         ]
     }
 }

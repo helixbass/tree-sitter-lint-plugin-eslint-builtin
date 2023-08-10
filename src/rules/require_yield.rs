@@ -1,27 +1,11 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, ROOT_EXIT,
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
+
+use crate::{
+    ast_helpers::{is_generator_method_definition, NodeExtJs},
+    kind::MethodDefinition,
 };
-
-use crate::ast_helpers::NodeExtJs;
-
-fn pop_stack(stack: &mut Vec<(Node, usize)>, node: Node, context: &QueryMatchContext) {
-    while !stack.is_empty() {
-        let (current, count_yield) = stack.last().copied().unwrap();
-        if !node.is_descendant_of(current) {
-            stack.pop().unwrap();
-            if count_yield == 0 && current.field("body").has_non_comment_named_children() {
-                context.report(violation! {
-                    node => current,
-                    message_id => "missing_yield",
-                });
-            }
-        } else {
-            return;
-        }
-    }
-}
 
 pub fn require_yield_rule() -> Arc<dyn Rule> {
     rule! {
@@ -32,7 +16,7 @@ pub fn require_yield_rule() -> Arc<dyn Rule> {
         ],
         state => {
             [per-file-run]
-            stack: Vec<(Node<'a>, usize)>,
+            stack: Vec<usize>,
         },
         listeners => [
             r#"
@@ -42,20 +26,31 @@ pub fn require_yield_rule() -> Arc<dyn Rule> {
                 "*"
               ) @c
             "# => |node, context| {
-                pop_stack(&mut self.stack, node, context);
-                self.stack.push((node, 0));
+                self.stack.push(0);
+            },
+            r#"
+              generator_function:exit,
+              generator_function_declaration:exit,
+              method_definition:exit
+            "# => |node, context| {
+                if node.kind() == MethodDefinition && !is_generator_method_definition(node, context) {
+                    return;
+                }
+                let count_yield = self.stack.pop().unwrap();
+                if count_yield == 0 && node.field("body").has_non_comment_named_children() {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "missing_yield",
+                    });
+                }
             },
             r#"
               (yield_expression) @c
             "# => |node, context| {
-                pop_stack(&mut self.stack, node, context);
-                if let Some((_, last_count)) = self.stack.last_mut() {
+                if let Some(last_count) = self.stack.last_mut() {
                     *last_count += 1;
                 }
             },
-            ROOT_EXIT => |node, context| {
-                pop_stack(&mut self.stack, node, context);
-            }
         ]
     }
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
 
 const DEFAULT_MAX: usize = 10;
 
@@ -40,26 +40,13 @@ impl Default for Options {
     }
 }
 
-#[derive(Default)]
-struct NestedNodeStack<'a> {
-    nodes: Vec<Node<'a>>,
-}
-
-impl<'a> NestedNodeStack<'a> {
-    pub fn push_node(&mut self, node: Node<'a>) {
-        while !self.nodes.is_empty() {
-            let current_node = self.nodes[self.nodes.len() - 1];
-            if !node.is_descendant_of(current_node) {
-                self.nodes.pop().unwrap();
-            } else {
-                break;
-            }
-        }
-        self.nodes.push(node);
-    }
-
-    pub fn len(&self) -> usize {
-        self.nodes.len()
+// TODO: the fact that it's _always_ popping (even for
+// functions that didn't meet the condition to get
+// pushed) looks to me like a bug in the ESLint version,
+// upstream?
+fn pop_stack(node: Node, callback_stack: &mut Vec<Node>) {
+    if Some(node) == callback_stack.last().copied() {
+        callback_stack.pop().unwrap();
     }
 }
 
@@ -76,7 +63,7 @@ pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
             threshold: usize = options.max(),
 
             [per-file-run]
-            callback_stack: NestedNodeStack<'a> = Default::default(),
+            callback_stack: Vec<Node<'a>> = Default::default(),
         },
         listeners => [
             r#"
@@ -89,7 +76,7 @@ pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
                 )
               )
             "# => |node, context| {
-                self.callback_stack.push_node(node);
+                self.callback_stack.push(node);
                 if self.callback_stack.len() > self.threshold {
                     context.report(violation! {
                         node => node,
@@ -100,6 +87,12 @@ pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
                         }
                     });
                 }
+            },
+            r#"
+              arrow_function:exit,
+              function:exit
+            "# => |node, context| {
+                pop_stack(node, &mut self.callback_stack);
             },
         ]
     }

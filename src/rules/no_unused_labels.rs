@@ -3,7 +3,6 @@ use std::{borrow::Cow, sync::Arc};
 use squalid::return_if_none;
 use tree_sitter_lint::{
     rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, SkipOptionsBuilder,
-    ROOT_EXIT,
 };
 
 use crate::{
@@ -59,37 +58,6 @@ fn is_fixable<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
     true
 }
 
-fn pop_scope_infos<'a>(
-    node: Node<'a>,
-    scope_infos: &mut Vec<ScopeInfo<'a>>,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    while !scope_infos.is_empty() {
-        if node.is_descendant_of(scope_infos[scope_infos.len() - 1].node) {
-            break;
-        }
-        let scope_info = scope_infos.pop().unwrap();
-        if !scope_info.used {
-            let node = scope_info.node;
-            let label = node.field("label");
-            context.report(violation! {
-                node => label,
-                message_id => "unused",
-                data => {
-                    name => label.text(context),
-                },
-                fix => |fixer| {
-                    if !is_fixable(node, context) {
-                        return;
-                    }
-
-                    fixer.remove_range(range_between_starts(node.range(), node.field("body").range()));
-                }
-            });
-        }
-    }
-}
-
 pub fn no_unused_labels_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-unused-labels",
@@ -106,20 +74,37 @@ pub fn no_unused_labels_rule() -> Arc<dyn Rule> {
             r#"
               (labeled_statement) @c
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_infos, context);
-
                 self.scope_infos.push(ScopeInfo {
                     node,
                     used: false,
                     label: node.field("label").text(context),
                 });
             },
+            "labeled_statement:exit" => |node, context| {
+                let scope_info = self.scope_infos.pop().unwrap();
+                if !scope_info.used {
+                    let node = scope_info.node;
+                    let label = node.field("label");
+                    context.report(violation! {
+                        node => label,
+                        message_id => "unused",
+                        data => {
+                            name => label.text(context),
+                        },
+                        fix => |fixer| {
+                            if !is_fixable(node, context) {
+                                return;
+                            }
+
+                            fixer.remove_range(range_between_starts(node.range(), node.field("body").range()));
+                        }
+                    });
+                }
+            },
             r#"
               (break_statement) @c
               (continue_statement) @c
             "# => |node, context| {
-                pop_scope_infos(node, &mut self.scope_infos, context);
-
                 let label = return_if_none!(node.child_by_field_name("label")).text(context);
 
                 for info in self.scope_infos.iter_mut().rev() {
@@ -128,9 +113,6 @@ pub fn no_unused_labels_rule() -> Arc<dyn Rule> {
                         break;
                     }
                 }
-            },
-            ROOT_EXIT => |node, context| {
-                pop_scope_infos(node, &mut self.scope_infos, context);
             },
         ]
     }
