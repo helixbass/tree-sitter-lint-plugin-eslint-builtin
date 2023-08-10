@@ -52,7 +52,7 @@ fn is_handled_logical_operator<'a>(
     node: Node,
     source_text_provider: &impl SourceTextProvider<'a>,
 ) -> bool {
-    is_handled_logical_operator_str(&*get_binary_expression_operator(node, source_text_provider))
+    is_handled_logical_operator_str(&get_binary_expression_operator(node, source_text_provider))
 }
 
 fn is_logical_assignment_operator(operator: &str) -> bool {

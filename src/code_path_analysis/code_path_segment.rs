@@ -4,7 +4,7 @@ use id_arena::{Arena, Id};
 
 pub struct CodePathSegment {
     // TODO: can I just use the id_arena::Id for this?
-    id: String,
+    pub id: String,
     pub next_segments: Vec<Id<Self>>,
     pub prev_segments: Vec<Id<Self>>,
     pub all_next_segments: Vec<Id<Self>>,

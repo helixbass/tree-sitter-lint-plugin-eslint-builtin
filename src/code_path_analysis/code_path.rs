@@ -54,7 +54,7 @@ impl CodePath {
         ret
     }
 
-    fn initial_segment(&self) -> Id<CodePathSegment> {
+    pub fn initial_segment(&self) -> Id<CodePathSegment> {
         self.state.initial_segment
     }
 
@@ -62,11 +62,11 @@ impl CodePath {
         &self.state.final_segments
     }
 
-    fn returned_segments(&self) -> &[Id<CodePathSegment>] {
+    pub fn returned_segments(&self) -> &[Id<CodePathSegment>] {
         &self.state.returned_fork_context
     }
 
-    fn thrown_segments(&self) -> &[Id<CodePathSegment>] {
+    pub fn thrown_segments(&self) -> &[Id<CodePathSegment>] {
         &self.state.thrown_fork_context
     }
 
