@@ -614,7 +614,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchCase | SwitchDefault => {
-                if !node.field("body").has_non_comment_named_children() {
+                if !node
+                    .child_by_field_name("body")
+                    .matches(|body| body.has_non_comment_named_children())
+                {
                     self.code_path_arena[self.code_path.unwrap()]
                         .state
                         .make_switch_case_body(
