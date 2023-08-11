@@ -26,10 +26,10 @@ use crate::{
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
         IfStatement, ImportClause, ImportSpecifier, LabeledStatement, MemberExpression,
         MethodDefinition, NamespaceImport, NewExpression, Null, ObjectAssignmentPattern, Pair,
-        PairPattern, Program, PropertyIdentifier, RestElement, ReturnStatement,
-        ShorthandPropertyIdentifier, SubscriptExpression, SwitchBody, SwitchCase, SwitchDefault,
-        SwitchStatement, TernaryExpression, ThrowStatement, True, TryStatement, VariableDeclarator,
-        WhileStatement, YieldExpression,
+        PairPattern, ParenthesizedExpression, Program, PropertyIdentifier, RestElement,
+        ReturnStatement, ShorthandPropertyIdentifier, SubscriptExpression, SwitchBody, SwitchCase,
+        SwitchDefault, SwitchStatement, TernaryExpression, ThrowStatement, True, TryStatement,
+        VariableDeclarator, WhileStatement, YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
 };
@@ -800,7 +800,10 @@ impl<'a> CodePathAnalyzer<'a> {
                         );
                 }
             }
-            SwitchBody => {
+            // TODO: at least the ParenthesizedExpression here looked like
+            // kind of a hack where I could have just updated the test files
+            // to have a different expected path (looked correct, just different)?
+            SwitchBody | ParenthesizedExpression => {
                 dont_forward = true;
             }
             _ => (),
