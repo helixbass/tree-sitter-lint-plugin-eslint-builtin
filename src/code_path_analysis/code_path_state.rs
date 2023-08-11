@@ -384,18 +384,11 @@ impl CodePathState {
             | ChoiceContextKind::LogicalOr
             | ChoiceContextKind::LogicalNullCoalesce => {
                 if !context.processed {
-                    arena
-                        .get_mut(context.true_fork_context)
-                        .unwrap()
+                    arena[context.true_fork_context]
                         .add(code_path_segment_arena, head_segments.clone());
-                    arena
-                        .get_mut(context.false_fork_context)
-                        .unwrap()
+                    arena[context.false_fork_context]
                         .add(code_path_segment_arena, head_segments.clone());
-                    arena
-                        .get_mut(context.qq_fork_context)
-                        .unwrap()
-                        .add(code_path_segment_arena, head_segments);
+                    arena[context.qq_fork_context].add(code_path_segment_arena, head_segments);
                 }
 
                 if context.is_forking_as_result {
@@ -480,7 +473,7 @@ impl CodePathState {
                 .get_mut(fork_context)
                 .unwrap()
                 .replace_head(code_path_segment_arena, segments);
-            arena.get_mut(fork_context).unwrap().clear();
+            arena.get_mut(prev_fork_context).unwrap().clear();
             context.processed = false;
         } else {
             match context.kind {
@@ -1655,6 +1648,7 @@ pub enum ChoiceContextKind {
     Loop,
 }
 
+#[derive(Debug)]
 pub struct ChoiceContext {
     upper: Option<Box<ChoiceContext>>,
     kind: ChoiceContextKind,
