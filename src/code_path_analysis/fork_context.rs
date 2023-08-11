@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use id_arena::{Arena, Id};
-use squalid::OptionExt;
+use squalid::{EverythingExt, OptionExt};
 
 use super::{code_path_segment::CodePathSegment, id_generator::IdGenerator};
 
@@ -72,6 +72,7 @@ pub struct ForkContext {
     pub upper: Option<Id<Self>>,
     pub count: usize,
     pub segments_list: Vec<Vec<Id<CodePathSegment>>>,
+    default_head: Vec<Id<CodePathSegment>>,
 }
 
 impl ForkContext {
@@ -86,15 +87,12 @@ impl ForkContext {
             upper,
             count,
             segments_list: Default::default(),
+            default_head: Default::default(),
         })
     }
 
-    fn maybe_head(&self) -> Option<&Vec<Id<CodePathSegment>>> {
-        self.segments_list.last()
-    }
-
     pub fn head(&self) -> &Vec<Id<CodePathSegment>> {
-        self.maybe_head().unwrap()
+        self.segments_list.last().unwrap_or(&self.default_head)
     }
 
     pub fn empty(&self) -> bool {
@@ -102,7 +100,7 @@ impl ForkContext {
     }
 
     pub fn reachable(&self, arena: &Arena<CodePathSegment>) -> bool {
-        self.maybe_head().matches(|head| {
+        self.head().thrush(|head| {
             !head.is_empty()
                 && head
                     .into_iter()
@@ -142,6 +140,7 @@ impl ForkContext {
         )
     }
 
+    #[allow(non_snake_case)]
     pub fn make_unreachable__missing_begin_end(
         &self,
         arena: &mut Arena<CodePathSegment>,
