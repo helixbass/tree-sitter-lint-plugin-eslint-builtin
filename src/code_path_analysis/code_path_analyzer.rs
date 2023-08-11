@@ -965,8 +965,8 @@ mod tests {
     use squalid::regex;
     use std::{cell::RefCell, iter, path::PathBuf, sync::Arc};
     use tree_sitter_lint::{
-        rule, ConfigBuilder, DummyFromFileRunContextInstanceProviderFactory, ErrorLevel, Rule,
-        RuleConfiguration,
+        rule, ConfigBuilder, DummyFromFileRunContextInstanceProviderFactory, ErrorLevel, Plugin,
+        Rule, RuleConfiguration,
     };
 
     use super::{super::debug_helpers::make_dot_arrows, *};
@@ -1017,6 +1017,13 @@ mod tests {
                 }
             ]
         };
+
+        let plugin = Plugin {
+            name: "event-emitter-plugin".to_owned(),
+            rules: Default::default(),
+            event_emitter_factories: vec![Arc::new(CodePathAnalyzerFactory)],
+        };
+
         let (violations, _) = tree_sitter_lint::run_for_slice(
             source.as_bytes(),
             None,
@@ -1029,6 +1036,7 @@ mod tests {
                     level: ErrorLevel::Error,
                     options: None,
                 }])
+                .all_plugins([plugin])
                 .build()
                 .unwrap(),
             SupportedLanguage::Javascript,
