@@ -85,9 +85,9 @@ fn is_forking_by_true_or_false<'a>(
         TernaryExpression | IfStatement | WhileStatement | DoStatement | ForStatement => {
             parent.field("condition").skip_parentheses() == node
         }
-        BinaryExpression => is_handled_logical_operator(node, source_text_provider),
+        BinaryExpression => is_handled_logical_operator(parent, source_text_provider),
         AugmentedAssignmentExpression => {
-            is_logical_assignment_operator(&node.field("operator").text(source_text_provider))
+            is_logical_assignment_operator(&parent.field("operator").text(source_text_provider))
         }
         _ => false,
     }
@@ -491,7 +491,7 @@ impl<'a> CodePathAnalyzer<'a> {
                         .state
                         .push_choice_context(
                             &mut self.fork_context_arena,
-                            match operator.strip_suffix("=").unwrap() {
+                            match operator.strip_suffix('=').unwrap() {
                                 "&&" => ChoiceContextKind::LogicalAnd,
                                 "||" => ChoiceContextKind::LogicalOr,
                                 "??" => ChoiceContextKind::LogicalNullCoalesce,
