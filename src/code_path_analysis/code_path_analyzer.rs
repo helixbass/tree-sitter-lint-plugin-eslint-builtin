@@ -22,13 +22,14 @@ use crate::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
         AugmentedAssignmentExpression, BinaryExpression, BreakStatement, CallExpression,
         CatchClause, Class, ClassDeclaration, ClassStaticBlock, ContinueStatement, DoStatement,
-        FieldDefinition, ForInStatement, ForStatement, Function, FunctionDeclaration,
-        GeneratorFunction, GeneratorFunctionDeclaration, Identifier, IfStatement, ImportClause,
-        ImportSpecifier, LabeledStatement, MemberExpression, MethodDefinition, NamespaceImport,
-        NewExpression, Null, ObjectAssignmentPattern, Pair, PairPattern, Program,
-        PropertyIdentifier, RestElement, ReturnStatement, ShorthandPropertyIdentifier,
-        SubscriptExpression, SwitchCase, SwitchDefault, SwitchStatement, TernaryExpression,
-        ThrowStatement, TryStatement, VariableDeclarator, WhileStatement, YieldExpression,
+        EmptyStatement, FieldDefinition, ForInStatement, ForStatement, Function,
+        FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
+        IfStatement, ImportClause, ImportSpecifier, LabeledStatement, MemberExpression,
+        MethodDefinition, NamespaceImport, NewExpression, Null, ObjectAssignmentPattern, Pair,
+        PairPattern, Program, PropertyIdentifier, RestElement, ReturnStatement,
+        ShorthandPropertyIdentifier, SubscriptExpression, SwitchCase, SwitchDefault,
+        SwitchStatement, TernaryExpression, ThrowStatement, TryStatement, VariableDeclarator,
+        WhileStatement, YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
 };
@@ -375,7 +376,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             ForStatement => {
-                if parent.field("condition") == node {
+                if parent.field("condition") == node && node.kind() != EmptyStatement {
                     state.make_for_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
