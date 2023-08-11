@@ -22,13 +22,13 @@ use crate::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
         AugmentedAssignmentExpression, BinaryExpression, BreakStatement, CallExpression,
         CatchClause, Class, ClassDeclaration, ClassStaticBlock, ContinueStatement, DoStatement,
-        EmptyStatement, FieldDefinition, ForInStatement, ForStatement, Function,
-        FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
+        EmptyStatement, ExpressionStatement, False, FieldDefinition, ForInStatement, ForStatement,
+        Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
         IfStatement, ImportClause, ImportSpecifier, LabeledStatement, MemberExpression,
         MethodDefinition, NamespaceImport, NewExpression, Null, ObjectAssignmentPattern, Pair,
         PairPattern, Program, PropertyIdentifier, RestElement, ReturnStatement,
         ShorthandPropertyIdentifier, SubscriptExpression, SwitchCase, SwitchDefault,
-        SwitchStatement, TernaryExpression, ThrowStatement, TryStatement, VariableDeclarator,
+        SwitchStatement, TernaryExpression, ThrowStatement, True, TryStatement, VariableDeclarator,
         WhileStatement, YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
@@ -103,6 +103,8 @@ fn get_boolean_value_if_simple_constant<'a>(
         kind::Number => Number::from(&*node.text(source_text_provider)).is_truthy(),
         kind::Regex => true,
         Null => false,
+        True => true,
+        False => false,
         _ => unreachable!(),
     })
 }
@@ -350,7 +352,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_while_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        get_boolean_value_if_simple_constant(node, &self.file_contents),
+                        get_boolean_value_if_simple_constant(
+                            node.skip_parentheses(),
+                            &self.file_contents,
+                        ),
                     );
                 } else {
                     assert!(parent.field("body") == node);
@@ -371,7 +376,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_do_while_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        get_boolean_value_if_simple_constant(node, &self.file_contents),
+                        get_boolean_value_if_simple_constant(
+                            node.skip_parentheses(),
+                            &self.file_contents,
+                        ),
                     );
                 }
             }
@@ -380,7 +388,11 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_for_test(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        get_boolean_value_if_simple_constant(node, &self.file_contents),
+                        get_boolean_value_if_simple_constant(
+                            node.skip_parentheses()
+                                .skip_nodes_of_type(ExpressionStatement),
+                            &self.file_contents,
+                        ),
                     );
                 } else if parent.child_by_field_name("increment") == Some(node) {
                     state.make_for_update(

@@ -120,7 +120,8 @@ pub fn is_declaration_kind(kind: Kind) -> bool {
     )
 }
 
-pub static LITERAL_KINDS: Lazy<HashSet<Kind>> = Lazy::new(|| [String, Number, Regex, Null].into());
+pub static LITERAL_KINDS: Lazy<HashSet<Kind>> =
+    Lazy::new(|| [String, Number, Regex, Null, True, False].into());
 
 pub fn is_literal_kind(kind: Kind) -> bool {
     LITERAL_KINDS.contains(kind)

@@ -341,6 +341,7 @@ pub trait NodeExtJs<'a> {
     fn maybe_first_non_comment_named_child(&self) -> Option<Node<'a>>;
     fn first_non_comment_named_child(&self) -> Node<'a>;
     fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a>;
+    fn skip_nodes_of_type(&self, kind: Kind) -> Node<'a>;
     fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a>;
     fn next_ancestor_not_of_type(&self, kind: Kind) -> Node<'a>;
     fn has_child_of_kind(&self, kind: Kind) -> bool;
@@ -411,6 +412,10 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
 
     fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a> {
         skip_nodes_of_types(*self, kinds)
+    }
+
+    fn skip_nodes_of_type(&self, kind: Kind) -> Node<'a> {
+        skip_nodes_of_type(*self, kind)
     }
 
     fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a> {
