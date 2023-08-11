@@ -377,7 +377,7 @@ impl CodePathState {
         self.choice_context = context.upper.take().map(|box_| *box_);
 
         let fork_context = self.fork_context;
-        let head_segments = arena.get(fork_context).unwrap().head().clone();
+        let head_segments = arena[fork_context].head().clone();
 
         match context.kind {
             ChoiceContextKind::LogicalAnd

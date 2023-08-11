@@ -19,7 +19,7 @@ use crate::{
         is_outermost_chain_expression, NodeExtJs, Number,
     },
     kind::{
-        self, is_literal_kind, ArrayPattern, ArrowFunction, AssignmentPattern,
+        self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
         AugmentedAssignmentExpression, BinaryExpression, BreakStatement, CallExpression,
         CatchClause, Class, ClassDeclaration, ClassStaticBlock, ContinueStatement, DoStatement,
         FieldDefinition, ForInStatement, ForStatement, Function, FunctionDeclaration,
@@ -168,7 +168,10 @@ impl<'a> CodePathAnalyzer<'a> {
                 EitherOrBoth::Both(current_segment, head_segment)
                     if current_segment != head_segment =>
                 {
-                    // debug.dump(`onCodePathSegmentEnd ${currentSegment.id}`);
+                    debug::dump(&format!(
+                        "onCodePathSegmentEnd {}",
+                        self.code_path_segment_arena[*current_segment].id
+                    ));
 
                     if self.code_path_segment_arena[*current_segment].reachable {
                         self.current_events
@@ -176,7 +179,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     }
                 }
                 EitherOrBoth::Left(current_segment) => {
-                    // debug.dump(`onCodePathSegmentEnd ${currentSegment.id}`);
+                    debug::dump(&format!(
+                        "onCodePathSegmentEnd {}",
+                        self.code_path_segment_arena[*current_segment].id
+                    ));
 
                     if self.code_path_segment_arena[*current_segment].reachable {
                         self.current_events
@@ -194,7 +200,10 @@ impl<'a> CodePathAnalyzer<'a> {
                 EitherOrBoth::Both(current_segment, head_segment)
                     if current_segment != head_segment =>
                 {
-                    // debug.dump(`onCodePathSegmentStart ${headSegment.id}`);
+                    debug::dump(&format!(
+                        "onCodePathSegmentStart {}",
+                        self.code_path_segment_arena[*head_segment].id
+                    ));
 
                     CodePathSegment::mark_used(&mut self.code_path_segment_arena, *head_segment);
                     if self.code_path_segment_arena[*head_segment].reachable {
@@ -203,7 +212,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     }
                 }
                 EitherOrBoth::Right(head_segment) => {
-                    // debug.dump(`onCodePathSegmentStart ${headSegment.id}`);
+                    debug::dump(&format!(
+                        "onCodePathSegmentStart {}",
+                        self.code_path_segment_arena[*head_segment].id
+                    ));
 
                     CodePathSegment::mark_used(&mut self.code_path_segment_arena, *head_segment);
                     if self.code_path_segment_arena[*head_segment].reachable {
@@ -222,7 +234,10 @@ impl<'a> CodePathAnalyzer<'a> {
             .current_segments
             .iter()
             .for_each(|&current_segment| {
-                // debug.dump(`onCodePathSegmentEnd ${currentSegment.id}`);
+                debug::dump(&format!(
+                    "onCodePathSegmentEnd {}",
+                    self.code_path_segment_arena[current_segment].id
+                ));
                 if self.code_path_segment_arena[current_segment].reachable {
                     self.current_events
                         .push(Event::OnCodePathSegmentEnd(current_segment, node));
@@ -243,7 +258,8 @@ impl<'a> CodePathAnalyzer<'a> {
         match parent.kind() {
             CallExpression => {
                 if parent.child_by_field_name("optional_chain").is_some()
-                    && node.is_first_call_expression_argument(parent)
+                    && node.kind() == Arguments
+                    && node.has_non_comment_named_children()
                 {
                     state.make_optional_right(
                         &mut self.fork_context_arena,
@@ -580,7 +596,10 @@ impl<'a> CodePathAnalyzer<'a> {
             OnLooped,
         ));
 
-        // debug.dump(`onCodePathStart ${codePath.id}`);
+        debug::dump(&format!(
+            "onCodePathStart {}",
+            self.code_path_arena[self.code_path.unwrap()].id
+        ));
         self.current_events.push(Event::OnCodePathStart(node));
     }
 
@@ -719,6 +738,12 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             CallExpression | MemberExpression | SubscriptExpression | NewExpression
             | YieldExpression => {
+                self.code_path_arena[self.code_path.unwrap()]
+                    .state
+                    .make_first_throwable_path_in_try_block(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
                 if is_outermost_chain_expression(node) {
                     self.code_path_arena[self.code_path.unwrap()]
                         .state
@@ -727,12 +752,6 @@ impl<'a> CodePathAnalyzer<'a> {
                             &mut self.code_path_segment_arena,
                         );
                 }
-                self.code_path_arena[self.code_path.unwrap()]
-                    .state
-                    .make_first_throwable_path_in_try_block(
-                        &mut self.fork_context_arena,
-                        &mut self.code_path_segment_arena,
-                    );
             }
             WhileStatement | DoStatement | ForStatement | ForInStatement => {
                 self.code_path_arena[self.code_path.unwrap()]
@@ -957,7 +976,10 @@ impl OnLooped {
         to_segment: Id<CodePathSegment>,
     ) {
         if arena[from_segment].reachable && arena[to_segment].reachable {
-            // debug.dump(`onCodePathSegmentLoop ${fromSegment.id} -> ${toSegment.id}`);
+            debug::dump(&format!(
+                "onCodePathSegmentLoop {} -> {}",
+                arena[from_segment].id, arena[to_segment].id,
+            ));
             current_events.push(Event::OnCodePathSegmentLoop(
                 from_segment,
                 to_segment,
