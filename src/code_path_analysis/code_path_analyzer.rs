@@ -783,7 +783,7 @@ impl<'a> CodePathAnalyzer<'a> {
                         &mut self.current_events,
                     );
             }
-            AssignmentPattern => {
+            AssignmentPattern | ObjectAssignmentPattern => {
                 self.code_path_arena[self.code_path.unwrap()]
                     .state
                     .pop_fork_context(
