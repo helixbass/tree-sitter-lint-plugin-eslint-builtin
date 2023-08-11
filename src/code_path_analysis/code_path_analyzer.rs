@@ -82,6 +82,13 @@ fn is_forking_by_true_or_false<'a>(
 ) -> bool {
     let parent = node.next_non_parentheses_ancestor();
 
+    if parent.kind() == ExpressionStatement && {
+        let parent_parent = parent.parent().unwrap();
+        parent_parent.kind() == ForStatement && parent_parent.field("condition") == parent
+    } {
+        return true;
+    }
+
     match parent.kind() {
         TernaryExpression | IfStatement | WhileStatement | DoStatement | ForStatement => {
             parent.field("condition").skip_parentheses() == node
