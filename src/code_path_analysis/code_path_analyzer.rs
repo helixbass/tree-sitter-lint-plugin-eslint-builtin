@@ -466,7 +466,8 @@ impl<'a> CodePathAnalyzer<'a> {
             | GeneratorFunctionDeclaration
             | Function
             | GeneratorFunction
-            | ArrowFunction => {
+            | ArrowFunction
+            | MethodDefinition => {
                 self.start_code_path(node, CodePathOrigin::Function);
             }
             ClassStaticBlock => {
@@ -829,6 +830,7 @@ impl<'a> CodePathAnalyzer<'a> {
             | Function
             | GeneratorFunction
             | ArrowFunction
+            | MethodDefinition
             | ClassStaticBlock => {
                 self.end_code_path(node);
             }
