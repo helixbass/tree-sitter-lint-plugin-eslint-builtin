@@ -79,11 +79,11 @@ fn is_forking_by_true_or_false<'a>(
     node: Node,
     source_text_provider: &impl SourceTextProvider<'a>,
 ) -> bool {
-    let parent = node.parent().unwrap();
+    let parent = node.next_non_parentheses_ancestor();
 
     match parent.kind() {
         TernaryExpression | IfStatement | WhileStatement | DoStatement | ForStatement => {
-            parent.field("condition") == node
+            parent.field("condition").skip_parentheses() == node
         }
         BinaryExpression => is_handled_logical_operator(node, source_text_provider),
         AugmentedAssignmentExpression => {
