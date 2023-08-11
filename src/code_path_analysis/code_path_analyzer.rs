@@ -136,6 +136,9 @@ fn is_identifier_reference(node: Node) -> bool {
         FieldDefinition => parent.field("property") != node,
         Pair | PairPattern => parent.field("key") != node,
         AssignmentPattern | ObjectAssignmentPattern => parent.field("left") != node,
+        ForInStatement => {
+            !(parent.field("left") == node && parent.child_by_field_name("kind").is_some())
+        }
         _ => true,
     }
 }
