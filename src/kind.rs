@@ -59,6 +59,7 @@ pub const NamespaceImport: &str = "namespace_import";
 pub const NewExpression: &str = "new_expression";
 pub const Number: &str = "number";
 pub const Null: &str = "null";
+pub const Object: &str = "object";
 pub const ObjectPattern: &str = "object_pattern";
 pub const ObjectAssignmentPattern: &str = "object_assignment_pattern";
 pub const Pair: &str = "pair";

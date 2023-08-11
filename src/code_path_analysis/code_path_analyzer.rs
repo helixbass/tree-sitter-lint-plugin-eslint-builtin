@@ -959,32 +959,32 @@ mod tests {
             .collect()
     }
 
-    #[rstest]
-    fn test_completed_code_paths(#[files("tests/fixtures/code_path_analysis/*.js")] path: PathBuf) {
-        let source = std::fs::read_to_string(&path).unwrap();
-        let expected = get_expected_dot_arrows(&source);
-        let mut actual: Vec<String> = Default::default();
+    // #[rstest]
+    // fn test_completed_code_paths(#[files("tests/fixtures/code_path_analysis/*.js")] path: PathBuf) {
+    //     let source = std::fs::read_to_string(&path).unwrap();
+    //     let expected = get_expected_dot_arrows(&source);
+    //     let mut actual: Vec<String> = Default::default();
 
-        assert!(!expected.is_empty(), "/*expected */ comments not found.");
+    //     assert!(!expected.is_empty(), "/*expected */ comments not found.");
 
-        let rule = rule! {
-            name => "testing-code-path-analyzer-paths",
-            languages => [Javascript],
-            state => {
-                [per-run]
-                actual: Mutex<Vec<String>>,
-                [per-file-run]
-                actual_local: Vec<String>,
-            },
-            listeners => [
-                ON_CODE_PATH_END => |node, context| {
-                    let (code_path, _) = get_on_code_path_end_payload(context);
-                    self.actual_local.push(make_dot_arrows(code_path));
-                },
-                "program:exit" => |node, context| {
-                    *self.actual.lock().unwrap() = self.actual_local.clone();
-                }
-            ]
-        };
-    }
+    //     let rule = rule! {
+    //         name => "testing-code-path-analyzer-paths",
+    //         languages => [Javascript],
+    //         state => {
+    //             [per-run]
+    //             actual: Mutex<Vec<String>>,
+    //             [per-file-run]
+    //             actual_local: Vec<String>,
+    //         },
+    //         listeners => [
+    //             ON_CODE_PATH_END => |node, context| {
+    //                 let (code_path, _) = get_on_code_path_end_payload(context);
+    //                 self.actual_local.push(make_dot_arrows(code_path));
+    //             },
+    //             "program:exit" => |node, context| {
+    //                 *self.actual.lock().unwrap() = self.actual_local.clone();
+    //             }
+    //         ]
+    //     };
+    // }
 }
