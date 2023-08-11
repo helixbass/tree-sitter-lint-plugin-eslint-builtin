@@ -1138,8 +1138,7 @@ impl CodePathState {
             let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
             arena[fork_context].replace_head(code_path_segment_arena, segments);
         } else {
-            let segments =
-                arena[broken_fork_context].make_unreachable(code_path_segment_arena, 0, -1);
+            let segments = arena[broken_fork_context].make_next(code_path_segment_arena, 0, -1);
             arena[fork_context].replace_head(code_path_segment_arena, segments);
         }
     }

@@ -83,5 +83,6 @@ pub fn make_dot_arrows(
             last_id = None;
         });
 
+    text.push(';');
     text
 }

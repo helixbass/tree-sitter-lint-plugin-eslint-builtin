@@ -794,7 +794,7 @@ impl<'a> CodePathAnalyzer<'a> {
     fn end_code_path(&mut self, node: Node<'a>) {
         self.code_path_arena[self.code_path.unwrap()]
             .state
-            .make_final(&mut self.code_path_segment_arena);
+            .make_final(&self.code_path_segment_arena);
 
         self.leave_from_current_segment(node);
 
