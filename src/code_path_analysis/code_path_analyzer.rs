@@ -418,11 +418,6 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn process_code_path_to_enter(&mut self, node: Node<'a>) {
-        // let state = self
-        //     .code_path
-        //     .map(|code_path| &mut self.code_path_arena[code_path].state);
-        let parent = node.parent();
-
         if is_property_definition_value(node) {
             self.start_code_path(node, CodePathOrigin::ClassFieldInitializer);
         }
@@ -830,12 +825,12 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
 
         self.current_node = None;
 
-        return (&self.current_events).non_empty().map(|current_events| {
+        (&self.current_events).non_empty().map(|current_events| {
             current_events
                 .into_iter()
                 .map(|event| event.index())
                 .collect()
-        });
+        })
     }
 
     fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
@@ -848,12 +843,12 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
 
         self.current_node = None;
 
-        return (&self.current_events).non_empty().map(|current_events| {
+        (&self.current_events).non_empty().map(|current_events| {
             current_events
                 .into_iter()
                 .map(|event| event.index())
                 .collect()
-        });
+        })
     }
 
     fn processing_emitted_event_index(&mut self, index: usize) {

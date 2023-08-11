@@ -14,7 +14,10 @@ mod string_utils;
 mod utils;
 mod visit;
 
-use code_path_analysis::CodePathAnalyzerFactory;
+pub use code_path_analysis::{
+    CodePathAnalyzer, CodePathAnalyzerFactory, ON_CODE_PATH_END, ON_CODE_PATH_SEGMENT_END,
+    ON_CODE_PATH_SEGMENT_LOOP, ON_CODE_PATH_SEGMENT_START, ON_CODE_PATH_START,
+};
 use rules::{
     default_case_last_rule, default_case_rule, for_direction_rule, max_nested_callbacks_rule,
     max_params_rule, no_array_constructor_rule, no_async_promise_executor_rule,
