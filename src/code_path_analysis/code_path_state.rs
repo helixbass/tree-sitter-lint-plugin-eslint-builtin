@@ -279,8 +279,7 @@ impl CodePathState {
     fn maybe_parent_fork_context(&self, arena: &Arena<ForkContext>) -> Option<Id<ForkContext>> {
         let current = self.fork_context;
 
-        /*current &&*/
-        arena.get(current).unwrap().upper
+        arena[current].upper
     }
 
     fn parent_fork_context(&self, arena: &Arena<ForkContext>) -> Id<ForkContext> {
@@ -304,15 +303,9 @@ impl CodePathState {
     ) -> Id<ForkContext> {
         let last_context = self.fork_context;
 
-        self.fork_context = arena.get(last_context).unwrap().upper.unwrap();
-        let segments = arena
-            .get(last_context)
-            .unwrap()
-            .make_next(code_path_segment_arena, 0, -1);
-        arena
-            .get_mut(self.fork_context)
-            .unwrap()
-            .replace_head(code_path_segment_arena, segments);
+        self.fork_context = arena[last_context].upper.unwrap();
+        let segments = arena[last_context].make_next(code_path_segment_arena, 0, -1);
+        arena[self.fork_context].replace_head(code_path_segment_arena, segments);
 
         last_context
     }
@@ -322,15 +315,10 @@ impl CodePathState {
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
     ) {
-        let segments = arena
-            .get(self.parent_fork_context(arena))
-            .unwrap()
-            .make_next(code_path_segment_arena, -1, -1);
+        let segments =
+            arena[self.parent_fork_context(arena)].make_next(code_path_segment_arena, -1, -1);
 
-        arena
-            .get_mut(self.fork_context)
-            .unwrap()
-            .add(code_path_segment_arena, segments);
+        arena[self.fork_context].add(code_path_segment_arena, segments);
     }
 
     pub fn fork_bypass_path(
@@ -338,16 +326,9 @@ impl CodePathState {
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
     ) {
-        let segments = arena
-            .get(self.parent_fork_context(arena))
-            .unwrap()
-            .head()
-            .clone();
+        let segments = arena[self.parent_fork_context(arena)].head();
 
-        arena
-            .get_mut(self.fork_context)
-            .unwrap()
-            .add(code_path_segment_arena, segments)
+        arena[self.fork_context].add(code_path_segment_arena, segments);
     }
 
     pub fn push_choice_context(
@@ -655,7 +636,7 @@ impl CodePathState {
             .broken_fork_context;
 
         if context.count_forks == 0 {
-            if !arena.get(broken_fork_context).unwrap().empty() {
+            if !arena[broken_fork_context].empty() {
                 let segments =
                     arena
                         .get(fork_context)
@@ -679,15 +660,12 @@ impl CodePathState {
             return;
         }
 
-        let last_segments = arena.get(fork_context).unwrap().head().clone();
+        let last_segments = arena[fork_context].head();
 
         self.fork_bypass_path(arena, code_path_segment_arena);
-        let last_case_segments = arena.get(fork_context).unwrap().head().clone();
+        let last_case_segments = arena[fork_context].head();
 
-        arena
-            .get_mut(broken_fork_context)
-            .unwrap()
-            .add(code_path_segment_arena, last_segments);
+        arena[broken_fork_context].add(code_path_segment_arena, last_segments);
 
         if !context.last_is_default {
             if let Some(default_body_segments) = context.default_body_segments.as_ref() {
@@ -705,26 +683,16 @@ impl CodePathState {
                     default_body_segments,
                 );
             } else {
-                arena
-                    .get_mut(broken_fork_context)
-                    .unwrap()
-                    .add(code_path_segment_arena, last_case_segments);
+                arena[broken_fork_context].add(code_path_segment_arena, last_case_segments);
             }
         }
 
         for _ in 0..context.count_forks {
-            self.fork_context = arena.get(self.fork_context).unwrap().upper.unwrap();
+            self.fork_context = arena[self.fork_context].upper.unwrap();
         }
 
-        let segments =
-            arena
-                .get(broken_fork_context)
-                .unwrap()
-                .make_next(code_path_segment_arena, 0, -1);
-        arena
-            .get_mut(self.fork_context)
-            .unwrap()
-            .replace_head(code_path_segment_arena, segments);
+        let segments = arena[broken_fork_context].make_next(code_path_segment_arena, 0, -1);
+        arena[self.fork_context].replace_head(code_path_segment_arena, segments);
     }
 
     pub fn make_switch_case_body(
@@ -741,31 +709,24 @@ impl CodePathState {
         let parent_fork_context = self.fork_context;
         let fork_context = self.push_fork_context(arena, None);
 
-        let segments =
-            arena
-                .get(parent_fork_context)
-                .unwrap()
-                .make_next(code_path_segment_arena, 0, -1);
-        arena
-            .get_mut(fork_context)
-            .unwrap()
-            .add(code_path_segment_arena, segments);
+        let segments = arena[parent_fork_context].make_next(code_path_segment_arena, 0, -1);
+        arena[fork_context].add(code_path_segment_arena, segments);
 
         #[allow(clippy::collapsible_else_if)]
         if is_default {
             self.switch_context.as_mut().unwrap().default_segments =
-                Some(arena.get(parent_fork_context).unwrap().head().clone());
+                Some(arena[parent_fork_context].head());
             if is_empty {
                 self.switch_context.as_mut().unwrap().found_default = true;
             } else {
                 self.switch_context.as_mut().unwrap().default_body_segments =
-                    Some(arena.get(fork_context).unwrap().head().clone());
+                    Some(arena.get(fork_context).unwrap().head());
             }
         } else {
             if !is_empty && self.switch_context.as_ref().unwrap().found_default {
                 self.switch_context.as_mut().unwrap().found_default = false;
                 self.switch_context.as_mut().unwrap().default_body_segments =
-                    Some(arena.get(fork_context).unwrap().head().clone());
+                    Some(arena[fork_context].head());
             }
         }
 
@@ -807,9 +768,9 @@ impl CodePathState {
             return;
         }
 
-        let head_segments = arena.get(self.fork_context).unwrap().head().clone();
+        let head_segments = arena[self.fork_context].head().clone();
 
-        self.fork_context = arena.get(self.fork_context).unwrap().upper.unwrap();
+        self.fork_context = arena[self.fork_context].upper.unwrap();
         let normal_segments = &head_segments[..head_segments.len() / 2];
         let leaving_segments = &head_segments[head_segments.len() / 2..];
 

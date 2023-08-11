@@ -78,6 +78,7 @@ pub const SpreadElement: &str = "spread_element";
 pub const StatementBlock: &str = "statement_block";
 pub const String: &str = "string";
 pub const SubscriptExpression: &str = "subscript_expression";
+pub const SwitchBody: &str = "switch_body";
 pub const SwitchCase: &str = "switch_case";
 pub const SwitchDefault: &str = "switch_default";
 pub const SwitchStatement: &str = "switch_statement";

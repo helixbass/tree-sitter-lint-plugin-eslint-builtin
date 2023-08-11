@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use id_arena::{Arena, Id};
-use squalid::{EverythingExt, OptionExt};
+use squalid::EverythingExt;
 
 use super::{code_path_segment::CodePathSegment, id_generator::IdGenerator};
 
@@ -35,6 +35,7 @@ fn make_segments(
         .collect()
 }
 
+#[allow(non_snake_case)]
 fn make_segments__missing_begin_end(
     context: &ForkContext,
     mut create: impl FnMut(String, &[Id<CodePathSegment>]) -> Id<CodePathSegment>,
@@ -251,8 +252,8 @@ impl ForkContext {
         parent_context: Id<Self>,
         fork_leaving_path: Option<bool>,
     ) -> Id<Self> {
-        let id_generator = arena.get(parent_context).unwrap().id_generator.clone();
-        let parent_context_count = arena.get(parent_context).unwrap().count;
+        let id_generator = arena[parent_context].id_generator.clone();
+        let parent_context_count = arena[parent_context].count;
         Self::new(
             arena,
             id_generator,

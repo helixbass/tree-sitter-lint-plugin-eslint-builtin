@@ -27,7 +27,7 @@ use crate::{
         IfStatement, ImportClause, ImportSpecifier, LabeledStatement, MemberExpression,
         MethodDefinition, NamespaceImport, NewExpression, Null, ObjectAssignmentPattern, Pair,
         PairPattern, Program, PropertyIdentifier, RestElement, ReturnStatement,
-        ShorthandPropertyIdentifier, SubscriptExpression, SwitchCase, SwitchDefault,
+        ShorthandPropertyIdentifier, SubscriptExpression, SwitchBody, SwitchCase, SwitchDefault,
         SwitchStatement, TernaryExpression, ThrowStatement, True, TryStatement, VariableDeclarator,
         WhileStatement, YieldExpression,
     },
@@ -332,7 +332,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             SwitchCase | SwitchDefault => {
-                if parent.first_non_comment_named_child() == node {
+                if parent.child_by_field_name("body") == Some(node) {
                     state.make_switch_case_body(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
@@ -799,6 +799,9 @@ impl<'a> CodePathAnalyzer<'a> {
                             &mut self.code_path_segment_arena,
                         );
                 }
+            }
+            SwitchBody => {
+                dont_forward = true;
             }
             _ => (),
         }
