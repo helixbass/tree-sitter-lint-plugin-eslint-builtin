@@ -52,11 +52,11 @@ macro_rules! return_default_if_false {
 }
 
 pub fn is_for_of<'a>(node: Node, source_text_provider: &impl SourceTextProvider<'a>) -> bool {
-    assert_kind!(node, ForInStatement);
-    matches!(
-        node.child_by_field_name("operator"),
-        Some(child) if source_text_provider.node_text(child) == "of"
-    )
+    node.kind() == ForInStatement
+        && matches!(
+            node.child_by_field_name("operator"),
+            Some(child) if source_text_provider.node_text(child) == "of"
+        )
 }
 
 pub fn is_for_of_await(node: Node, context: &QueryMatchContext) -> bool {

@@ -799,7 +799,8 @@ impl<'a> CodePathAnalyzer<'a> {
         self.leave_from_current_segment(node);
 
         // debug.dump(`onCodePathEnd ${codePath.id}`);
-        self.current_events.push(Event::OnCodePathEnd(node));
+        self.current_events
+            .push(Event::OnCodePathEnd(self.code_path.unwrap(), node));
         // debug.dumpDot(codePath);
 
         self.code_path = self.code_path_arena[self.code_path.unwrap()].upper;
@@ -808,8 +809,11 @@ impl<'a> CodePathAnalyzer<'a> {
         // }
     }
 
-    pub fn code_path(&self) -> &CodePath {
-        &self.code_path_arena[self.code_path.unwrap()]
+    pub fn get_on_code_path_end_payload(&self) -> (Id<CodePath>, Node<'a>) {
+        match &self.current_events[self.processing_emitted_event_index.unwrap()] {
+            Event::OnCodePathEnd(code_path, node) => (*code_path, *node),
+            _ => panic!("not processing on code path end"),
+        }
     }
 }
 
@@ -896,7 +900,7 @@ pub enum Event<'a> {
     OnCodePathSegmentEnd(Id<CodePathSegment>, Node<'a>),
     OnCodePathSegmentLoop(Id<CodePathSegment>, Id<CodePathSegment>, Node<'a>),
     OnCodePathStart(Node<'a>),
-    OnCodePathEnd(Node<'a>),
+    OnCodePathEnd(Id<CodePath>, Node<'a>),
 }
 
 impl<'a> Event<'a> {
@@ -906,7 +910,7 @@ impl<'a> Event<'a> {
             Event::OnCodePathSegmentEnd(_, _) => 1,
             Event::OnCodePathSegmentLoop(_, _, _) => 2,
             Event::OnCodePathStart(_) => 3,
-            Event::OnCodePathEnd(_) => 4,
+            Event::OnCodePathEnd(_, _) => 4,
         }
     }
 }
@@ -1003,10 +1007,11 @@ mod tests {
             listeners => [
                 ON_CODE_PATH_END => |node, context| {
                     let code_path_analyzer = get_code_path_analyzer(context);
+                    let (code_path, _) = code_path_analyzer.get_on_code_path_end_payload();
                     self.actual_local.push(
                         make_dot_arrows(
                             &code_path_analyzer.code_path_segment_arena,
-                            code_path_analyzer.code_path(),
+                            &code_path_analyzer.code_path_arena[code_path],
                         )
                     );
                 },
