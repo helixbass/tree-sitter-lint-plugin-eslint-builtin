@@ -187,7 +187,7 @@ fn finalize_test_segments_of_for(
     code_path_segment_arena: &mut Arena<CodePathSegment>,
     context: &mut ForLoopContext,
     choice_context: &ChoiceContext,
-    head: Vec<Id<CodePathSegment>>,
+    head: Rc<Vec<Id<CodePathSegment>>>,
 ) {
     if !choice_context.processed {
         arena[choice_context.true_fork_context].add(code_path_segment_arena, head.clone());
@@ -216,7 +216,7 @@ pub struct CodePathState {
     loop_context: Option<LoopContext>,
     break_context: Option<BreakContext>,
     chain_context: Option<ChainContext>,
-    pub current_segments: Vec<Id<CodePathSegment>>,
+    pub current_segments: Rc<Vec<Id<CodePathSegment>>>,
     pub initial_segment: Id<CodePathSegment>,
     pub final_segments: Vec<Id<CodePathSegment>>,
     pub returned_fork_context: Vec<Id<CodePathSegment>>,
@@ -272,8 +272,8 @@ impl CodePathState {
         );
     }
 
-    pub fn head_segments<'a>(&self, arena: &'a Arena<ForkContext>) -> &'a [Id<CodePathSegment>] {
-        arena.get(self.fork_context).unwrap().head()
+    pub fn head_segments(&self, arena: &Arena<ForkContext>) -> Rc<Vec<Id<CodePathSegment>>> {
+        arena[self.fork_context].head()
     }
 
     fn maybe_parent_fork_context(&self, arena: &Arena<ForkContext>) -> Option<Id<ForkContext>> {
@@ -330,7 +330,7 @@ impl CodePathState {
         arena
             .get_mut(self.fork_context)
             .unwrap()
-            .add(code_path_segment_arena, segments)
+            .add(code_path_segment_arena, segments);
     }
 
     pub fn fork_bypass_path(
@@ -823,10 +823,10 @@ impl CodePathState {
         if !arena.get(returned).unwrap().empty() {
             match get_return_context(self) {
                 Some(returned_fork_context) => {
-                    arena
-                        .get_mut(returned_fork_context)
-                        .unwrap()
-                        .add(code_path_segment_arena, leaving_segments.to_owned());
+                    arena.get_mut(returned_fork_context).unwrap().add(
+                        code_path_segment_arena,
+                        Rc::new(leaving_segments.to_owned()),
+                    );
                 }
                 None => {
                     self.returned_fork_context_add(leaving_segments);
@@ -836,10 +836,10 @@ impl CodePathState {
         if !arena.get(thrown).unwrap().empty() {
             match get_throw_context(self) {
                 Some((thrown_fork_context, _)) => {
-                    arena
-                        .get_mut(thrown_fork_context)
-                        .unwrap()
-                        .add(code_path_segment_arena, leaving_segments.to_owned());
+                    arena.get_mut(thrown_fork_context).unwrap().add(
+                        code_path_segment_arena,
+                        Rc::new(leaving_segments.to_owned()),
+                    );
                 }
                 None => {
                     self.thrown_fork_context_add(leaving_segments);
@@ -850,7 +850,7 @@ impl CodePathState {
         arena
             .get_mut(self.fork_context)
             .unwrap()
-            .replace_head(code_path_segment_arena, normal_segments.to_owned());
+            .replace_head(code_path_segment_arena, Rc::new(normal_segments.to_owned()));
 
         if !context.last_of_try_is_reachable && !context.last_of_catch_is_reachable {
             arena
@@ -936,7 +936,7 @@ impl CodePathState {
             arena
                 .get(fork_context)
                 .unwrap()
-                .make_next(code_path_segment_arena, -1, -1);
+                .make_next_raw(code_path_segment_arena, -1, -1);
 
         for i in 0..arena.get(fork_context).unwrap().count {
             let mut prev_segs_of_leaving_segment = vec![head_of_leaving_segments[i]];
@@ -954,6 +954,8 @@ impl CodePathState {
                 &prev_segs_of_leaving_segment,
             ));
         }
+
+        let segments = Rc::new(segments);
 
         self.push_fork_context(arena, Some(true));
 
@@ -1077,7 +1079,7 @@ impl CodePathState {
                     current_node,
                     current_events,
                     self,
-                    arena[fork_context].head(),
+                    &arena[fork_context].head(),
                     context.continue_dest_segments.as_ref().unwrap(),
                 );
             }
@@ -1088,7 +1090,7 @@ impl CodePathState {
                     current_node,
                     current_events,
                     self,
-                    arena[fork_context].head(),
+                    &arena[fork_context].head(),
                     context.continue_dest_segments.as_ref().unwrap(),
                 );
             }
@@ -1130,7 +1132,7 @@ impl CodePathState {
                     current_node,
                     current_events,
                     self,
-                    arena[fork_context].head(),
+                    &arena[fork_context].head(),
                     context.left_segments.as_ref().unwrap(),
                 );
             }
@@ -1469,7 +1471,7 @@ impl CodePathState {
             current_node,
             current_events,
             self,
-            arena[fork_context].head(),
+            &arena[fork_context].head(),
             context.left_segments.as_ref().unwrap(),
         );
 
@@ -1573,8 +1575,8 @@ impl CodePathState {
                     current_node,
                     current_events,
                     self,
-                    arena[fork_context].head(),
-                    continue_dest_segments,
+                    &arena[fork_context].head(),
+                    &continue_dest_segments,
                 );
 
                 if let LoopContext::ForIn(context) = context {
@@ -1666,8 +1668,8 @@ pub struct ChoiceContext {
 struct SwitchContext {
     upper: Option<Box<SwitchContext>>,
     has_case: bool,
-    default_segments: Option<Vec<Id<CodePathSegment>>>,
-    default_body_segments: Option<Vec<Id<CodePathSegment>>>,
+    default_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    default_body_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
     found_default: bool,
     last_is_default: bool,
     count_forks: usize,
@@ -1725,12 +1727,12 @@ impl LoopContext {
         }
     }
 
-    pub fn continue_dest_segments(&self) -> Option<&[Id<CodePathSegment>]> {
+    pub fn continue_dest_segments(&self) -> Option<Rc<Vec<Id<CodePathSegment>>>> {
         match self {
-            LoopContext::While(value) => value.continue_dest_segments.as_deref(),
+            LoopContext::While(value) => value.continue_dest_segments.clone(),
             LoopContext::Do(value) => None,
-            LoopContext::For(value) => value.continue_dest_segments.as_deref(),
-            LoopContext::ForIn(value) => value.continue_dest_segments.as_deref(),
+            LoopContext::For(value) => value.continue_dest_segments.clone(),
+            LoopContext::ForIn(value) => value.continue_dest_segments.clone(),
         }
     }
 
@@ -1795,7 +1797,7 @@ struct WhileLoopContext {
     upper: Option<Box<LoopContext>>,
     label: Option<String>,
     test: Option<bool>,
-    continue_dest_segments: Option<Vec<Id<CodePathSegment>>>,
+    continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
     broken_fork_context: Id<ForkContext>,
 }
 
@@ -1803,7 +1805,7 @@ struct DoLoopContext {
     upper: Option<Box<LoopContext>>,
     label: Option<String>,
     test: Option<bool>,
-    entry_segments: Option<Vec<Id<CodePathSegment>>>,
+    entry_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
     continue_fork_context: Id<ForkContext>,
     broken_fork_context: Id<ForkContext>,
 }
@@ -1812,12 +1814,12 @@ struct ForLoopContext {
     upper: Option<Box<LoopContext>>,
     label: Option<String>,
     test: Option<bool>,
-    end_of_init_segments: Option<Vec<Id<CodePathSegment>>>,
-    test_segments: Option<Vec<Id<CodePathSegment>>>,
-    end_of_test_segments: Option<Vec<Id<CodePathSegment>>>,
-    update_segments: Option<Vec<Id<CodePathSegment>>>,
-    end_of_update_segments: Option<Vec<Id<CodePathSegment>>>,
-    continue_dest_segments: Option<Vec<Id<CodePathSegment>>>,
+    end_of_init_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    test_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    end_of_test_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    update_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    end_of_update_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
     broken_fork_context: Id<ForkContext>,
 }
 
@@ -1825,10 +1827,10 @@ struct ForInLoopContext {
     upper: Option<Box<LoopContext>>,
     is_for_of: bool,
     label: Option<String>,
-    prev_segments: Option<Vec<Id<CodePathSegment>>>,
-    left_segments: Option<Vec<Id<CodePathSegment>>>,
-    end_of_left_segments: Option<Vec<Id<CodePathSegment>>>,
-    continue_dest_segments: Option<Vec<Id<CodePathSegment>>>,
+    prev_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    left_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    end_of_left_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
+    continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment>>>>,
     broken_fork_context: Id<ForkContext>,
 }
 

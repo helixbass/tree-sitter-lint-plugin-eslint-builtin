@@ -58,7 +58,7 @@ pub fn dump_state<'a>(
         return;
     }
 
-    for &current_segment in &state.current_segments {
+    for &current_segment in &*state.current_segments {
         let current_segment = &mut arena[current_segment];
 
         let nodes = &mut current_segment.nodes;

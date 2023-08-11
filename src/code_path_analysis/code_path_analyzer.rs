@@ -163,7 +163,7 @@ impl<'a> CodePathAnalyzer<'a> {
         let current_segments = state.current_segments.clone();
         let head_segments = state.head_segments(&self.fork_context_arena);
 
-        for either_or_both in current_segments.iter().zip_longest(head_segments) {
+        for either_or_both in current_segments.iter().zip_longest(&*head_segments) {
             match either_or_both {
                 EitherOrBoth::Both(current_segment, head_segment)
                     if current_segment != head_segment =>
@@ -193,9 +193,9 @@ impl<'a> CodePathAnalyzer<'a> {
             }
         }
 
-        state.current_segments = head_segments.to_owned();
+        state.current_segments = head_segments.clone();
 
-        for either_or_both in current_segments.iter().zip_longest(head_segments) {
+        for either_or_both in current_segments.iter().zip_longest(&*head_segments) {
             match either_or_both {
                 EitherOrBoth::Both(current_segment, head_segment)
                     if current_segment != head_segment =>
@@ -246,8 +246,7 @@ impl<'a> CodePathAnalyzer<'a> {
 
         self.code_path_arena[self.code_path.unwrap()]
             .state
-            .current_segments
-            .clear();
+            .current_segments = Default::default();
     }
 
     fn preprocess(&mut self, node: Node<'a>) {

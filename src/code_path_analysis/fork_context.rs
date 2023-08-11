@@ -47,8 +47,8 @@ fn make_segments__missing_begin_end(
 fn merge_extra_segments(
     arena: &mut Arena<CodePathSegment>,
     context: &ForkContext,
-    segments: Vec<Id<CodePathSegment>>,
-) -> Vec<Id<CodePathSegment>> {
+    segments: Rc<Vec<Id<CodePathSegment>>>,
+) -> Rc<Vec<Id<CodePathSegment>>> {
     let mut current_segments = segments;
 
     while current_segments.len() > context.count {
@@ -62,7 +62,7 @@ fn merge_extra_segments(
                 )
             })
             .collect::<Vec<_>>();
-        current_segments = merged;
+        current_segments = Rc::new(merged);
     }
     current_segments
 }
@@ -71,8 +71,8 @@ pub struct ForkContext {
     id_generator: Rc<IdGenerator>,
     pub upper: Option<Id<Self>>,
     pub count: usize,
-    pub segments_list: Vec<Vec<Id<CodePathSegment>>>,
-    default_head: Vec<Id<CodePathSegment>>,
+    pub segments_list: Vec<Rc<Vec<Id<CodePathSegment>>>>,
+    default_head: Rc<Vec<Id<CodePathSegment>>>,
 }
 
 impl ForkContext {
@@ -91,8 +91,11 @@ impl ForkContext {
         })
     }
 
-    pub fn head(&self) -> &Vec<Id<CodePathSegment>> {
-        self.segments_list.last().unwrap_or(&self.default_head)
+    pub fn head(&self) -> Rc<Vec<Id<CodePathSegment>>> {
+        self.segments_list
+            .last()
+            .cloned()
+            .unwrap_or_else(|| self.default_head.clone())
     }
 
     pub fn empty(&self) -> bool {
@@ -103,12 +106,12 @@ impl ForkContext {
         self.head().thrush(|head| {
             !head.is_empty()
                 && head
-                    .into_iter()
+                    .iter()
                     .any(|&segment| arena.get(segment).unwrap().reachable)
         })
     }
 
-    pub fn make_next(
+    pub fn make_next_raw(
         &self,
         arena: &mut Arena<CodePathSegment>,
         begin: isize,
@@ -124,33 +127,42 @@ impl ForkContext {
         )
     }
 
+    pub fn make_next(
+        &self,
+        arena: &mut Arena<CodePathSegment>,
+        begin: isize,
+        end: isize,
+    ) -> Rc<Vec<Id<CodePathSegment>>> {
+        Rc::new(self.make_next_raw(arena, begin, end))
+    }
+
     pub fn make_unreachable(
         &self,
         arena: &mut Arena<CodePathSegment>,
         begin: isize,
         end: isize,
-    ) -> Vec<Id<CodePathSegment>> {
-        make_segments(
+    ) -> Rc<Vec<Id<CodePathSegment>>> {
+        Rc::new(make_segments(
             self,
             begin,
             end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_unreachable(arena, id, all_prev_segments)
             },
-        )
+        ))
     }
 
     #[allow(non_snake_case)]
     pub fn make_unreachable__missing_begin_end(
         &self,
         arena: &mut Arena<CodePathSegment>,
-    ) -> Vec<Id<CodePathSegment>> {
-        make_segments__missing_begin_end(
+    ) -> Rc<Vec<Id<CodePathSegment>>> {
+        Rc::new(make_segments__missing_begin_end(
             self,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_unreachable(arena, id, all_prev_segments)
             },
-        )
+        ))
     }
 
     pub fn make_disconnected(
@@ -158,18 +170,22 @@ impl ForkContext {
         arena: &mut Arena<CodePathSegment>,
         begin: isize,
         end: isize,
-    ) -> Vec<Id<CodePathSegment>> {
-        make_segments(
+    ) -> Rc<Vec<Id<CodePathSegment>>> {
+        Rc::new(make_segments(
             self,
             begin,
             end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_disconnected(arena, id, all_prev_segments)
             },
-        )
+        ))
     }
 
-    pub fn add(&mut self, arena: &mut Arena<CodePathSegment>, segments: Vec<Id<CodePathSegment>>) {
+    pub fn add(
+        &mut self,
+        arena: &mut Arena<CodePathSegment>,
+        segments: Rc<Vec<Id<CodePathSegment>>>,
+    ) {
         assert!(
             segments.len() >= self.count,
             "{} >= {}",
@@ -184,7 +200,7 @@ impl ForkContext {
     pub fn replace_head(
         &mut self,
         arena: &mut Arena<CodePathSegment>,
-        segments: Vec<Id<CodePathSegment>>,
+        segments: Rc<Vec<Id<CodePathSegment>>>,
     ) {
         assert!(
             segments.len() >= self.count,
@@ -225,7 +241,7 @@ impl ForkContext {
         arena
             .get_mut(context)
             .unwrap()
-            .add(code_path_segment_arena, vec![segment]);
+            .add(code_path_segment_arena, Rc::new(vec![segment]));
 
         context
     }
