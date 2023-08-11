@@ -37,6 +37,7 @@ use super::{
     code_path::{CodePath, CodePathOrigin},
     code_path_segment::CodePathSegment,
     code_path_state::ChoiceContextKind,
+    debug_helpers as debug,
     fork_context::ForkContext,
     id_generator::IdGenerator,
 };
@@ -548,13 +549,25 @@ impl<'a> CodePathAnalyzer<'a> {
         }
 
         self.forward_current_to_head(node);
-        // debug.dumpState(node, state, false);
+        debug::dump_state(
+            &mut self.code_path_segment_arena,
+            node,
+            &self.code_path_arena[self.code_path.unwrap()].state,
+            false,
+            &self.file_contents,
+        );
     }
 
     fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
         if let Some(code_path) = self.code_path {
             self.forward_current_to_head(node);
-            // debug.dumpState(node, state, false);
+            debug::dump_state(
+                &mut self.code_path_segment_arena,
+                node,
+                &self.code_path_arena[code_path].state,
+                false,
+                &self.file_contents,
+            );
         }
 
         self.code_path = Some(CodePath::new(
@@ -755,7 +768,13 @@ impl<'a> CodePathAnalyzer<'a> {
         if !dont_forward {
             self.forward_current_to_head(node);
         }
-        // debug.dumpState(node, state, true);
+        debug::dump_state(
+            &mut self.code_path_segment_arena,
+            node,
+            &self.code_path_arena[self.code_path.unwrap()].state,
+            true,
+            &self.file_contents,
+        );
     }
 
     fn postprocess(&mut self, node: Node<'a>) {
@@ -796,15 +815,27 @@ impl<'a> CodePathAnalyzer<'a> {
 
         self.leave_from_current_segment(node);
 
-        // debug.dump(`onCodePathEnd ${codePath.id}`);
+        debug::dump(&format!(
+            "onCodePathEnd {}",
+            self.code_path_arena[self.code_path.unwrap()].id
+        ));
         self.current_events
             .push(Event::OnCodePathEnd(self.code_path.unwrap(), node));
-        // debug.dumpDot(codePath);
+        debug::dump_dot(
+            &self.code_path_segment_arena,
+            &self.code_path_arena[self.code_path.unwrap()],
+        );
 
         self.code_path = self.code_path_arena[self.code_path.unwrap()].upper;
-        // if (codePath) {
-        //     debug.dumpState(node, CodePath.getState(codePath), true);
-        // }
+        if let Some(code_path) = self.code_path {
+            debug::dump_state(
+                &mut self.code_path_segment_arena,
+                node,
+                &self.code_path_arena[code_path].state,
+                true,
+                &self.file_contents,
+            );
+        }
     }
 
     pub fn get_on_code_path_end_payload(&self) -> (Id<CodePath>, Node<'a>) {
@@ -893,6 +924,7 @@ pub const ON_CODE_PATH_START: &str =
 pub const ON_CODE_PATH_END: &str =
     get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_END_NAME);
 
+#[allow(clippy::enum_variant_names)]
 pub enum Event<'a> {
     OnCodePathSegmentStart(Id<CodePathSegment>, Node<'a>),
     OnCodePathSegmentEnd(Id<CodePathSegment>, Node<'a>),
@@ -1010,6 +1042,7 @@ mod tests {
                         make_dot_arrows(
                             &code_path_analyzer.code_path_segment_arena,
                             &code_path_analyzer.code_path_arena[code_path],
+                            None,
                         )
                     );
                 },

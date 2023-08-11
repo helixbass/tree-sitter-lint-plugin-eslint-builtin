@@ -18,7 +18,7 @@ pub enum CodePathOrigin {
 }
 
 pub struct CodePath {
-    id: String,
+    pub id: String,
     origin: CodePathOrigin,
     pub upper: Option<Id<Self>>,
     child_code_paths: Vec<Id<Self>>,

@@ -12,6 +12,7 @@ pub struct CodePathSegment {
     pub reachable: bool,
     used: bool,
     looped_prev_segments: Vec<Id<Self>>,
+    pub nodes: Vec<String>,
 }
 
 impl CodePathSegment {
@@ -34,11 +35,8 @@ impl CodePathSegment {
             reachable,
             used: Default::default(),
             looped_prev_segments: Default::default(),
+            nodes: Default::default(),
         };
-
-        // if (debug.enabled) {
-        //     this.internal.nodes = [];
-        // }
 
         arena.alloc(segment)
     }
