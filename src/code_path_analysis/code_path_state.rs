@@ -853,8 +853,10 @@ impl CodePathState {
             .replace_head(code_path_segment_arena, normal_segments.to_owned());
 
         if !context.last_of_try_is_reachable && !context.last_of_catch_is_reachable {
-            unreachable!("maybe? looks like passing no arguments to makeUnreachable() would result in some NaN's in makeSegments()");
-            // arena.get_mut(self.fork_context).unwrap().make_unreachable();
+            arena
+                .get_mut(self.fork_context)
+                .unwrap()
+                .make_unreachable__missing_begin_end(code_path_segment_arena);
         }
     }
 

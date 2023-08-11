@@ -35,6 +35,15 @@ fn make_segments(
         .collect()
 }
 
+fn make_segments__missing_begin_end(
+    context: &ForkContext,
+    mut create: impl FnMut(String, &[Id<CodePathSegment>]) -> Id<CodePathSegment>,
+) -> Vec<Id<CodePathSegment>> {
+    (0..context.count)
+        .map(|_| create(context.id_generator.next(), &[]))
+        .collect()
+}
+
 fn merge_extra_segments(
     arena: &mut Arena<CodePathSegment>,
     context: &ForkContext,
@@ -127,6 +136,18 @@ impl ForkContext {
             self,
             begin,
             end,
+            |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
+                CodePathSegment::new_unreachable(arena, id, all_prev_segments)
+            },
+        )
+    }
+
+    pub fn make_unreachable__missing_begin_end(
+        &self,
+        arena: &mut Arena<CodePathSegment>,
+    ) -> Vec<Id<CodePathSegment>> {
+        make_segments__missing_begin_end(
+            self,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_unreachable(arena, id, all_prev_segments)
             },
