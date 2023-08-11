@@ -893,6 +893,13 @@ impl<'a> CodePathAnalyzer<'a> {
             _ => panic!("not processing on code path end"),
         }
     }
+
+    pub fn get_on_code_path_start_payload(&self) -> Node<'a> {
+        match &self.current_events[self.processing_emitted_event_index.unwrap()] {
+            Event::OnCodePathStart(node) => *node,
+            _ => panic!("not processing on code path start"),
+        }
+    }
 }
 
 impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
