@@ -151,7 +151,7 @@ impl ForkContext {
 
     pub fn add(&mut self, arena: &mut Arena<CodePathSegment>, segments: Vec<Id<CodePathSegment>>) {
         assert!(
-            segments.len() > self.count,
+            segments.len() >= self.count,
             "{} >= {}",
             segments.len(),
             self.count
