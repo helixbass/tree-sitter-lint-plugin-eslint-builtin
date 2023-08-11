@@ -1,14 +1,16 @@
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, cell::Ref, rc::Rc};
 
 use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
 use squalid::{NonEmpty, OptionExt};
 use tree_sitter_lint::{
+    better_any::tid,
     event_emitter::{EventEmitterName, EventType},
     get_const_listener_selector,
     tree_sitter::Node,
     tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
-    EventEmitter, EventEmitterFactory, FileRunContext, NodeExt, SourceTextProvider,
+    EventEmitter, EventEmitterFactory, EventTypeIndex, NodeExt, QueryMatchContext,
+    SourceTextProvider,
 };
 
 use crate::{
@@ -136,6 +138,7 @@ pub struct CodePathAnalyzer<'a> {
     code_path_segment_arena: Arena<CodePathSegment>,
     file_contents: RopeOrSlice<'a>,
     current_events: Vec<Event<'a>>,
+    processing_emitted_event_index: Option<usize>,
 }
 
 impl<'a> CodePathAnalyzer<'a> {
@@ -149,6 +152,7 @@ impl<'a> CodePathAnalyzer<'a> {
             code_path_segment_arena: Default::default(),
             file_contents,
             current_events: Default::default(),
+            processing_emitted_event_index: Default::default(),
         }
     }
 
@@ -803,10 +807,14 @@ impl<'a> CodePathAnalyzer<'a> {
         //     debug.dumpState(node, CodePath.getState(codePath), true);
         // }
     }
+
+    pub fn code_path(&self) -> &CodePath {
+        &self.code_path_arena[self.code_path.unwrap()]
+    }
 }
 
 impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
-    fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::EventTypeIndex>> {
+    fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
         self.current_events.clear();
         self.current_node = Some(node);
 
@@ -826,7 +834,7 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
         });
     }
 
-    fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<tree_sitter_lint::EventTypeIndex>> {
+    fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
         self.current_events.clear();
         self.current_node = Some(node);
 
@@ -843,7 +851,13 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
                 .collect()
         });
     }
+
+    fn processing_emitted_event_index(&mut self, index: usize) {
+        self.processing_emitted_event_index = Some(index);
+    }
 }
+
+tid! { impl<'a> TidAble<'a> for CodePathAnalyzer<'a> }
 
 impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
     fn node_text(&self, node: Node) -> Cow<'a, str> {
@@ -939,12 +953,21 @@ impl EventEmitterFactory for CodePathAnalyzerFactory {
     }
 }
 
+pub fn get_code_path_analyzer<'a, 'b>(
+    context: &'b QueryMatchContext<'a, '_>,
+) -> Ref<'b, CodePathAnalyzer<'a>> {
+    context.get_current_event_emitter_as::<CodePathAnalyzer<'a>>()
+}
+
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
     use squalid::regex;
-    use std::{path::PathBuf, sync::Mutex};
-    use tree_sitter_lint::rule;
+    use std::{cell::RefCell, iter, path::PathBuf, sync::Arc};
+    use tree_sitter_lint::{
+        rule, ConfigBuilder, DummyFromFileRunContextInstanceProviderFactory, ErrorLevel, Rule,
+        RuleConfiguration,
+    };
 
     use super::{super::debug_helpers::make_dot_arrows, *};
 
@@ -959,32 +982,71 @@ mod tests {
             .collect()
     }
 
-    // #[rstest]
-    // fn test_completed_code_paths(#[files("tests/fixtures/code_path_analysis/*.js")] path: PathBuf) {
-    //     let source = std::fs::read_to_string(&path).unwrap();
-    //     let expected = get_expected_dot_arrows(&source);
-    //     let mut actual: Vec<String> = Default::default();
+    #[rstest]
+    fn test_completed_code_paths(#[files("tests/fixtures/code_path_analysis/*.js")] path: PathBuf) {
+        let source = std::fs::read_to_string(path).unwrap();
+        let expected = get_expected_dot_arrows(&source);
 
-    //     assert!(!expected.is_empty(), "/*expected */ comments not found.");
+        assert!(!expected.is_empty(), "/*expected */ comments not found.");
 
-    //     let rule = rule! {
-    //         name => "testing-code-path-analyzer-paths",
-    //         languages => [Javascript],
-    //         state => {
-    //             [per-run]
-    //             actual: Mutex<Vec<String>>,
-    //             [per-file-run]
-    //             actual_local: Vec<String>,
-    //         },
-    //         listeners => [
-    //             ON_CODE_PATH_END => |node, context| {
-    //                 let (code_path, _) = get_on_code_path_end_payload(context);
-    //                 self.actual_local.push(make_dot_arrows(code_path));
-    //             },
-    //             "program:exit" => |node, context| {
-    //                 *self.actual.lock().unwrap() = self.actual_local.clone();
-    //             }
-    //         ]
-    //     };
-    // }
+        thread_local! {
+            static ACTUAL: RefCell<Vec<String>> = Default::default();
+        }
+
+        let rule: Arc<dyn Rule> = rule! {
+            name => "testing-code-path-analyzer-paths",
+            languages => [Javascript],
+            state => {
+                [per-file-run]
+                actual_local: Vec<String>,
+            },
+            listeners => [
+                ON_CODE_PATH_END => |node, context| {
+                    let code_path_analyzer = get_code_path_analyzer(context);
+                    self.actual_local.push(
+                        make_dot_arrows(
+                            &code_path_analyzer.code_path_segment_arena,
+                            code_path_analyzer.code_path(),
+                        )
+                    );
+                },
+                "program:exit" => |node, context| {
+                    ACTUAL.with(|actual| {
+                        *actual.borrow_mut() = self.actual_local.clone();
+                    });
+                }
+            ]
+        };
+        let (violations, _) = tree_sitter_lint::run_for_slice(
+            source.as_bytes(),
+            None,
+            "tmp.js",
+            ConfigBuilder::default()
+                .rule(rule.meta().name)
+                .all_standalone_rules([rule.clone()])
+                .rule_configurations([RuleConfiguration {
+                    name: rule.meta().name,
+                    level: ErrorLevel::Error,
+                    options: None,
+                }])
+                .build()
+                .unwrap(),
+            SupportedLanguage::Javascript,
+            &DummyFromFileRunContextInstanceProviderFactory,
+        );
+
+        assert!(violations.is_empty(), "Unexpected linting error in code.");
+        ACTUAL.with(|actual| {
+            let actual = actual.borrow();
+            assert_eq!(
+                actual.len(),
+                expected.len(),
+                "a count of code paths is wrong."
+            );
+
+            for (actual, expected) in iter::zip(&*actual, &expected) {
+                assert_eq!(actual, expected);
+            }
+        });
+    }
 }
