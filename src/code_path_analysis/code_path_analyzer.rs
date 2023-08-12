@@ -147,7 +147,7 @@ pub struct CodePathAnalyzer<'a> {
     code_path: Option<Id<CodePath>>,
     id_generator: Rc<IdGenerator>,
     current_node: Option<Node<'a>>,
-    code_path_arena: Arena<CodePath>,
+    pub code_path_arena: Arena<CodePath>,
     fork_context_arena: Arena<ForkContext>,
     code_path_segment_arena: Arena<CodePathSegment>,
     file_contents: RopeOrSlice<'a>,

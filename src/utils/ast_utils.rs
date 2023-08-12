@@ -326,10 +326,17 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
         Getter,
         Setter,
     }
+    let is_object_literal_method = node.kind() == Function && node.parent().unwrap().kind() == Pair;
     let mut function_type = match node.kind() {
         MethodDefinition => FunctionType::Method,
         GeneratorFunction | GeneratorFunctionDeclaration => FunctionType::GeneratorFunction,
-        Function | FunctionDeclaration => FunctionType::Function,
+        Function | FunctionDeclaration => {
+            if is_object_literal_method {
+                FunctionType::Method
+            } else {
+                FunctionType::Function
+            }
+        }
         ArrowFunction => FunctionType::ArrowFunction,
         _ => unreachable!(),
     };
@@ -389,8 +396,21 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
         if get_first_non_comment_child(node).text(context) == "async" {
             is_async = true;
         }
-        node.child_by_field_name("name")
-            .map(|name| format!("'{}'", name.text(context)).into())
+        if is_object_literal_method {
+            let pair = node.parent().unwrap();
+            match pair.field("key").kind() {
+                PrivatePropertyIdentifier => {
+                    is_private = true;
+                    Some(context.get_node_text(pair.field("key")))
+                }
+                _ => {
+                    get_static_property_name(pair, context).map(|name| format!("'{}'", name).into())
+                }
+            }
+        } else {
+            node.child_by_field_name("name")
+                .map(|name| format!("'{}'", name.text(context)).into())
+        }
     } else {
         assert_kind!(node, ArrowFunction);
         None
