@@ -6,7 +6,7 @@ mod debug_helpers;
 mod fork_context;
 mod id_generator;
 
-pub use code_path::CodePathOrigin;
+pub use code_path::{CodePath, CodePathOrigin};
 pub use code_path_analyzer::{
     CodePathAnalyzer, CodePathAnalyzerInstanceProviderFactory, ON_CODE_PATH_END,
     ON_CODE_PATH_SEGMENT_END, ON_CODE_PATH_SEGMENT_LOOP, ON_CODE_PATH_SEGMENT_START,

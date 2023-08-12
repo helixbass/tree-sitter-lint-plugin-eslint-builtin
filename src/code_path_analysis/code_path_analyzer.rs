@@ -904,9 +904,9 @@ impl<'a> CodePathAnalyzer<'a> {
             .iter()
             .find(|&&code_path| {
                 let code_path = &self.code_path_arena[code_path];
-                node.is_descendant_of(code_path.root_node(&self.code_path_segment_arena))
+                node.is_same_or_descendant_of(code_path.root_node(&self.code_path_segment_arena))
                     && !code_path.child_code_paths.iter().any(|&child_code_path| {
-                        node.is_descendant_of(
+                        node.is_same_or_descendant_of(
                             self.code_path_arena[child_code_path]
                                 .root_node(&self.code_path_segment_arena),
                         )
