@@ -34,6 +34,17 @@ pub const LINE_BREAK_PATTERN_STR: &str = r#"\r\n|[\r\n\u2028\u2029]"#;
 pub static LINE_BREAK_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(LINE_BREAK_PATTERN_STR).unwrap());
 
+fn starts_with_upper_case(str_: &str) -> bool {
+    str_.chars().next().matches(|ch| ch.is_uppercase())
+}
+
+pub fn is_es5_constructor(node: Node, context: &QueryMatchContext) -> bool {
+    node.kind() != MethodDefinition
+        && node
+            .child_by_field_name("name")
+            .matches(|name| starts_with_upper_case(&name.text(context)))
+}
+
 static any_function_pattern: Lazy<Regex> = Lazy::new(|| {
     Regex::new(formatcp!(
         r#"^(?:{FunctionDeclaration}|{Function}|{ArrowFunction})$"#

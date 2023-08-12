@@ -12,7 +12,7 @@ use crate::{
     kind::{
         self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
         FieldDefinition, ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression,
-        Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
+        Object, Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
         ShorthandPropertyIdentifier, SubscriptExpression, TemplateString, UnaryExpression,
     },
     return_default_if_none,
@@ -129,13 +129,16 @@ pub enum MethodDefinitionKind {
 pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> MethodDefinitionKind {
     assert_kind!(node, MethodDefinition);
     let name = node.child_by_field_name("name").unwrap();
+    let is_object_method = node.parent().unwrap().kind() == Object;
     if name.kind() == PropertyIdentifier
+        && !is_object_method
         && context.get_node_text(name) == "constructor"
         && !is_class_member_static(node, context)
     {
         return MethodDefinitionKind::Constructor;
     }
     if name.kind() == kind::String
+        && !is_object_method
         && string_node_equals(name, "constructor", context)
         && !is_class_member_static(node, context)
     {

@@ -18,8 +18,8 @@ pub use code_path_analysis::{
     ON_CODE_PATH_SEGMENT_START, ON_CODE_PATH_START,
 };
 use rules::{
-    complexity_rule, default_case_last_rule, default_case_rule, for_direction_rule,
-    max_nested_callbacks_rule, max_params_rule, no_array_constructor_rule,
+    complexity_rule, consistent_return_rule, default_case_last_rule, default_case_rule,
+    for_direction_rule, max_nested_callbacks_rule, max_params_rule, no_array_constructor_rule,
     no_async_promise_executor_rule, no_await_in_loop_rule, no_compare_neg_zero_rule,
     no_cond_assign_rule, no_constructor_return_rule, no_debugger_rule, no_dupe_class_members_rule,
     no_dupe_else_if_rule, no_dupe_keys_rule, no_duplicate_case_rule, no_empty_pattern_rule,
@@ -82,6 +82,7 @@ pub fn instantiate() -> Plugin {
             no_empty_pattern_rule(),
             no_constructor_return_rule(),
             complexity_rule(),
+            consistent_return_rule(),
         ],
         event_emitter_factories: vec![],
     }

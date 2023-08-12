@@ -59,7 +59,7 @@ impl<'a> CodePath<'a> {
         self.state.initial_segment
     }
 
-    fn final_segments(&self) -> &[Id<CodePathSegment<'a>>] {
+    pub fn final_segments(&self) -> &[Id<CodePathSegment<'a>>] {
         &self.state.final_segments
     }
 
@@ -71,7 +71,7 @@ impl<'a> CodePath<'a> {
         &self.state.thrown_fork_context
     }
 
-    fn current_segments(&self) -> &[Id<CodePathSegment<'a>>] {
+    pub fn current_segments(&self) -> &[Id<CodePathSegment<'a>>] {
         &self.state.current_segments
     }
 

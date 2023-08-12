@@ -1,4 +1,5 @@
 mod complexity;
+mod consistent_return;
 mod default_case;
 mod default_case_last;
 mod for_direction;
@@ -46,6 +47,7 @@ mod require_yield;
 mod sort_keys;
 
 pub use complexity::complexity_rule;
+pub use consistent_return::consistent_return_rule;
 pub use default_case::default_case_rule;
 pub use default_case_last::default_case_last_rule;
 pub use for_direction::for_direction_rule;
