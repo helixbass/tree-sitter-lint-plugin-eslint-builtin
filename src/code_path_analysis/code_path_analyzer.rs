@@ -1,15 +1,15 @@
-use std::{borrow::Cow, cell::Ref, rc::Rc};
+use std::{any::TypeId, borrow::Cow, rc::Rc, sync::OnceLock};
 
 use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
-use squalid::{NonEmpty, OptionExt};
+use squalid::OptionExt;
 use tree_sitter_lint::{
-    better_any::tid,
-    event_emitter::{EventEmitterName, EventType},
+    better_any::{tid, Tid},
     get_const_listener_selector,
-    tree_sitter::Node,
-    tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
-    EventEmitter, EventEmitterFactory, EventTypeIndex, NodeExt, QueryMatchContext,
+    tree_sitter::{Node, Tree},
+    tree_sitter_grep::RopeOrSlice,
+    EventEmitter, EventTypeIndex, FileRunContext, FromFileRunContext,
+    FromFileRunContextInstanceProvider, FromFileRunContextInstanceProviderFactory, NodeExt,
     SourceTextProvider,
 };
 
@@ -21,15 +21,16 @@ use crate::{
     kind::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
         AugmentedAssignmentExpression, BinaryExpression, BreakStatement, CallExpression,
-        CatchClause, Class, ClassDeclaration, ClassStaticBlock, ContinueStatement, DoStatement,
-        EmptyStatement, ExpressionStatement, False, FieldDefinition, ForInStatement, ForStatement,
-        Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
-        IfStatement, ImportClause, ImportSpecifier, LabeledStatement, MemberExpression,
-        MethodDefinition, NamespaceImport, NewExpression, Null, ObjectAssignmentPattern, Pair,
-        PairPattern, ParenthesizedExpression, Program, PropertyIdentifier, RestElement,
-        ReturnStatement, ShorthandPropertyIdentifier, SubscriptExpression, SwitchBody, SwitchCase,
-        SwitchDefault, SwitchStatement, TernaryExpression, ThrowStatement, True, TryStatement,
-        VariableDeclarator, WhileStatement, YieldExpression,
+        CatchClause, Class, ClassDeclaration, ClassStaticBlock, Comment, ContinueStatement,
+        DoStatement, EmptyStatement, ExpressionStatement, False, FieldDefinition, ForInStatement,
+        ForStatement, Function, FunctionDeclaration, GeneratorFunction,
+        GeneratorFunctionDeclaration, Identifier, IfStatement, ImportClause, ImportSpecifier,
+        LabeledStatement, MemberExpression, MethodDefinition, NamespaceImport, NewExpression, Null,
+        ObjectAssignmentPattern, Pair, PairPattern, ParenthesizedExpression, Program,
+        PropertyIdentifier, RestElement, ReturnStatement, ShorthandPropertyIdentifier,
+        SubscriptExpression, SwitchBody, SwitchCase, SwitchDefault, SwitchStatement,
+        TernaryExpression, ThrowStatement, True, TryStatement, VariableDeclarator, WhileStatement,
+        YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
 };
@@ -144,34 +145,42 @@ fn is_identifier_reference(node: Node) -> bool {
 }
 
 pub struct CodePathAnalyzer<'a> {
-    code_path: Option<Id<CodePath>>,
+    code_paths: Vec<Id<CodePath>>,
+    active_code_path: Option<Id<CodePath>>,
     id_generator: Rc<IdGenerator>,
     current_node: Option<Node<'a>>,
     pub code_path_arena: Arena<CodePath>,
     fork_context_arena: Arena<ForkContext>,
     code_path_segment_arena: Arena<CodePathSegment>,
     file_contents: RopeOrSlice<'a>,
-    current_events: Vec<Event<'a>>,
     processing_emitted_event_index: Option<usize>,
 }
 
 impl<'a> CodePathAnalyzer<'a> {
     pub fn new(file_contents: RopeOrSlice<'a>) -> Self {
         Self {
-            code_path: Default::default(),
+            code_paths: Default::default(),
+            active_code_path: Default::default(),
             id_generator: Rc::new(IdGenerator::new("s")),
             current_node: Default::default(),
             code_path_arena: Default::default(),
             fork_context_arena: Default::default(),
             code_path_segment_arena: Default::default(),
             file_contents,
-            current_events: Default::default(),
             processing_emitted_event_index: Default::default(),
         }
     }
 
+    fn maybe_code_path(&self) -> Option<Id<CodePath>> {
+        self.active_code_path
+    }
+
+    fn code_path(&self) -> Id<CodePath> {
+        self.maybe_code_path().unwrap()
+    }
+
     fn forward_current_to_head(&mut self, node: Node<'a>) {
-        let code_path = self.code_path.unwrap();
+        let code_path = self.code_path();
         let state = &mut self.code_path_arena[code_path].state;
         let current_segments = state.current_segments.clone();
         let head_segments = state.head_segments(&self.fork_context_arena);
@@ -186,10 +195,10 @@ impl<'a> CodePathAnalyzer<'a> {
                         self.code_path_segment_arena[*current_segment].id
                     ));
 
-                    if self.code_path_segment_arena[*current_segment].reachable {
-                        self.current_events
-                            .push(Event::OnCodePathSegmentEnd(*current_segment, node));
-                    }
+                    // if self.code_path_segment_arena[*current_segment].reachable {
+                    //     self.current_events
+                    //         .push(Event::OnCodePathSegmentEnd(*current_segment, node));
+                    // }
                 }
                 EitherOrBoth::Left(current_segment) => {
                     debug::dump(&format!(
@@ -197,10 +206,10 @@ impl<'a> CodePathAnalyzer<'a> {
                         self.code_path_segment_arena[*current_segment].id
                     ));
 
-                    if self.code_path_segment_arena[*current_segment].reachable {
-                        self.current_events
-                            .push(Event::OnCodePathSegmentEnd(*current_segment, node));
-                    }
+                    // if self.code_path_segment_arena[*current_segment].reachable {
+                    //     self.current_events
+                    //         .push(Event::OnCodePathSegmentEnd(*current_segment, node));
+                    // }
                 }
                 _ => (),
             }
@@ -219,10 +228,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     ));
 
                     CodePathSegment::mark_used(&mut self.code_path_segment_arena, *head_segment);
-                    if self.code_path_segment_arena[*head_segment].reachable {
-                        self.current_events
-                            .push(Event::OnCodePathSegmentStart(*head_segment, node));
-                    }
+                    // if self.code_path_segment_arena[*head_segment].reachable {
+                    //     self.current_events
+                    //         .push(Event::OnCodePathSegmentStart(*head_segment, node));
+                    // }
                 }
                 EitherOrBoth::Right(head_segment) => {
                     debug::dump(&format!(
@@ -231,10 +240,10 @@ impl<'a> CodePathAnalyzer<'a> {
                     ));
 
                     CodePathSegment::mark_used(&mut self.code_path_segment_arena, *head_segment);
-                    if self.code_path_segment_arena[*head_segment].reachable {
-                        self.current_events
-                            .push(Event::OnCodePathSegmentStart(*head_segment, node));
-                    }
+                    // if self.code_path_segment_arena[*head_segment].reachable {
+                    //     self.current_events
+                    //         .push(Event::OnCodePathSegmentStart(*head_segment, node));
+                    // }
                 }
                 _ => (),
             }
@@ -242,7 +251,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn leave_from_current_segment(&mut self, node: Node<'a>) {
-        self.code_path_arena[self.code_path.unwrap()]
+        self.code_path_arena[self.code_path()]
             .state
             .current_segments
             .iter()
@@ -251,19 +260,19 @@ impl<'a> CodePathAnalyzer<'a> {
                     "onCodePathSegmentEnd {}",
                     self.code_path_segment_arena[current_segment].id
                 ));
-                if self.code_path_segment_arena[current_segment].reachable {
-                    self.current_events
-                        .push(Event::OnCodePathSegmentEnd(current_segment, node));
-                }
+                // if self.code_path_segment_arena[current_segment].reachable {
+                //     self.current_events
+                //         .push(Event::OnCodePathSegmentEnd(current_segment, node));
+                // }
             });
 
-        self.code_path_arena[self.code_path.unwrap()]
+        self.code_path_arena[self.active_code_path.unwrap()]
             .state
             .current_segments = Default::default();
     }
 
     fn preprocess(&mut self, node: Node<'a>) {
-        let code_path = self.code_path.unwrap();
+        let code_path = self.code_path();
         let state = &mut self.code_path_arena[code_path].state;
         let parent = node.parent().unwrap();
 
@@ -413,8 +422,6 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_for_body(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        self.current_node.unwrap(),
-                        &mut self.current_events,
                     );
                 }
             }
@@ -434,8 +441,6 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_for_in_of_body(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        self.current_node.unwrap(),
-                        &mut self.current_events,
                     );
                 }
             }
@@ -478,12 +483,12 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             CallExpression | MemberExpression | SubscriptExpression => {
                 if is_outermost_chain_expression(node) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_chain_context();
                 }
                 if node.child_by_field_name("optional_chain").is_some() {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_optional_node(&mut self.fork_context_arena);
                 }
@@ -492,7 +497,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 let operator = get_binary_expression_operator(node, &self.file_contents);
                 if is_handled_logical_operator_str(&operator) {
                     let is_forking_as_result = is_forking_by_true_or_false(node, self);
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
                             &mut self.fork_context_arena,
@@ -510,7 +515,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 let operator = node.field("operator").text(self);
                 if is_logical_assignment_operator(&operator) {
                     let is_forking_as_result = is_forking_by_true_or_false(node, self);
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
                             &mut self.fork_context_arena,
@@ -525,7 +530,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             TernaryExpression | IfStatement => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .push_choice_context(
                         &mut self.fork_context_arena,
@@ -535,7 +540,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             SwitchStatement => {
                 let label = get_label(node, self).map(Cow::into_owned);
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .push_switch_context(
                         &mut self.fork_context_arena,
@@ -544,7 +549,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             TryStatement => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .push_try_context(
                         &mut self.fork_context_arena,
@@ -553,21 +558,17 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             SwitchCase | SwitchDefault => {
                 if !node.is_first_non_comment_named_child() {
-                    self.code_path_arena[self.code_path.unwrap()]
-                        .state
-                        .fork_path(
-                            &mut self.fork_context_arena,
-                            &mut self.code_path_segment_arena,
-                        );
+                    self.code_path_arena[self.code_path()].state.fork_path(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                    );
                 }
             }
             WhileStatement | DoStatement | ForStatement | ForInStatement => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .push_loop_context(
                         &mut self.fork_context_arena,
-                        self.current_node.unwrap(),
-                        &mut self.current_events,
                         node.kind(),
                         get_label(node, &self.file_contents).map(Cow::into_owned),
                         is_for_of(node, &self.file_contents),
@@ -575,7 +576,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             LabeledStatement => {
                 if !BREAKABLE_TYPE_PATTERN.is_match(node.field("body").kind()) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_break_context(
                             &mut self.fork_context_arena,
@@ -591,14 +592,14 @@ impl<'a> CodePathAnalyzer<'a> {
         debug::dump_state(
             &mut self.code_path_segment_arena,
             node,
-            &self.code_path_arena[self.code_path.unwrap()].state,
+            &self.code_path_arena[self.active_code_path.unwrap()].state,
             false,
             &self.file_contents,
         );
     }
 
     fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
-        if let Some(code_path) = self.code_path {
+        if let Some(code_path) = self.maybe_code_path() {
             self.forward_current_to_head(node);
             debug::dump_state(
                 &mut self.code_path_segment_arena,
@@ -609,21 +610,23 @@ impl<'a> CodePathAnalyzer<'a> {
             );
         }
 
-        self.code_path = Some(CodePath::new(
+        let upper = self.maybe_code_path();
+        self.code_paths.push(CodePath::new(
             &mut self.code_path_arena,
             &mut self.fork_context_arena,
             &mut self.code_path_segment_arena,
             self.id_generator.next(),
             origin,
-            self.code_path,
+            upper,
             OnLooped,
         ));
+        self.active_code_path = Some(*self.code_paths.last().unwrap());
 
         debug::dump(&format!(
             "onCodePathStart {}",
-            self.code_path_arena[self.code_path.unwrap()].id
+            self.code_path_arena[self.code_path()].id
         ));
-        self.current_events.push(Event::OnCodePathStart(node));
+        // self.current_events.push(Event::OnCodePathStart(node));
     }
 
     fn process_code_path_to_exit(&mut self, node: Node<'a>) {
@@ -631,7 +634,7 @@ impl<'a> CodePathAnalyzer<'a> {
 
         match node.kind() {
             IfStatement | TernaryExpression => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .pop_choice_context(
                         &mut self.fork_context_arena,
@@ -640,7 +643,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             BinaryExpression => {
                 if is_handled_logical_operator(node, self) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_choice_context(
                             &mut self.fork_context_arena,
@@ -650,7 +653,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             AugmentedAssignmentExpression => {
                 if is_logical_assignment_operator(&node.field("operator").text(self)) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_choice_context(
                             &mut self.fork_context_arena,
@@ -659,13 +662,11 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             SwitchStatement => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .pop_switch_context(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        self.current_node.unwrap(),
-                        &mut self.current_events,
                     );
             }
             SwitchCase | SwitchDefault => {
@@ -673,7 +674,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     .child_by_field_name("body")
                     .matches(|body| body.has_non_comment_named_children())
                 {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_switch_case_body(
                             &mut self.fork_context_arena,
@@ -682,16 +683,15 @@ impl<'a> CodePathAnalyzer<'a> {
                             node.kind() == SwitchDefault,
                         );
                 }
-                if self.fork_context_arena[self.code_path_arena[self.code_path.unwrap()]
-                    .state
-                    .fork_context]
+                if self.fork_context_arena
+                    [self.code_path_arena[self.code_path()].state.fork_context]
                     .reachable(&self.code_path_segment_arena)
                 {
                     dont_forward = true;
                 }
             }
             TryStatement => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .pop_try_context(
                         &mut self.fork_context_arena,
@@ -703,13 +703,11 @@ impl<'a> CodePathAnalyzer<'a> {
                 let label = node
                     .child_by_field_name("label")
                     .map(|label| label.text(self));
-                self.code_path_arena[self.code_path.unwrap()]
-                    .state
-                    .make_break(
-                        &mut self.fork_context_arena,
-                        &mut self.code_path_segment_arena,
-                        label.as_deref(),
-                    );
+                self.code_path_arena[self.code_path()].state.make_break(
+                    &mut self.fork_context_arena,
+                    &mut self.code_path_segment_arena,
+                    label.as_deref(),
+                );
                 dont_forward = true;
             }
             ContinueStatement => {
@@ -717,20 +715,16 @@ impl<'a> CodePathAnalyzer<'a> {
                 let label = node
                     .child_by_field_name("label")
                     .map(|label| label.text(self));
-                self.code_path_arena[self.code_path.unwrap()]
-                    .state
-                    .make_continue(
-                        &mut self.fork_context_arena,
-                        &mut self.code_path_segment_arena,
-                        self.current_node.unwrap(),
-                        &mut self.current_events,
-                        label.as_deref(),
-                    );
+                self.code_path_arena[self.code_path()].state.make_continue(
+                    &mut self.fork_context_arena,
+                    &mut self.code_path_segment_arena,
+                    label.as_deref(),
+                );
                 dont_forward = true;
             }
             ReturnStatement => {
                 self.forward_current_to_head(node);
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .make_return(
                         &mut self.fork_context_arena,
@@ -740,7 +734,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             ThrowStatement => {
                 self.forward_current_to_head(node);
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .make_throw(
                         &mut self.fork_context_arena,
@@ -750,7 +744,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             Identifier | PropertyIdentifier | ShorthandPropertyIdentifier => {
                 if is_identifier_reference(node) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.code_path()]
                         .state
                         .make_first_throwable_path_in_try_block(
                             &mut self.fork_context_arena,
@@ -761,14 +755,14 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             CallExpression | MemberExpression | SubscriptExpression | NewExpression
             | YieldExpression => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.code_path()]
                     .state
                     .make_first_throwable_path_in_try_block(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
                     );
                 if is_outermost_chain_expression(node) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_chain_context(
                             &mut self.fork_context_arena,
@@ -777,17 +771,15 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             WhileStatement | DoStatement | ForStatement | ForInStatement => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .pop_loop_context(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
-                        self.current_node.unwrap(),
-                        &mut self.current_events,
                     );
             }
             AssignmentPattern | ObjectAssignmentPattern => {
-                self.code_path_arena[self.code_path.unwrap()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .pop_fork_context(
                         &mut self.fork_context_arena,
@@ -796,7 +788,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             LabeledStatement => {
                 if !BREAKABLE_TYPE_PATTERN.is_match(node.field("body").kind()) {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_break_context(
                             &mut self.fork_context_arena,
@@ -819,7 +811,7 @@ impl<'a> CodePathAnalyzer<'a> {
         debug::dump_state(
             &mut self.code_path_segment_arena,
             node,
-            &self.code_path_arena[self.code_path.unwrap()].state,
+            &self.code_path_arena[self.active_code_path.unwrap()].state,
             true,
             &self.file_contents,
         );
@@ -841,7 +833,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 if node.child_by_field_name("optional_chain").is_some()
                     && get_num_call_expression_arguments(node) == Some(0)
                 {
-                    self.code_path_arena[self.code_path.unwrap()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_optional_right(
                             &mut self.fork_context_arena,
@@ -858,7 +850,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn end_code_path(&mut self, node: Node<'a>) {
-        self.code_path_arena[self.code_path.unwrap()]
+        self.code_path_arena[self.active_code_path.unwrap()]
             .state
             .make_final(&self.code_path_segment_arena);
 
@@ -866,17 +858,17 @@ impl<'a> CodePathAnalyzer<'a> {
 
         debug::dump(&format!(
             "onCodePathEnd {}",
-            self.code_path_arena[self.code_path.unwrap()].id
+            self.code_path_arena[self.code_path()].id
         ));
-        self.current_events
-            .push(Event::OnCodePathEnd(self.code_path.unwrap(), node));
+        // self.current_events
+        //     .push(Event::OnCodePathEnd(self.code_path.unwrap(), node));
         debug::dump_dot(
             &self.code_path_segment_arena,
-            &self.code_path_arena[self.code_path.unwrap()],
+            &self.code_path_arena[self.code_path()],
         );
 
-        self.code_path = self.code_path_arena[self.code_path.unwrap()].upper;
-        if let Some(code_path) = self.code_path {
+        self.active_code_path = self.code_path_arena[self.code_path()].upper;
+        if let Some(code_path) = self.maybe_code_path() {
             debug::dump_state(
                 &mut self.code_path_segment_arena,
                 node,
@@ -887,24 +879,28 @@ impl<'a> CodePathAnalyzer<'a> {
         }
     }
 
-    pub fn get_on_code_path_end_payload(&self) -> (Id<CodePath>, Node<'a>) {
-        match &self.current_events[self.processing_emitted_event_index.unwrap()] {
-            Event::OnCodePathEnd(code_path, node) => (*code_path, *node),
-            _ => panic!("not processing on code path end"),
-        }
-    }
+    // pub fn get_on_code_path_end_payload(&self) -> (Id<CodePath>, Node<'a>) {
+    //     match &self.current_events[self.processing_emitted_event_index.unwrap()] {
+    //         Event::OnCodePathEnd(code_path, node) => (*code_path, *node),
+    //         _ => panic!("not processing on code path end"),
+    //     }
+    // }
 
-    pub fn get_on_code_path_start_payload(&self) -> Node<'a> {
-        match &self.current_events[self.processing_emitted_event_index.unwrap()] {
-            Event::OnCodePathStart(node) => *node,
-            _ => panic!("not processing on code path start"),
-        }
-    }
+    // pub fn get_on_code_path_start_payload(&self) -> Node<'a> {
+    //     match &self.current_events[self.processing_emitted_event_index.unwrap()] {
+    //         Event::OnCodePathStart(node) => *node,
+    //         _ => panic!("not processing on code path start"),
+    //     }
+    // }
 }
 
 impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
     fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
-        self.current_events.clear();
+        println!("enter_node node: {node:#?}");
+        if !node.is_named() || node.kind() == Comment {
+            return None;
+        }
+
         self.current_node = Some(node);
 
         if node.parent().is_some() {
@@ -915,16 +911,15 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
 
         self.current_node = None;
 
-        (&self.current_events).non_empty().map(|current_events| {
-            current_events
-                .into_iter()
-                .map(|event| event.index())
-                .collect()
-        })
+        None
     }
 
     fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
-        self.current_events.clear();
+        println!("leave_node node: {node:#?}");
+        if !node.is_named() || node.kind() == Comment {
+            return None;
+        }
+
         self.current_node = Some(node);
 
         self.process_code_path_to_exit(node);
@@ -933,12 +928,7 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
 
         self.current_node = None;
 
-        (&self.current_events).non_empty().map(|current_events| {
-            current_events
-                .into_iter()
-                .map(|event| event.index())
-                .collect()
-        })
+        None
     }
 
     fn processing_emitted_event_index(&mut self, index: usize) {
@@ -951,6 +941,48 @@ tid! { impl<'a> TidAble<'a> for CodePathAnalyzer<'a> }
 impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
     fn node_text(&self, node: Node) -> Cow<'a, str> {
         self.file_contents.node_text(node)
+    }
+}
+
+impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
+    fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
+        let mut code_path_analyzer = CodePathAnalyzer::new(file_run_context.file_contents);
+        walk_tree(file_run_context.tree, &mut code_path_analyzer);
+        code_path_analyzer
+    }
+}
+
+fn walk_tree<'a, TEventEmitter: EventEmitter<'a>>(
+    tree: &'a Tree,
+    event_emitter: &mut TEventEmitter,
+) {
+    let mut node_stack: Vec<Node<'a>> = Default::default();
+    let mut cursor = tree.walk();
+    'outer: loop {
+        let node = cursor.node();
+        while node_stack
+            .last()
+            .matches(|&last| node.end_byte() > last.end_byte())
+        {
+            event_emitter.leave_node(node_stack.pop().unwrap());
+        }
+        node_stack.push(node);
+        event_emitter.enter_node(node);
+
+        #[allow(clippy::collapsible_if)]
+        if !cursor.goto_first_child() {
+            if !cursor.goto_next_sibling() {
+                while cursor.goto_parent() {
+                    if cursor.goto_next_sibling() {
+                        continue 'outer;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    while let Some(node) = node_stack.pop() {
+        event_emitter.leave_node(node);
     }
 }
 
@@ -1007,8 +1039,6 @@ impl OnLooped {
     pub fn on_looped<'a>(
         &self,
         arena: &Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        current_events: &mut Vec<Event<'a>>,
         from_segment: Id<CodePathSegment>,
         to_segment: Id<CodePathSegment>,
     ) {
@@ -1017,39 +1047,42 @@ impl OnLooped {
                 "onCodePathSegmentLoop {} -> {}",
                 arena[from_segment].id, arena[to_segment].id,
             ));
-            current_events.push(Event::OnCodePathSegmentLoop(
-                from_segment,
-                to_segment,
-                current_node,
-            ));
+            // current_events.push(Event::OnCodePathSegmentLoop(
+            //     from_segment,
+            //     to_segment,
+            //     current_node,
+            // ));
         }
     }
 }
 
-pub struct CodePathAnalyzerFactory;
+pub struct CodePathAnalyzerInstanceProviderFactory;
 
-impl EventEmitterFactory for CodePathAnalyzerFactory {
-    fn name(&self) -> EventEmitterName {
-        EVENT_EMITTER_NAME.to_owned()
-    }
-
-    fn languages(&self) -> Vec<SupportedLanguage> {
-        vec![SupportedLanguage::Javascript]
-    }
-
-    fn event_types(&self) -> Vec<EventType> {
-        ALL_EVENT_TYPES.into_iter().map(ToOwned::to_owned).collect()
-    }
-
-    fn create<'a>(&self, file_contents: RopeOrSlice<'a>) -> Box<dyn EventEmitter<'a> + 'a> {
-        Box::new(CodePathAnalyzer::new(file_contents))
+impl FromFileRunContextInstanceProviderFactory for CodePathAnalyzerInstanceProviderFactory {
+    fn create<'a>(&self) -> Box<dyn FromFileRunContextInstanceProvider<'a> + 'a> {
+        Box::<CodePathAnalyzerInstanceProvider>::default()
     }
 }
 
-pub fn get_code_path_analyzer<'a, 'b>(
-    context: &'b QueryMatchContext<'a, '_>,
-) -> Ref<'b, CodePathAnalyzer<'a>> {
-    context.get_current_event_emitter_as::<CodePathAnalyzer<'a>>()
+#[derive(Default)]
+pub struct CodePathAnalyzerInstanceProvider<'a> {
+    code_path_analyzer_instance: OnceLock<CodePathAnalyzer<'a>>,
+}
+
+impl<'a> FromFileRunContextInstanceProvider<'a> for CodePathAnalyzerInstanceProvider<'a> {
+    fn get(
+        &self,
+        type_id: TypeId,
+        file_run_context: FileRunContext<'a, '_>,
+    ) -> Option<&dyn Tid<'a>> {
+        match type_id {
+            id if id == CodePathAnalyzer::<'a>::id() => Some(
+                self.code_path_analyzer_instance
+                    .get_or_init(|| CodePathAnalyzer::from_file_run_context(file_run_context)),
+            ),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1057,10 +1090,7 @@ mod tests {
     use rstest::rstest;
     use squalid::regex;
     use std::{cell::RefCell, iter, path::PathBuf, sync::Arc};
-    use tree_sitter_lint::{
-        rule, ConfigBuilder, DummyFromFileRunContextInstanceProviderFactory, ErrorLevel, Plugin,
-        Rule, RuleConfiguration,
-    };
+    use tree_sitter_lint::{rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration};
 
     use super::{super::debug_helpers::make_dot_arrows, *};
 
@@ -1078,7 +1108,7 @@ mod tests {
     #[rstest]
     fn test_completed_code_paths(#[files("tests/fixtures/code_path_analysis/*.js")] path: PathBuf) {
         let source = std::fs::read_to_string(path).unwrap();
-        let expected = get_expected_dot_arrows(&source);
+        let mut expected = get_expected_dot_arrows(&source);
 
         assert!(!expected.is_empty(), "/*expected */ comments not found.");
 
@@ -1089,34 +1119,23 @@ mod tests {
         let rule: Arc<dyn Rule> = rule! {
             name => "testing-code-path-analyzer-paths",
             languages => [Javascript],
-            state => {
-                [per-file-run]
-                actual_local: Vec<String>,
-            },
             listeners => [
-                ON_CODE_PATH_END => |node, context| {
-                    let code_path_analyzer = get_code_path_analyzer(context);
-                    let (code_path, _) = code_path_analyzer.get_on_code_path_end_payload();
-                    self.actual_local.push(
+                r#"
+                  (program) @c
+                "# => |node, context| {
+                    let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+                    let dot_arrows = code_path_analyzer.code_paths.iter().map(|&code_path| {
                         make_dot_arrows(
                             &code_path_analyzer.code_path_segment_arena,
                             &code_path_analyzer.code_path_arena[code_path],
                             None,
                         )
-                    );
-                },
-                "program:exit" => |node, context| {
+                    }).collect_vec();
                     ACTUAL.with(|actual| {
-                        *actual.borrow_mut() = self.actual_local.clone();
+                        *actual.borrow_mut() = dot_arrows;
                     });
-                }
+                },
             ]
-        };
-
-        let plugin = Plugin {
-            name: "event-emitter-plugin".to_owned(),
-            rules: Default::default(),
-            event_emitter_factories: vec![Arc::new(CodePathAnalyzerFactory)],
         };
 
         let (violations, _) = tree_sitter_lint::run_for_slice(
@@ -1131,21 +1150,17 @@ mod tests {
                     level: ErrorLevel::Error,
                     options: None,
                 }])
-                .all_plugins([plugin])
                 .build()
                 .unwrap(),
-            SupportedLanguage::Javascript,
-            &DummyFromFileRunContextInstanceProviderFactory,
+            tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
+            &CodePathAnalyzerInstanceProviderFactory,
         );
 
         assert!(violations.is_empty(), "Unexpected linting error in code.");
         ACTUAL.with(|actual| {
-            let actual = actual.borrow();
-            assert_eq!(
-                actual.len(),
-                expected.len(),
-                "a count of code paths is wrong."
-            );
+            let mut actual = actual.borrow().clone();
+            actual.sort();
+            expected.sort();
 
             for (actual, expected) in iter::zip(&*actual, &expected) {
                 assert_eq!(actual, expected);

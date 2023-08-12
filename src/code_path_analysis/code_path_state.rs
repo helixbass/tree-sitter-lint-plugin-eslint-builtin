@@ -133,8 +133,6 @@ fn remove_connection(
 
 fn make_looped<'a>(
     arena: &mut Arena<CodePathSegment>,
-    current_node: Node<'a>,
-    current_events: &mut Vec<Event<'a>>,
     state: &CodePathState,
     unflattened_from_segments: &[Id<CodePathSegment>],
     unflattened_to_segments: &[Id<CodePathSegment>],
@@ -172,13 +170,9 @@ fn make_looped<'a>(
             CodePathSegment::mark_prev_segment_as_looped(arena, to_segment, from_segment);
         }
 
-        state.notify_looped.on_looped(
-            arena,
-            current_node,
-            current_events,
-            from_segment,
-            to_segment,
-        );
+        state
+            .notify_looped
+            .on_looped(arena, from_segment, to_segment);
     }
 }
 
@@ -623,8 +617,6 @@ impl CodePathState {
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        current_events: &mut Vec<Event<'a>>,
     ) {
         let mut context = self.switch_context.take().unwrap();
 
@@ -676,8 +668,6 @@ impl CodePathState {
                 );
                 make_looped(
                     code_path_segment_arena,
-                    current_node,
-                    current_events,
                     self,
                     &last_case_segments,
                     default_body_segments,
@@ -947,8 +937,6 @@ impl CodePathState {
     pub fn push_loop_context(
         &mut self,
         arena: &mut Arena<ForkContext>,
-        current_node: Node,
-        current_events: &mut Vec<Event>,
         type_: Kind,
         label: Option<String>,
         is_for_of: bool,
@@ -1013,8 +1001,6 @@ impl CodePathState {
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        current_events: &mut Vec<Event<'a>>,
     ) {
         let mut context = self.loop_context.take().unwrap();
 
@@ -1030,8 +1016,6 @@ impl CodePathState {
                 self.pop_choice_context(arena, code_path_segment_arena);
                 make_looped(
                     code_path_segment_arena,
-                    current_node,
-                    current_events,
                     self,
                     &arena[fork_context].head(),
                     context.continue_dest_segments.as_ref().unwrap(),
@@ -1041,8 +1025,6 @@ impl CodePathState {
                 self.pop_choice_context(arena, code_path_segment_arena);
                 make_looped(
                     code_path_segment_arena,
-                    current_node,
-                    current_events,
                     self,
                     &arena[fork_context].head(),
                     context.continue_dest_segments.as_ref().unwrap(),
@@ -1070,8 +1052,6 @@ impl CodePathState {
                 for segments in segments_list {
                     make_looped(
                         code_path_segment_arena,
-                        current_node,
-                        current_events,
                         self,
                         segments,
                         context.entry_segments.as_ref().unwrap(),
@@ -1083,8 +1063,6 @@ impl CodePathState {
                 arena[broken_fork_context].add(code_path_segment_arena, segments);
                 make_looped(
                     code_path_segment_arena,
-                    current_node,
-                    current_events,
                     self,
                     &arena[fork_context].head(),
                     context.left_segments.as_ref().unwrap(),
@@ -1241,8 +1219,6 @@ impl CodePathState {
         &mut self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        current_events: &mut Vec<Event<'a>>,
     ) {
         let choice_context = self.choice_context.as_ref().unwrap();
         let fork_context = self.fork_context;
@@ -1271,8 +1247,6 @@ impl CodePathState {
             {
                 make_looped(
                     code_path_segment_arena,
-                    current_node,
-                    current_events,
                     self,
                     self.loop_context
                         .as_ref()
@@ -1407,8 +1381,6 @@ impl CodePathState {
         &self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        current_events: &mut Vec<Event<'a>>,
     ) {
         let context = self.loop_context.as_ref().unwrap().as_for_in_loop_context();
         let fork_context = self.fork_context;
@@ -1422,8 +1394,6 @@ impl CodePathState {
 
         make_looped(
             code_path_segment_arena,
-            current_node,
-            current_events,
             self,
             &arena[fork_context].head(),
             context.left_segments.as_ref().unwrap(),
@@ -1510,8 +1480,6 @@ impl CodePathState {
         &self,
         arena: &mut Arena<ForkContext>,
         code_path_segment_arena: &mut Arena<CodePathSegment>,
-        current_node: Node<'a>,
-        current_events: &mut Vec<Event<'a>>,
         label: Option<&str>,
     ) {
         let fork_context = self.fork_context;
@@ -1526,8 +1494,6 @@ impl CodePathState {
             if let Some(continue_dest_segments) = context.continue_dest_segments() {
                 make_looped(
                     code_path_segment_arena,
-                    current_node,
-                    current_events,
                     self,
                     &arena[fork_context].head(),
                     &continue_dest_segments,

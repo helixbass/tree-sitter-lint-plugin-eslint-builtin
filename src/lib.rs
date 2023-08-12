@@ -1,7 +1,5 @@
 #![allow(non_upper_case_globals, clippy::into_iter_on_ref)]
 
-use std::sync::Arc;
-
 use tree_sitter_lint::Plugin;
 
 mod ast_helpers;
@@ -15,23 +13,22 @@ mod utils;
 mod visit;
 
 pub use code_path_analysis::{
-    get_code_path_analyzer, CodePathAnalyzer, CodePathAnalyzerFactory, CodePathOrigin,
-    ON_CODE_PATH_END, ON_CODE_PATH_SEGMENT_END, ON_CODE_PATH_SEGMENT_LOOP,
-    ON_CODE_PATH_SEGMENT_START, ON_CODE_PATH_START,
+    CodePathAnalyzer, CodePathAnalyzerInstanceProviderFactory, CodePathOrigin, ON_CODE_PATH_END,
+    ON_CODE_PATH_SEGMENT_END, ON_CODE_PATH_SEGMENT_LOOP, ON_CODE_PATH_SEGMENT_START,
+    ON_CODE_PATH_START,
 };
 use rules::{
-    complexity_rule, default_case_last_rule, default_case_rule, for_direction_rule,
-    max_nested_callbacks_rule, max_params_rule, no_array_constructor_rule,
-    no_async_promise_executor_rule, no_await_in_loop_rule, no_compare_neg_zero_rule,
-    no_cond_assign_rule, no_constructor_return_rule, no_debugger_rule, no_dupe_class_members_rule,
-    no_dupe_else_if_rule, no_dupe_keys_rule, no_duplicate_case_rule, no_empty_pattern_rule,
-    no_eq_null_rule, no_extra_bind_rule, no_extra_label_rule, no_labels_rule, no_lonely_if_rule,
-    no_mixed_operators_rule, no_multi_assign_rule, no_multi_str_rule, no_negated_condition_rule,
-    no_nested_ternary_rule, no_new_rule, no_new_wrappers_rule, no_octal_escape_rule, no_octal_rule,
-    no_plusplus_rule, no_proto_rule, no_restricted_properties_rule, no_return_assign_rule,
-    no_script_url_rule, no_sequences_rule, no_ternary_rule, no_throw_literal_rule,
-    no_unneeded_ternary_rule, no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule,
-    require_yield_rule, sort_keys_rule,
+    default_case_last_rule, default_case_rule, for_direction_rule, max_nested_callbacks_rule,
+    max_params_rule, no_array_constructor_rule, no_async_promise_executor_rule,
+    no_await_in_loop_rule, no_compare_neg_zero_rule, no_cond_assign_rule, no_debugger_rule,
+    no_dupe_class_members_rule, no_dupe_else_if_rule, no_dupe_keys_rule, no_duplicate_case_rule,
+    no_empty_pattern_rule, no_eq_null_rule, no_extra_bind_rule, no_extra_label_rule,
+    no_labels_rule, no_lonely_if_rule, no_mixed_operators_rule, no_multi_assign_rule,
+    no_multi_str_rule, no_negated_condition_rule, no_nested_ternary_rule, no_new_rule,
+    no_new_wrappers_rule, no_octal_escape_rule, no_octal_rule, no_plusplus_rule, no_proto_rule,
+    no_restricted_properties_rule, no_return_assign_rule, no_script_url_rule, no_sequences_rule,
+    no_ternary_rule, no_throw_literal_rule, no_unneeded_ternary_rule, no_unused_labels_rule,
+    no_useless_call_rule, no_useless_catch_rule, require_yield_rule, sort_keys_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -82,9 +79,7 @@ pub fn instantiate() -> Plugin {
             no_multi_str_rule(),
             no_mixed_operators_rule(),
             no_empty_pattern_rule(),
-            no_constructor_return_rule(),
-            complexity_rule(),
         ],
-        event_emitter_factories: vec![Arc::new(CodePathAnalyzerFactory)],
+        event_emitter_factories: vec![],
     }
 }
