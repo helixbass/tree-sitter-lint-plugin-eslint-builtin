@@ -117,16 +117,6 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                     .code_paths
                     .iter()
                     .filter(|&&code_path| {
-                        // println!(
-                        //     "code path final segments: {:#?}",
-                        //     code_path_analyzer.code_path_arena[code_path]
-                        //         .state
-                        //         .head_segments(&code_path_analyzer.fork_context_arena)
-                        //         .iter()
-                        //         .map(|&segment| code_path_analyzer.code_path_segment_arena[segment].reachable)
-                        //         .collect::<Vec<_>>()
-                        // );
-
                         self.func_infos.get(&code_path).matches(|func_info| {
                             func_info.has_return_value
                         }) &&
@@ -143,10 +133,12 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                             !ast_utils::is_es5_constructor(root_node, context) &&
                             !is_class_constructor(root_node, context)
                         }
-                    }) {
-                    let mut name: Option<String> = Default::default();
+                    })
+                {
                     let root_node = code_path_analyzer.code_path_arena[code_path].root_node(&code_path_analyzer.code_path_segment_arena);
-                    println!("root_node: {root_node:#?}, func_info: {:#?}", self.func_infos.get(&code_path).unwrap());
+
+                    let mut name: Option<String> = Default::default();
+
                     let range = if root_node.kind() == Program {
                         name = Some("program".to_owned());
                         root_node
