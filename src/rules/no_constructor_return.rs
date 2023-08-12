@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
 use crate::{
     ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
@@ -15,10 +15,10 @@ pub fn no_constructor_return_rule() -> Arc<dyn Rule> {
         messages => [
             unexpected => "Unexpected return statement in constructor.",
         ],
-        state => {
-            [per-file-run]
-            stack: Vec<Node<'a>>,
-        },
+        // state => {
+        //     [per-file-run]
+        //     stack: Vec<Node<'a>>,
+        // },
         listeners => [
             // ON_CODE_PATH_START => |node, context| {
             //     let code_path_analyzer = get_code_path_analyzer(context);
@@ -45,9 +45,51 @@ pub fn no_constructor_return_rule() -> Arc<dyn Rule> {
             //     }
             // },
             r#"
-              (program) @c
+              (return_statement) @c
             "# => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                println!("return statement");
+                let code_path = code_path_analyzer.get_innermost_code_path(node);
+                    // code_path_analyzer.code_paths.iter()
+                    //     .find(|&code_path| {
+                    //         let code_path_node = code_path_analyzer
+                    //             .code_path_segment_arena[
+                    //                 code_path_analyzer.code_path_arena[code_path]
+                    //                     .initial_segment()
+                    //             ].nodes.get(0).map(|tuple| tuple.1);
+                    //     });
+                // if code_path_analyzer.code_paths.iter()
+                //     .any(|&code_path| {
+                //         println!("code path");
+                //         for (_, code_path_segment) in &code_path_analyzer.code_path_segment_arena {
+                //             println!("segment: {:#?}", code_path_segment);
+                //         }
+                //         let code_path_node = code_path_analyzer
+                //             .code_path_segment_arena[
+                //                 code_path_analyzer.code_path_arena[code_path]
+                //                     .initial_segment()
+                //             ].nodes.get(0).map(|tuple| tuple.1);
+                //         println!("code_path_node: {code_path_node:#?}");
+                //         if code_path_node.is_none() {
+                //             return false;
+                //         }
+                //         let code_path_node = code_path_node.unwrap();
+                //         if !node.is_descendant_of(code_path_node) {
+                //             return false;
+                //         }
+                let code_path = &code_path_analyzer.code_path_arena[code_path];
+                let code_path_root_node = code_path.root_node(&code_path_analyzer.code_path_segment_arena);
+                if code_path_root_node.kind() == MethodDefinition &&
+                    get_method_definition_kind(code_path_root_node, context) == MethodDefinitionKind::Constructor && (
+                        node.parent().unwrap().parent().unwrap() == code_path_root_node ||
+                        node.has_non_comment_named_children()
+                    ) {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "unexpected",
+                    });
+                }
             },
         ]
     }

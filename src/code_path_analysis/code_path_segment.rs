@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
+#[derive(Debug)]
 pub struct CodePathSegment<'a> {
     // TODO: can I just use the id_arena::Id for this?
     pub id: String,

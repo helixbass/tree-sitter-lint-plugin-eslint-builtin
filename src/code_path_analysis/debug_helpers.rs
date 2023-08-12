@@ -56,10 +56,6 @@ pub fn dump_state<'a, 'b>(
     leaving: bool,
     source_text_provider: &impl SourceTextProvider<'b>,
 ) {
-    if !enabled() {
-        return;
-    }
-
     for &current_segment in &*state.current_segments {
         let current_segment = &mut arena[current_segment];
 
@@ -78,6 +74,10 @@ pub fn dump_state<'a, 'b>(
             nodes.push((EnterOrExit::Enter, node));
             // nodes.push(node_to_string(node, Some("enter"), source_text_provider));
         }
+    }
+
+    if !enabled() {
+        return;
     }
 
     dump(&format!(

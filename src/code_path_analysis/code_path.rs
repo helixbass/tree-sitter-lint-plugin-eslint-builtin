@@ -3,6 +3,7 @@ use std::{cmp::Ordering, collections::HashMap, rc::Rc};
 use derive_builder::Builder;
 use id_arena::{Arena, Id};
 use squalid::OptionExt;
+use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
     code_path_analyzer::OnLooped, code_path_segment::CodePathSegment,
@@ -21,7 +22,7 @@ pub struct CodePath<'a> {
     pub id: String,
     pub origin: CodePathOrigin,
     pub upper: Option<Id<Self>>,
-    child_code_paths: Vec<Id<Self>>,
+    pub child_code_paths: Vec<Id<Self>>,
     pub state: CodePathState<'a>,
 }
 
@@ -143,6 +144,10 @@ impl<'a> CodePath<'a> {
                 }
             }
         }
+    }
+
+    pub fn root_node(&self, code_path_segment_arena: &Arena<CodePathSegment<'a>>) -> Node<'a> {
+        code_path_segment_arena[self.initial_segment()].nodes[0].1
     }
 }
 

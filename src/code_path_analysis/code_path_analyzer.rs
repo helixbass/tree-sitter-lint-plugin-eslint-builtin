@@ -145,13 +145,13 @@ fn is_identifier_reference(node: Node) -> bool {
 }
 
 pub struct CodePathAnalyzer<'a> {
-    code_paths: Vec<Id<CodePath<'a>>>,
+    pub code_paths: Vec<Id<CodePath<'a>>>,
     active_code_path: Option<Id<CodePath<'a>>>,
     id_generator: Rc<IdGenerator>,
     current_node: Option<Node<'a>>,
     pub code_path_arena: Arena<CodePath<'a>>,
     fork_context_arena: Arena<ForkContext<'a>>,
-    code_path_segment_arena: Arena<CodePathSegment<'a>>,
+    pub code_path_segment_arena: Arena<CodePathSegment<'a>>,
     file_contents: RopeOrSlice<'a>,
     processing_emitted_event_index: Option<usize>,
 }
@@ -898,11 +898,27 @@ impl<'a> CodePathAnalyzer<'a> {
     //         _ => panic!("not processing on code path start"),
     //     }
     // }
+
+    pub fn get_innermost_code_path(&self, node: Node<'a>) -> Id<CodePath<'a>> {
+        self.code_paths
+            .iter()
+            .find(|&&code_path| {
+                let code_path = &self.code_path_arena[code_path];
+                node.is_descendant_of(code_path.root_node(&self.code_path_segment_arena))
+                    && !code_path.child_code_paths.iter().any(|&child_code_path| {
+                        node.is_descendant_of(
+                            self.code_path_arena[child_code_path]
+                                .root_node(&self.code_path_segment_arena),
+                        )
+                    })
+            })
+            .copied()
+            .unwrap()
+    }
 }
 
 impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
     fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
-        println!("enter_node node: {node:#?}");
         if !node.is_named() || node.kind() == Comment {
             return None;
         }
@@ -921,7 +937,6 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
     }
 
     fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
-        println!("leave_node node: {node:#?}");
         if !node.is_named() || node.kind() == Comment {
             return None;
         }
