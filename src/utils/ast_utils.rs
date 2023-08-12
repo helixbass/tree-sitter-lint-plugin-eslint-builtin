@@ -337,7 +337,8 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
         Getter,
         Setter,
     }
-    let is_object_literal_method = node.kind() == Function && node.parent().unwrap().kind() == Pair;
+    let is_object_literal_method =
+        matches!(node.kind(), Function | ArrowFunction) && node.parent().unwrap().kind() == Pair;
     let mut function_type = match node.kind() {
         MethodDefinition => FunctionType::Method,
         GeneratorFunction | GeneratorFunctionDeclaration => FunctionType::GeneratorFunction,
@@ -348,7 +349,13 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
                 FunctionType::Function
             }
         }
-        ArrowFunction => FunctionType::ArrowFunction,
+        ArrowFunction => {
+            if is_object_literal_method {
+                FunctionType::Method
+            } else {
+                FunctionType::ArrowFunction
+            }
+        }
         _ => unreachable!(),
     };
     let mut is_async = false;
@@ -400,10 +407,15 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
             }
             _ => get_static_property_name(node, context).map(|name| format!("'{}'", name).into()),
         }
-    } else if matches!(
-        node.kind(),
-        Function | FunctionDeclaration | GeneratorFunction | GeneratorFunctionDeclaration
-    ) {
+    } else {
+        assert_kind!(
+            node,
+            Function
+                | FunctionDeclaration
+                | GeneratorFunction
+                | GeneratorFunctionDeclaration
+                | ArrowFunction
+        );
         if get_first_non_comment_child(node).text(context) == "async" {
             is_async = true;
         }
@@ -422,9 +434,6 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
             node.child_by_field_name("name")
                 .map(|name| format!("'{}'", name.text(context)).into())
         }
-    } else {
-        assert_kind!(node, ArrowFunction);
-        None
     };
     let mut tokens: Vec<Cow<'_, str>> = Default::default();
     if is_static {
@@ -464,7 +473,7 @@ pub fn get_function_head_range(node: Node) -> Range {
 
     let parent = node.parent().unwrap();
 
-    if parent.kind() == FieldDefinition {
+    if matches!(parent.kind(), FieldDefinition | Pair) {
         ((parent, Start), (get_opening_paren_of_params(node), Start))
     } else if node.kind() == ArrowFunction {
         let arrow_token = get_prev_non_comment_sibling(node.child_by_field_name("body").unwrap());

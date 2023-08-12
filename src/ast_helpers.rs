@@ -20,23 +20,11 @@ use crate::{
 
 #[macro_export]
 macro_rules! assert_kind {
-    ($node:expr, $kind:expr) => {
+    ($node:expr, $kind:pat) => {
         assert!(
-            $node.kind() == $kind,
+            matches!($node.kind(), $kind),
             "Expected kind {:?}, got: {:?}",
-            $kind,
-            $node.kind()
-        );
-    };
-}
-
-#[macro_export]
-macro_rules! assert_one_of_kinds {
-    ($node:expr, $kinds:expr) => {
-        assert!(
-            $kinds.iter().any(|kind| $node.kind() == *kind),
-            "Expected kind {:?}, got: {:?}",
-            $kinds,
+            stringify!($kind),
             $node.kind()
         );
     };
@@ -190,7 +178,7 @@ fn string_node_equals(node: Node, value: &str, context: &QueryMatchContext) -> b
 }
 
 pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
-    assert_one_of_kinds!(node, [MethodDefinition, FieldDefinition]);
+    assert_kind!(node, MethodDefinition | FieldDefinition);
 
     let mut cursor = node.walk();
     return_default_if_false!(cursor.goto_first_child());
@@ -258,7 +246,7 @@ fn is_octal_literal(number_node_text: &str) -> bool {
 }
 
 pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) -> String {
-    assert_kind!(node, "number");
+    assert_kind!(node, kind::Number);
 
     match Number::from(&*context.get_node_text(node)) {
         Number::NaN => unreachable!("I don't know if this should be possible?"),
@@ -567,7 +555,7 @@ pub fn get_num_call_expression_arguments(node: Node) -> Option<usize> {
 }
 
 pub fn get_call_expression_arguments(node: Node) -> Option<impl Iterator<Item = Node>> {
-    assert_one_of_kinds!(node, [CallExpression, NewExpression]);
+    assert_kind!(node, CallExpression | NewExpression);
 
     let arguments = match node.child_by_field_name("arguments") {
         Some(arguments) => arguments,
