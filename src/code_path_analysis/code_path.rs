@@ -17,19 +17,19 @@ pub enum CodePathOrigin {
     ClassStaticBlock,
 }
 
-pub struct CodePath {
+pub struct CodePath<'a> {
     pub id: String,
     pub origin: CodePathOrigin,
     pub upper: Option<Id<Self>>,
     child_code_paths: Vec<Id<Self>>,
-    pub state: CodePathState,
+    pub state: CodePathState<'a>,
 }
 
-impl CodePath {
+impl<'a> CodePath<'a> {
     pub fn new(
         arena: &mut Arena<Self>,
-        fork_context_arena: &mut Arena<ForkContext>,
-        code_path_segment_arena: &mut Arena<CodePathSegment>,
+        fork_context_arena: &mut Arena<ForkContext<'a>>,
+        code_path_segment_arena: &mut Arena<CodePathSegment<'a>>,
         id: String,
         origin: CodePathOrigin,
         upper: Option<Id<Self>>,
@@ -54,31 +54,31 @@ impl CodePath {
         ret
     }
 
-    pub fn initial_segment(&self) -> Id<CodePathSegment> {
+    pub fn initial_segment(&self) -> Id<CodePathSegment<'a>> {
         self.state.initial_segment
     }
 
-    fn final_segments(&self) -> &[Id<CodePathSegment>] {
+    fn final_segments(&self) -> &[Id<CodePathSegment<'a>>] {
         &self.state.final_segments
     }
 
-    pub fn returned_segments(&self) -> &[Id<CodePathSegment>] {
+    pub fn returned_segments(&self) -> &[Id<CodePathSegment<'a>>] {
         &self.state.returned_fork_context
     }
 
-    pub fn thrown_segments(&self) -> &[Id<CodePathSegment>] {
+    pub fn thrown_segments(&self) -> &[Id<CodePathSegment<'a>>] {
         &self.state.thrown_fork_context
     }
 
-    fn current_segments(&self) -> &[Id<CodePathSegment>] {
+    fn current_segments(&self) -> &[Id<CodePathSegment<'a>>] {
         &self.state.current_segments
     }
 
     fn traverse_segments(
         &self,
-        arena: &Arena<CodePathSegment>,
-        options: Option<TraverseSegmentsOptions>,
-        mut callback: impl FnMut(&Self, Id<CodePathSegment>, &TraverseSegmentsController),
+        arena: &Arena<CodePathSegment<'a>>,
+        options: Option<TraverseSegmentsOptions<'a>>,
+        mut callback: impl FnMut(&Self, Id<CodePathSegment<'a>>, &TraverseSegmentsController),
     ) {
         let options = options.unwrap_or_default();
         let start_segment = options.first.unwrap_or(self.state.initial_segment);
@@ -148,22 +148,22 @@ impl CodePath {
 
 #[derive(Builder, Default)]
 #[builder(default, setter(strip_option))]
-struct TraverseSegmentsOptions {
-    first: Option<Id<CodePathSegment>>,
-    last: Option<Id<CodePathSegment>>,
+struct TraverseSegmentsOptions<'a> {
+    first: Option<Id<CodePathSegment<'a>>>,
+    last: Option<Id<CodePathSegment<'a>>>,
 }
 
-struct TraverseSegmentsController<'a> {
+struct TraverseSegmentsController<'a, 'b> {
     broken: &'a mut bool,
-    skipped_segment: &'a mut Option<Id<CodePathSegment>>,
-    stack: &'a [(Id<CodePathSegment>, usize)],
+    skipped_segment: &'a mut Option<Id<CodePathSegment<'b>>>,
+    stack: &'a [(Id<CodePathSegment<'b>>, usize)],
 }
 
-impl<'a> TraverseSegmentsController<'a> {
+impl<'a, 'b> TraverseSegmentsController<'a, 'b> {
     pub fn new(
         broken: &'a mut bool,
-        skipped_segment: &'a mut Option<Id<CodePathSegment>>,
-        stack: &'a [(Id<CodePathSegment>, usize)],
+        skipped_segment: &'a mut Option<Id<CodePathSegment<'b>>>,
+        stack: &'a [(Id<CodePathSegment<'b>>, usize)],
     ) -> Self {
         Self {
             broken,

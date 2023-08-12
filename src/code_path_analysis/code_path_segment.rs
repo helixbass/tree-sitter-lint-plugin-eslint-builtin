@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
 use id_arena::{Arena, Id};
+use tree_sitter_lint::tree_sitter::Node;
 
-pub struct CodePathSegment {
+pub struct CodePathSegment<'a> {
     // TODO: can I just use the id_arena::Id for this?
     pub id: String,
     pub next_segments: Vec<Id<Self>>,
@@ -12,10 +13,10 @@ pub struct CodePathSegment {
     pub reachable: bool,
     used: bool,
     looped_prev_segments: Vec<Id<Self>>,
-    pub nodes: Vec<String>,
+    pub nodes: Vec<(EnterOrExit, Node<'a>)>,
 }
 
-impl CodePathSegment {
+impl<'a> CodePathSegment<'a> {
     pub fn new(
         arena: &mut Arena<Self>,
         id: String,
@@ -154,4 +155,10 @@ impl CodePathSegment {
 
         retv
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum EnterOrExit {
+    Enter,
+    Exit,
 }

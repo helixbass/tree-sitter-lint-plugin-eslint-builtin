@@ -11,7 +11,9 @@ use crate::{
 };
 
 use super::{
-    code_path::CodePath, code_path_segment::CodePathSegment, code_path_state::CodePathState,
+    code_path::CodePath,
+    code_path_segment::{CodePathSegment, EnterOrExit},
+    code_path_state::CodePathState,
 };
 
 static ENABLED: Lazy<bool> = Lazy::new(|| env::var("DEBUG_CODE_PATH").ok().is_non_empty());
@@ -47,12 +49,12 @@ pub fn dump(message: &str) {
     eprintln!("{}", message);
 }
 
-pub fn dump_state<'a>(
-    arena: &mut Arena<CodePathSegment>,
-    node: Node,
-    state: &CodePathState,
+pub fn dump_state<'a, 'b>(
+    arena: &mut Arena<CodePathSegment<'a>>,
+    node: Node<'a>,
+    state: &CodePathState<'a>,
     leaving: bool,
-    source_text_provider: &impl SourceTextProvider<'a>,
+    source_text_provider: &impl SourceTextProvider<'b>,
 ) {
     if !enabled() {
         return;
@@ -63,16 +65,18 @@ pub fn dump_state<'a>(
 
         let nodes = &mut current_segment.nodes;
         if leaving {
-            #[allow(clippy::unnecessary_lazy_evaluations)]
-            if let Some(last) = (!nodes.is_empty()).then(|| nodes.len() - 1).filter(|last| {
-                nodes[*last] == node_to_string(node, Some("enter"), source_text_provider)
-            }) {
-                nodes[last] = node_to_string(node, None, source_text_provider);
-            } else {
-                nodes.push(node_to_string(node, Some("exit"), source_text_provider));
-            }
+            nodes.push((EnterOrExit::Exit, node));
+            // #[allow(clippy::unnecessary_lazy_evaluations)]
+            // if let Some(last) = (!nodes.is_empty()).then(|| nodes.len() - 1).filter(|last| {
+            //     nodes[*last] == node_to_string(node, Some("enter"), source_text_provider)
+            // }) {
+            //     nodes[last] = node_to_string(node, None, source_text_provider);
+            // } else {
+            //     nodes.push(node_to_string(node, Some("exit"), source_text_provider));
+            // }
         } else {
-            nodes.push(node_to_string(node, Some("enter"), source_text_provider));
+            nodes.push((EnterOrExit::Enter, node));
+            // nodes.push(node_to_string(node, Some("enter"), source_text_provider));
         }
     }
 
@@ -126,7 +130,8 @@ initial[label="",shape=circle,style=filled,fillcolor=black,width=0.25,height=0.2
         }
 
         if !segment.nodes.is_empty() {
-            text.push_str(&segment.nodes.join("\\n"));
+            unimplemented!()
+            // text.push_str(&segment.nodes.join("\\n"));
         } else {
             text.push_str("????");
         }
@@ -140,14 +145,14 @@ initial[label="",shape=circle,style=filled,fillcolor=black,width=0.25,height=0.2
     eprintln!("{}", text);
 }
 
-pub fn make_dot_arrows(
-    code_path_segment_arena: &Arena<CodePathSegment>,
-    code_path: &CodePath, /*, traceMap*/
-    trace_map: Option<&mut HashSet<Id<CodePathSegment>>>,
+pub fn make_dot_arrows<'a>(
+    code_path_segment_arena: &Arena<CodePathSegment<'a>>,
+    code_path: &CodePath<'a>, /*, traceMap*/
+    trace_map: Option<&mut HashSet<Id<CodePathSegment<'a>>>>,
 ) -> String {
     let mut stack = vec![(code_path.initial_segment(), 0)];
-    let mut default_done: HashSet<Id<CodePathSegment>> = Default::default();
-    let done: &mut HashSet<Id<CodePathSegment>> = trace_map.unwrap_or(&mut default_done);
+    let mut default_done: HashSet<Id<CodePathSegment<'a>>> = Default::default();
+    let done: &mut HashSet<Id<CodePathSegment<'a>>> = trace_map.unwrap_or(&mut default_done);
     let mut last_id = Some(
         code_path_segment_arena[code_path.initial_segment()]
             .id

@@ -145,13 +145,13 @@ fn is_identifier_reference(node: Node) -> bool {
 }
 
 pub struct CodePathAnalyzer<'a> {
-    code_paths: Vec<Id<CodePath>>,
-    active_code_path: Option<Id<CodePath>>,
+    code_paths: Vec<Id<CodePath<'a>>>,
+    active_code_path: Option<Id<CodePath<'a>>>,
     id_generator: Rc<IdGenerator>,
     current_node: Option<Node<'a>>,
-    pub code_path_arena: Arena<CodePath>,
-    fork_context_arena: Arena<ForkContext>,
-    code_path_segment_arena: Arena<CodePathSegment>,
+    pub code_path_arena: Arena<CodePath<'a>>,
+    fork_context_arena: Arena<ForkContext<'a>>,
+    code_path_segment_arena: Arena<CodePathSegment<'a>>,
     file_contents: RopeOrSlice<'a>,
     processing_emitted_event_index: Option<usize>,
 }
@@ -180,7 +180,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn forward_current_to_head(&mut self, node: Node<'a>) {
-        let code_path = self.code_path();
+        let code_path = self.active_code_path.unwrap();
         let state = &mut self.code_path_arena[code_path].state;
         let current_segments = state.current_segments.clone();
         let head_segments = state.head_segments(&self.fork_context_arena);
@@ -272,7 +272,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn preprocess(&mut self, node: Node<'a>) {
-        let code_path = self.code_path();
+        let code_path = self.active_code_path.unwrap();
         let state = &mut self.code_path_arena[code_path].state;
         let parent = node.parent().unwrap();
 
@@ -558,10 +558,12 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             SwitchCase | SwitchDefault => {
                 if !node.is_first_non_comment_named_child() {
-                    self.code_path_arena[self.code_path()].state.fork_path(
-                        &mut self.fork_context_arena,
-                        &mut self.code_path_segment_arena,
-                    );
+                    self.code_path_arena[self.active_code_path.unwrap()]
+                        .state
+                        .fork_path(
+                            &mut self.fork_context_arena,
+                            &mut self.code_path_segment_arena,
+                        );
                 }
             }
             WhileStatement | DoStatement | ForStatement | ForInStatement => {
@@ -599,7 +601,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn start_code_path(&mut self, node: Node<'a>, origin: CodePathOrigin) {
-        if let Some(code_path) = self.maybe_code_path() {
+        if let Some(code_path) = self.active_code_path {
             self.forward_current_to_head(node);
             debug::dump_state(
                 &mut self.code_path_segment_arena,
@@ -610,7 +612,7 @@ impl<'a> CodePathAnalyzer<'a> {
             );
         }
 
-        let upper = self.maybe_code_path();
+        let upper = self.active_code_path;
         self.code_paths.push(CodePath::new(
             &mut self.code_path_arena,
             &mut self.fork_context_arena,
@@ -703,11 +705,13 @@ impl<'a> CodePathAnalyzer<'a> {
                 let label = node
                     .child_by_field_name("label")
                     .map(|label| label.text(self));
-                self.code_path_arena[self.code_path()].state.make_break(
-                    &mut self.fork_context_arena,
-                    &mut self.code_path_segment_arena,
-                    label.as_deref(),
-                );
+                self.code_path_arena[self.active_code_path.unwrap()]
+                    .state
+                    .make_break(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                        label.as_deref(),
+                    );
                 dont_forward = true;
             }
             ContinueStatement => {
@@ -715,11 +719,13 @@ impl<'a> CodePathAnalyzer<'a> {
                 let label = node
                     .child_by_field_name("label")
                     .map(|label| label.text(self));
-                self.code_path_arena[self.code_path()].state.make_continue(
-                    &mut self.fork_context_arena,
-                    &mut self.code_path_segment_arena,
-                    label.as_deref(),
-                );
+                self.code_path_arena[self.active_code_path.unwrap()]
+                    .state
+                    .make_continue(
+                        &mut self.fork_context_arena,
+                        &mut self.code_path_segment_arena,
+                        label.as_deref(),
+                    );
                 dont_forward = true;
             }
             ReturnStatement => {
@@ -744,7 +750,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             Identifier | PropertyIdentifier | ShorthandPropertyIdentifier => {
                 if is_identifier_reference(node) {
-                    self.code_path_arena[self.code_path()]
+                    self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_first_throwable_path_in_try_block(
                             &mut self.fork_context_arena,
@@ -755,7 +761,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             CallExpression | MemberExpression | SubscriptExpression | NewExpression
             | YieldExpression => {
-                self.code_path_arena[self.code_path()]
+                self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .make_first_throwable_path_in_try_block(
                         &mut self.fork_context_arena,
@@ -868,7 +874,7 @@ impl<'a> CodePathAnalyzer<'a> {
         );
 
         self.active_code_path = self.code_path_arena[self.code_path()].upper;
-        if let Some(code_path) = self.maybe_code_path() {
+        if let Some(code_path) = self.active_code_path {
             debug::dump_state(
                 &mut self.code_path_segment_arena,
                 node,
@@ -1014,11 +1020,11 @@ pub const ON_CODE_PATH_END: &str =
 
 #[allow(clippy::enum_variant_names)]
 pub enum Event<'a> {
-    OnCodePathSegmentStart(Id<CodePathSegment>, Node<'a>),
-    OnCodePathSegmentEnd(Id<CodePathSegment>, Node<'a>),
-    OnCodePathSegmentLoop(Id<CodePathSegment>, Id<CodePathSegment>, Node<'a>),
+    OnCodePathSegmentStart(Id<CodePathSegment<'a>>, Node<'a>),
+    OnCodePathSegmentEnd(Id<CodePathSegment<'a>>, Node<'a>),
+    OnCodePathSegmentLoop(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>, Node<'a>),
     OnCodePathStart(Node<'a>),
-    OnCodePathEnd(Id<CodePath>, Node<'a>),
+    OnCodePathEnd(Id<CodePath<'a>>, Node<'a>),
 }
 
 impl<'a> Event<'a> {
