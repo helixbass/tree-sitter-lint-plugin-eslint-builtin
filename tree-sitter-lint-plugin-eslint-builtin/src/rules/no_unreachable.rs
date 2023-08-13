@@ -206,6 +206,8 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                     for element in class_definition.field("body").non_comment_named_children() {
                         if element.kind() == FieldDefinition && !element.has_child_of_kind("static") {
                             self.ranges.add(element, context);
+                            // `;` wasn't getting included
+                            self.ranges.add(context.get_token_after(element, Option::<fn(Node) -> bool>::None), context);
                         }
                     }
                 }
