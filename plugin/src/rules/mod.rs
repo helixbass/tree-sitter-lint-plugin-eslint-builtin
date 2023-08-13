@@ -46,6 +46,7 @@ mod no_unreachable;
 mod no_unused_labels;
 mod no_useless_call;
 mod no_useless_catch;
+mod no_useless_return;
 mod require_yield;
 mod sort_keys;
 
@@ -97,5 +98,6 @@ pub use no_unreachable::no_unreachable_rule;
 pub use no_unused_labels::no_unused_labels_rule;
 pub use no_useless_call::no_useless_call_rule;
 pub use no_useless_catch::no_useless_catch_rule;
+pub use no_useless_return::no_useless_return_rule;
 pub use require_yield::require_yield_rule;
 pub use sort_keys::sort_keys_rule;
