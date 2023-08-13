@@ -1,6 +1,80 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use id_arena::Id;
+use once_cell::sync::Lazy;
+use regex::Regex;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::NodeExtJs,
+    kind::{
+        ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement,
+        ExportStatement, ExpressionStatement, ForInStatement, ForStatement, IfStatement,
+        ImportStatement, LabeledStatement, LexicalDeclaration, ReturnStatement, SwitchStatement,
+        ThrowStatement, TryStatement, VariableDeclaration, WhileStatement, WithStatement,
+    },
+    utils::ast_utils,
+    CodePathAnalyzer, CodePathSegment, EnterOrExit,
+};
+
+static STATEMENT_SENTINEL: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(&format!(r#"^(?:{ClassDeclaration}|{ContinueStatement}|{DebuggerStatement}|{DoStatement}|{EmptyStatement}|{ExpressionStatement}|{ForInStatement}|{ForStatement}|{IfStatement}|{ImportStatement}|{LabeledStatement}|{SwitchStatement}|{ThrowStatement}|{TryStatement}|{VariableDeclaration}|{LexicalDeclaration}|{WhileStatement}|{WithStatement}|{ExportStatement})$"#)).unwrap()
+});
+
+fn is_in_finally(node: Node) -> bool {
+    let mut current_node = node;
+    while let Some(parent) = current_node
+        .parent()
+        .filter(|_| !ast_utils::is_function(current_node))
+    {
+        if parent.kind() == TryStatement && parent.child_by_field_name("finalizer") == Some(node) {
+            return true;
+        }
+        current_node = parent;
+    }
+    false
+}
+
+fn look_for_trailing_return(
+    segment: Id<CodePathSegment>,
+    code_path_analyzer: &CodePathAnalyzer,
+    context: &QueryMatchContext,
+) {
+    for node in code_path_analyzer.code_path_segment_arena[segment]
+        .nodes
+        .iter()
+        .rev()
+        .filter_map(|(enter_or_exit, node)| {
+            matches!(enter_or_exit, EnterOrExit::Enter,).then_some(*node)
+        })
+    {
+        if STATEMENT_SENTINEL.is_match(node.kind()) {
+            return;
+        }
+        if node.kind() == ReturnStatement {
+            if node.has_non_comment_named_children() {
+                return;
+            }
+            if ast_utils::is_in_loop(node) || is_in_finally(node) {
+                return;
+            }
+            if !code_path_analyzer.code_path_segment_arena[segment].reachable {
+                return;
+            }
+
+            context.report(violation! {
+                node => node,
+                message_id => "unnecessary_return",
+                fix => |fixer| {
+                }
+            });
+        }
+    }
+
+    for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].all_prev_segments {
+        look_for_trailing_return(prev_segment, code_path_analyzer, context);
+    }
+}
 
 pub fn no_useless_return_rule() -> Arc<dyn Rule> {
     rule! {
@@ -11,13 +85,19 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
             unnecessary_return => "Unnecessary return statement.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            "program:exit" => |node, context| {
+                let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                for &code_path in &code_path_analyzer.code_paths {
+                    for &segment in code_path_analyzer.code_path_arena[code_path]
+                        .returned_segments() {
+                        look_for_trailing_return(
+                            segment,
+                            code_path_analyzer,
+                            context,
+                        );
+                    }
+                }
             },
         ]
     }

@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use const_format::formatcp;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use squalid::{CowStrExt, EverythingExt, OptionExt};
+use squalid::{return_default_if_none, CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::{Node, Range},
     NodeExt, QueryMatchContext,
@@ -61,6 +61,17 @@ static any_loop_pattern: Lazy<Regex> =
 
 pub fn is_loop(node: Node) -> bool {
     any_loop_pattern.is_match(node.kind())
+}
+
+pub fn is_in_loop(node: Node) -> bool {
+    let mut current_node = node;
+    while !is_function(current_node) {
+        if is_loop(current_node) {
+            return true;
+        }
+        current_node = return_default_if_none!(current_node.parent());
+    }
+    false
 }
 
 pub fn is_null_literal(node: Node) -> bool {
