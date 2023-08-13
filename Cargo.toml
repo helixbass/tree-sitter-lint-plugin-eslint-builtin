@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "tree-sitter-lint-plugin-eslint-builtin",
+    "plugin",
     "xtask"
 ]
 
