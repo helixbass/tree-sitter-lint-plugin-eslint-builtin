@@ -1,5 +1,6 @@
 use std::cell::Cell;
 
+#[derive(Debug)]
 pub struct IdGenerator {
     prefix: String,
     n: Cell<u32>,

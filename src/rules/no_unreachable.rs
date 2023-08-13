@@ -1,8 +1,31 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use once_cell::sync::Lazy;
+use regex::Regex;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
 
-use crate::{kind::WhileStatement, CodePathAnalyzer, EnterOrExit};
+use crate::{
+    kind::{
+        BreakStatement, ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement,
+        ExportStatement, ExpressionStatement, ForInStatement, ForStatement, IfStatement,
+        ImportStatement, LabeledStatement, ReturnStatement, StatementBlock, SwitchStatement,
+        ThrowStatement, TryStatement, WhileStatement, WithStatement,
+    },
+    CodePathAnalyzer, EnterOrExit,
+};
+
+static TARGET_NODE_KINDS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(&format!(
+        r#"^(?:{StatementBlock}|{BreakStatement}|{ClassDeclaration}|{ContinueStatement}|{DebuggerStatement}|{DoStatement}|{ExpressionStatement}|{ForInStatement}|{ForStatement}|{IfStatement}|{ImportStatement}|{LabeledStatement}|{ReturnStatement}|{SwitchStatement}|{ThrowStatement}|{TryStatement}|{WhileStatement}|{WithStatement}|{ExportStatement})$"#
+    )).unwrap()
+});
+
+fn is_target_node(node: Node) -> bool {
+    if TARGET_NODE_KINDS.is_match(node.kind()) {
+        return true;
+    }
+    false
+}
 
 pub fn no_unreachable_rule() -> Arc<dyn Rule> {
     rule! {
@@ -13,11 +36,12 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
         ],
         listeners => [
             "program:exit" => |node, context| {
+                println!("program exit");
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 for &code_path in &code_path_analyzer.code_paths {
                     code_path_analyzer.code_path_arena[code_path]
-                        .traverse_segments(
+                        .traverse_all_segments(
                             &code_path_analyzer.code_path_segment_arena,
                             None,
                             |_, segment, _| {
@@ -25,6 +49,10 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                                     .reachable {
                                     return;
                                 }
+                                println!("nodes: {:#?}",
+                                    code_path_analyzer.code_path_segment_arena[segment]
+                                        .nodes
+                                );
                                 code_path_analyzer.code_path_segment_arena[segment]
                                     .nodes
                                     .iter()
@@ -35,7 +63,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                                         )
                                     })
                                     .for_each(|(_, node)| {
-                                        if node.kind() == WhileStatement {
+                                        if is_target_node(*node) {
                                             context.report(violation! {
                                                 message_id => "unreachable_code",
                                                 node => *node,

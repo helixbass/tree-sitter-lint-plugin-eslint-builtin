@@ -68,6 +68,7 @@ fn merge_extra_segments<'a>(
     current_segments
 }
 
+#[derive(Debug)]
 pub struct ForkContext<'a> {
     id_generator: Rc<IdGenerator>,
     pub upper: Option<Id<Self>>,
