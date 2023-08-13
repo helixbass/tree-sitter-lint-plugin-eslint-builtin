@@ -14,7 +14,7 @@ mod visit;
 
 pub use code_path_analysis::{
     CodePath, CodePathAnalyzer, CodePathAnalyzerInstanceProviderFactory, CodePathOrigin,
-    ON_CODE_PATH_END, ON_CODE_PATH_SEGMENT_END, ON_CODE_PATH_SEGMENT_LOOP,
+    EnterOrExit, ON_CODE_PATH_END, ON_CODE_PATH_SEGMENT_END, ON_CODE_PATH_SEGMENT_LOOP,
     ON_CODE_PATH_SEGMENT_START, ON_CODE_PATH_START,
 };
 use rules::{
@@ -28,8 +28,9 @@ use rules::{
     no_multi_str_rule, no_negated_condition_rule, no_nested_ternary_rule, no_new_rule,
     no_new_wrappers_rule, no_octal_escape_rule, no_octal_rule, no_plusplus_rule, no_proto_rule,
     no_restricted_properties_rule, no_return_assign_rule, no_script_url_rule, no_sequences_rule,
-    no_ternary_rule, no_throw_literal_rule, no_unneeded_ternary_rule, no_unused_labels_rule,
-    no_useless_call_rule, no_useless_catch_rule, require_yield_rule, sort_keys_rule,
+    no_ternary_rule, no_throw_literal_rule, no_unneeded_ternary_rule, no_unreachable_rule,
+    no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, require_yield_rule,
+    sort_keys_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -84,6 +85,7 @@ pub fn instantiate() -> Plugin {
             complexity_rule(),
             consistent_return_rule(),
             getter_return_rule(),
+            no_unreachable_rule(),
         ],
         event_emitter_factories: vec![],
     }

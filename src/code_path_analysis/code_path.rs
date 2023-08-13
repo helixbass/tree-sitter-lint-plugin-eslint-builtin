@@ -75,11 +75,11 @@ impl<'a> CodePath<'a> {
         &self.state.current_segments
     }
 
-    fn traverse_segments(
+    pub fn traverse_segments(
         &self,
         arena: &Arena<CodePathSegment<'a>>,
         options: Option<TraverseSegmentsOptions<'a>>,
-        mut callback: impl FnMut(&Self, Id<CodePathSegment<'a>>, &TraverseSegmentsController),
+        mut callback: impl FnMut(&Self, Id<CodePathSegment<'a>>, &mut TraverseSegmentsController),
     ) {
         let options = options.unwrap_or_default();
         let start_segment = options.first.unwrap_or(self.state.initial_segment);
@@ -99,11 +99,10 @@ impl<'a> CodePath<'a> {
                 }
 
                 if segment != start_segment
-                    && !arena[segment].prev_segments.is_empty()
                     && !arena[segment]
                         .prev_segments
                         .iter()
-                        .all(|&prev_segment| (is_visited(arena, &visited, segment, prev_segment)))
+                        .all(|&prev_segment| is_visited(arena, &visited, segment, prev_segment))
                 {
                     stack.pop().unwrap();
                     continue;
@@ -119,7 +118,7 @@ impl<'a> CodePath<'a> {
                 if skipped_segment.is_none() {
                     let mut controller =
                         TraverseSegmentsController::new(&mut broken, &mut skipped_segment, &stack);
-                    callback(self, segment, &controller);
+                    callback(self, segment, &mut controller);
                     if Some(segment) == last_segment {
                         controller.skip();
                     }
@@ -129,8 +128,8 @@ impl<'a> CodePath<'a> {
                 }
             }
 
-            let end = arena[segment].next_segments.len() - 1;
-            match index.cmp(&end) {
+            let end = (arena[segment].next_segments.len() as isize) - 1;
+            match (index as isize).cmp(&end) {
                 Ordering::Less => {
                     stack.last_mut().unwrap().1 += 1;
                     stack.push((arena[segment].next_segments[index], 0));
@@ -153,12 +152,12 @@ impl<'a> CodePath<'a> {
 
 #[derive(Builder, Default)]
 #[builder(default, setter(strip_option))]
-struct TraverseSegmentsOptions<'a> {
+pub struct TraverseSegmentsOptions<'a> {
     first: Option<Id<CodePathSegment<'a>>>,
     last: Option<Id<CodePathSegment<'a>>>,
 }
 
-struct TraverseSegmentsController<'a, 'b> {
+pub struct TraverseSegmentsController<'a, 'b> {
     broken: &'a mut bool,
     skipped_segment: &'a mut Option<Id<CodePathSegment<'b>>>,
     stack: &'a [(Id<CodePathSegment<'b>>, usize)],

@@ -12,3 +12,4 @@ pub use code_path_analyzer::{
     ON_CODE_PATH_SEGMENT_END, ON_CODE_PATH_SEGMENT_LOOP, ON_CODE_PATH_SEGMENT_START,
     ON_CODE_PATH_START,
 };
+pub use code_path_segment::EnterOrExit;
