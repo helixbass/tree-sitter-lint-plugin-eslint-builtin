@@ -1162,10 +1162,10 @@ mod tests {
             None,
             "tmp.js",
             ConfigBuilder::default()
-                .rule(rule.meta().name)
+                .rule(rule.meta().name.clone())
                 .all_standalone_rules([rule.clone()])
                 .rule_configurations([RuleConfiguration {
-                    name: rule.meta().name,
+                    name: rule.meta().name.clone(),
                     level: ErrorLevel::Error,
                     options: None,
                 }])

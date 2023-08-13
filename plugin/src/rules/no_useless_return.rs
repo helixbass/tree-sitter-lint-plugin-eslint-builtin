@@ -3,7 +3,7 @@ use std::sync::Arc;
 use id_arena::Id;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use tree_sitter_lint::{compare_nodes, rule, tree_sitter::Node, violation, Rule};
 
 use crate::{
     ast_helpers::NodeExtJs,
@@ -42,7 +42,7 @@ fn is_removable(node: Node) -> bool {
 fn look_for_trailing_return<'a>(
     segment: Id<CodePathSegment<'a>>,
     code_path_analyzer: &CodePathAnalyzer<'a>,
-    context: &QueryMatchContext<'a, '_>,
+    nodes_to_report: &mut Vec<Node<'a>>,
 ) {
     for node in code_path_analyzer.code_path_segment_arena[segment]
         .nodes
@@ -66,22 +66,12 @@ fn look_for_trailing_return<'a>(
                 return;
             }
 
-            context.report(violation! {
-                node => node,
-                message_id => "unnecessary_return",
-                fix => |fixer| {
-                    if is_removable(node) && context.get_comments_inside(node).count() == 0 {
-                        FixTracker::new(fixer, context)
-                            .retain_enclosing_function(node)
-                            .remove(node);
-                    }
-                }
-            });
+            nodes_to_report.push(node);
         }
     }
 
     for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].all_prev_segments {
-        look_for_trailing_return(prev_segment, code_path_analyzer, context);
+        look_for_trailing_return(prev_segment, code_path_analyzer, nodes_to_report);
     }
 }
 
@@ -90,12 +80,15 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
         name => "no-useless-return",
         languages => [Javascript],
         fixable => true,
+        allow_self_conflicting_fixes => true,
         messages => [
             unnecessary_return => "Unnecessary return statement.",
         ],
         listeners => [
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                let mut nodes_to_report: Vec<Node<'a>> = Default::default();
 
                 for &code_path in &code_path_analyzer.code_paths {
                     for &segment in &*code_path_analyzer.code_path_arena[code_path]
@@ -105,9 +98,25 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
                         look_for_trailing_return(
                             segment,
                             code_path_analyzer,
-                            context,
+                            &mut nodes_to_report,
                         );
                     }
+                }
+
+                nodes_to_report.sort_by(compare_nodes);
+
+                for node in nodes_to_report {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "unnecessary_return",
+                        fix => |fixer| {
+                            if is_removable(node) && context.get_comments_inside(node).count() == 0 {
+                                FixTracker::new(fixer, context)
+                                    .retain_enclosing_function(node)
+                                    .remove(node);
+                            }
+                        }
+                    });
                 }
             },
         ]
@@ -385,8 +394,8 @@ mod tests {
                           }
                         ", // Other case is fixed in the second pass.
                         errors => [
-                            { message_id => "unnecessaryReturn", type => ReturnStatement },
-                            { message_id => "unnecessaryReturn", type => ReturnStatement }
+                            { message_id => "unnecessary_return", type => ReturnStatement },
+                            { message_id => "unnecessary_return", type => ReturnStatement }
                         ]
                     },
                     {
@@ -715,7 +724,7 @@ mod tests {
                         output => "function foo() {  return; }",
                         errors => [
                             {
-                                message_id => "unnecessaryReturn",
+                                message_id => "unnecessary_return",
                                 type => ReturnStatement,
                                 column => 18
                             }
