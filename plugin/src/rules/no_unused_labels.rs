@@ -221,10 +221,14 @@ mod tests {
                     },
                     {
                         code => "A: B: C: 'foo'",
-                        // TODO currently we're running the whole "fixing loop"
-                        // https://github.com/helixbass/tree-sitter-lint/issues/26
+                        // TODO: even when now only running a single fixing pass
+                        // these all appear to be getting applied - maybe we have
+                        // a different idea of "conflicting" than ESLint does (ie
+                        // it would appear that the ESLint version of this rule is
+                        // emitting multiple fixes the "first time" and ESLint is
+                        // only applying a subset of them)?
                         // output => "B: C: 'foo'", // Becomes "C: 'foo'" on the second pass.
-                        output => "C: 'foo'",
+                        output => "C: 'foo'", // Becomes "C: 'foo'" on the second pass.
                         errors => [{ message_id => "unused" }, { message_id => "unused" }, { message_id => "unused" }]
                     },
                     {
