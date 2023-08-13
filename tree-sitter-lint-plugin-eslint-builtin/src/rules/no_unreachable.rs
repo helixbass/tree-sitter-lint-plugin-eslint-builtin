@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    ops,
     sync::Arc,
 };
 
@@ -9,17 +10,17 @@ use squalid::VecExt;
 use tree_sitter_lint::{
     compare_nodes, rule,
     tree_sitter::{Node, Range},
-    violation, QueryMatchContext, Rule,
+    violation, NodeExt, QueryMatchContext, Rule,
 };
 
 use crate::{
-    ast_helpers::NodeExtJs,
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
     kind::{
-        BreakStatement, ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement,
-        ExportStatement, ExpressionStatement, ForInStatement, ForStatement, IfStatement,
-        ImportStatement, LabeledStatement, LexicalDeclaration, ReturnStatement, StatementBlock,
-        SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration, WhileStatement,
-        WithStatement,
+        BreakStatement, ClassDeclaration, ClassHeritage, ContinueStatement, DebuggerStatement,
+        DoStatement, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
+        ForStatement, IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration,
+        ReturnStatement, StatementBlock, SwitchStatement, ThrowStatement, TryStatement,
+        VariableDeclaration, WhileStatement, WithStatement,
     },
     CodePathAnalyzer, EnterOrExit,
 };
@@ -44,6 +45,7 @@ fn is_target_node(node: Node) -> bool {
     false
 }
 
+#[derive(Copy, Clone)]
 struct ConsecutiveRange<'a> {
     start_node: Node<'a>,
     end_node: Node<'a>,
@@ -79,13 +81,55 @@ impl<'a> ConsecutiveRange<'a> {
     }
 }
 
+#[derive(Clone, Default)]
+struct ConsecutiveRanges<'a>(Vec<ConsecutiveRange<'a>>);
+
+impl<'a> ConsecutiveRanges<'a> {
+    pub fn add(&mut self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
+        if self.is_empty() {
+            self.push(ConsecutiveRange::new(node));
+            return;
+        }
+        let range = self.last_mut().unwrap();
+        if range.contains(node) {
+            return;
+        }
+        if range.is_consecutive(node, context) {
+            range.merge(node);
+            return;
+        }
+        self.push(ConsecutiveRange::new(node));
+    }
+}
+
+impl<'a> ops::Deref for ConsecutiveRanges<'a> {
+    type Target = Vec<ConsecutiveRange<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> ops::DerefMut for ConsecutiveRanges<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 pub fn no_unreachable_rule() -> Arc<dyn Rule> {
+    type HasSuperCall = bool;
+
     rule! {
         name => "no-unreachable",
         languages => [Javascript],
         messages => [
             unreachable_code => "Unreachable code.",
         ],
+        state => {
+            [per-file-run]
+            constructor_infos: Vec<HasSuperCall>,
+            ranges: ConsecutiveRanges<'a>,
+        },
         listeners => [
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
@@ -128,22 +172,10 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                     .collect::<Vec<_>>()
                     .and_sort_by(compare_nodes)
                     .into_iter()
-                    .fold(Vec::<ConsecutiveRange>::default(), |mut ranges, node| {
-                        if ranges.is_empty() {
-                            ranges.push(ConsecutiveRange::new(node));
-                            return ranges;
-                        }
-                        let range = ranges.last_mut().unwrap();
-                        if range.contains(node) {
-                            return ranges;
-                        }
-                        if range.is_consecutive(node, context) {
-                            range.merge(node);
-                            return ranges;
-                        }
-                        ranges.push(ConsecutiveRange::new(node));
+                    .fold(self.ranges.clone(), |mut ranges, node| {
+                        ranges.add(node, context);
                         ranges
-                    }) {
+                    }).iter() {
                     context.report(violation! {
                         message_id => "unreachable_code",
                         range => range.range(),
@@ -151,6 +183,43 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
+            "method_definition" => |node, context| {
+                if get_method_definition_kind(node, context) !=
+                    MethodDefinitionKind::Constructor {
+                    return;
+                }
+
+                self.constructor_infos.push(false);
+            },
+            "method_definition:exit" => |node, context| {
+                if get_method_definition_kind(node, context) !=
+                    MethodDefinitionKind::Constructor {
+                    return;
+                }
+
+                let has_super_call = self.constructor_infos.pop().unwrap();
+
+                let class_definition = node.parent().unwrap().parent().unwrap();
+
+                if class_definition.has_child_of_kind(ClassHeritage) &&
+                    !has_super_call {
+                    for element in class_definition.field("body").non_comment_named_children() {
+                        if element.kind() == FieldDefinition && !element.has_child_of_kind("static") {
+                            self.ranges.add(element, context);
+                        }
+                    }
+                }
+                // if (!node.value.body) {
+                //     return;
+                // }
+            },
+            "(call_expression
+              function: (super)
+            ) @c" => |node, context| {
+                if let Some(constructor_info) = self.constructor_infos.last_mut() {
+                    *constructor_info = true;
+                }
+            }
         ]
     }
 }
