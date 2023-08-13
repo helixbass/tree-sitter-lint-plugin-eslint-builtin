@@ -596,7 +596,6 @@ impl<'a> CodePathAnalyzer<'a> {
             node,
             &self.code_path_arena[self.active_code_path.unwrap()].state,
             false,
-            &self.file_contents,
         );
     }
 
@@ -608,7 +607,6 @@ impl<'a> CodePathAnalyzer<'a> {
                 node,
                 &self.code_path_arena[code_path].state,
                 false,
-                &self.file_contents,
             );
         }
 
@@ -672,10 +670,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchCase | SwitchDefault => {
-                if !node
-                    .child_by_field_name("body")
-                    .matches(|body| body.has_non_comment_named_children())
-                {
+                if node.child_by_field_name("body").is_none() {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_switch_case_body(
@@ -819,7 +814,6 @@ impl<'a> CodePathAnalyzer<'a> {
             node,
             &self.code_path_arena[self.active_code_path.unwrap()].state,
             true,
-            &self.file_contents,
         );
     }
 
@@ -871,6 +865,7 @@ impl<'a> CodePathAnalyzer<'a> {
         debug::dump_dot(
             &self.code_path_segment_arena,
             &self.code_path_arena[self.code_path()],
+            &self.file_contents,
         );
 
         self.active_code_path = self.code_path_arena[self.code_path()].upper;
@@ -880,7 +875,6 @@ impl<'a> CodePathAnalyzer<'a> {
                 node,
                 &self.code_path_arena[code_path].state,
                 true,
-                &self.file_contents,
             );
         }
     }

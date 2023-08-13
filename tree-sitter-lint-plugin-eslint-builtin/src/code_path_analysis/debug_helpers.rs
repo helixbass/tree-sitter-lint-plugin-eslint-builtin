@@ -49,12 +49,11 @@ pub fn dump(message: &str) {
     eprintln!("{}", message);
 }
 
-pub fn dump_state<'a, 'b>(
+pub fn dump_state<'a>(
     arena: &mut Arena<CodePathSegment<'a>>,
     node: Node<'a>,
     state: &CodePathState<'a>,
     leaving: bool,
-    source_text_provider: &impl SourceTextProvider<'b>,
 ) {
     for &current_segment in &*state.current_segments {
         let current_segment = &mut arena[current_segment];
@@ -93,7 +92,11 @@ pub fn dump_state<'a, 'b>(
     ));
 }
 
-pub fn dump_dot(code_path_segment_arena: &Arena<CodePathSegment>, code_path: &CodePath) {
+pub fn dump_dot<'a>(
+    code_path_segment_arena: &Arena<CodePathSegment>,
+    code_path: &CodePath,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) {
     if !enabled() {
         return;
     }
@@ -130,8 +133,23 @@ initial[label="",shape=circle,style=filled,fillcolor=black,width=0.25,height=0.2
         }
 
         if !segment.nodes.is_empty() {
-            unimplemented!()
-            // text.push_str(&segment.nodes.join("\\n"));
+            text.push_str(
+                &segment
+                    .nodes
+                    .iter()
+                    .map(|(enter_or_exit, node)| {
+                        node_to_string(
+                            *node,
+                            Some(match enter_or_exit {
+                                EnterOrExit::Enter => "enter",
+                                EnterOrExit::Exit => "exit",
+                            }),
+                            source_text_provider,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\\n"),
+            );
         } else {
             text.push_str("????");
         }
