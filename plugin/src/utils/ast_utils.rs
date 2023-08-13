@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashSet};
 
 use const_format::formatcp;
 use once_cell::sync::Lazy;
@@ -19,13 +19,14 @@ use crate::{
     },
     kind::{
         self, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression, AwaitExpression,
-        BinaryExpression, CallExpression, ComputedPropertyName, Decorator, FieldDefinition,
-        Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
-        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Pair, PairPattern,
-        ParenthesizedExpression, PrivatePropertyIdentifier, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, SubscriptExpression,
-        TemplateString, TemplateSubstitution, TernaryExpression, UnaryExpression, Undefined,
-        UpdateExpression, YieldExpression,
+        BinaryExpression, CallExpression, ClassStaticBlock, ComputedPropertyName, Decorator,
+        FieldDefinition, Function, FunctionDeclaration, GeneratorFunction,
+        GeneratorFunctionDeclaration, Identifier, Kind, MemberExpression, MethodDefinition,
+        NewExpression, Null, Number, Pair, PairPattern, ParenthesizedExpression,
+        PrivatePropertyIdentifier, Program, PropertyIdentifier, SequenceExpression,
+        ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, StatementBlock,
+        SubscriptExpression, SwitchCase, SwitchDefault, TemplateString, TemplateSubstitution,
+        TernaryExpression, UnaryExpression, Undefined, UpdateExpression, YieldExpression,
     },
 };
 
@@ -33,6 +34,17 @@ pub const LINE_BREAK_PATTERN_STR: &str = r#"\r\n|[\r\n\u2028\u2029]"#;
 
 pub static LINE_BREAK_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(LINE_BREAK_PATTERN_STR).unwrap());
+
+pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
+    [
+        Program,
+        StatementBlock,
+        ClassStaticBlock,
+        SwitchCase,
+        SwitchDefault,
+    ]
+    .into()
+});
 
 fn starts_with_upper_case(str_: &str) -> bool {
     str_.chars().next().matches(|ch| ch.is_uppercase())
@@ -43,6 +55,16 @@ pub fn is_es5_constructor(node: Node, context: &QueryMatchContext) -> bool {
         && node
             .child_by_field_name("name")
             .matches(|name| starts_with_upper_case(&name.text(context)))
+}
+
+pub fn get_upper_function(node: Node) -> Option<Node> {
+    let mut current_node = node;
+    loop {
+        if any_function_pattern.is_match(current_node.kind()) {
+            return Some(current_node);
+        }
+        current_node = current_node.parent()?;
+    }
 }
 
 static any_function_pattern: Lazy<Regex> = Lazy::new(|| {

@@ -13,7 +13,7 @@ use crate::{
         ImportStatement, LabeledStatement, LexicalDeclaration, ReturnStatement, SwitchStatement,
         ThrowStatement, TryStatement, VariableDeclaration, WhileStatement, WithStatement,
     },
-    utils::ast_utils,
+    utils::{ast_utils, fix_tracker::FixTracker},
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
 
@@ -35,10 +35,14 @@ fn is_in_finally(node: Node) -> bool {
     false
 }
 
-fn look_for_trailing_return(
-    segment: Id<CodePathSegment>,
-    code_path_analyzer: &CodePathAnalyzer,
-    context: &QueryMatchContext,
+fn is_removable(node: Node) -> bool {
+    ast_utils::STATEMENT_LIST_PARENTS.contains(node.parent().unwrap().kind())
+}
+
+fn look_for_trailing_return<'a>(
+    segment: Id<CodePathSegment<'a>>,
+    code_path_analyzer: &CodePathAnalyzer<'a>,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     for node in code_path_analyzer.code_path_segment_arena[segment]
         .nodes
@@ -66,6 +70,11 @@ fn look_for_trailing_return(
                 node => node,
                 message_id => "unnecessary_return",
                 fix => |fixer| {
+                    if is_removable(node) && context.get_comments_inside(node).count() == 0 {
+                        FixTracker::new(fixer, context)
+                            .retain_enclosing_function(node)
+                            .remove(node);
+                    }
                 }
             });
         }
@@ -89,8 +98,10 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 for &code_path in &code_path_analyzer.code_paths {
-                    for &segment in code_path_analyzer.code_path_arena[code_path]
-                        .returned_segments() {
+                    for &segment in &*code_path_analyzer.code_path_arena[code_path]
+                        // .returned_segments() {
+                        .state
+                        .head_segments(&code_path_analyzer.fork_context_arena) {
                         look_for_trailing_return(
                             segment,
                             code_path_analyzer,
