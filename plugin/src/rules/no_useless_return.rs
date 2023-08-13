@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use id_arena::Id;
 use once_cell::sync::Lazy;
@@ -8,10 +8,11 @@ use tree_sitter_lint::{compare_nodes, rule, tree_sitter::Node, violation, Rule};
 use crate::{
     ast_helpers::NodeExtJs,
     kind::{
-        ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement,
-        ExportStatement, ExpressionStatement, ForInStatement, ForStatement, IfStatement,
-        ImportStatement, LabeledStatement, LexicalDeclaration, ReturnStatement, SwitchStatement,
-        ThrowStatement, TryStatement, VariableDeclaration, WhileStatement, WithStatement,
+        CatchClause, ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement,
+        EmptyStatement, ExportStatement, ExpressionStatement, FinallyClause, ForInStatement,
+        ForStatement, IfStatement, ImportStatement, LabeledStatement, LexicalDeclaration,
+        ReturnStatement, SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration,
+        WhileStatement, WithStatement,
     },
     utils::{ast_utils, fix_tracker::FixTracker},
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
@@ -43,15 +44,27 @@ fn look_for_trailing_return<'a>(
     segment: Id<CodePathSegment<'a>>,
     code_path_analyzer: &CodePathAnalyzer<'a>,
     nodes_to_report: &mut Vec<Node<'a>>,
+    seen_segments: &mut HashSet<Id<CodePathSegment<'a>>>,
+    reached_try_statements: &mut HashSet<Node<'a>>,
 ) {
-    for node in code_path_analyzer.code_path_segment_arena[segment]
+    if seen_segments.contains(&segment) {
+        return;
+    }
+
+    seen_segments.insert(segment);
+
+    for (enter_or_exit, node) in code_path_analyzer.code_path_segment_arena[segment]
         .nodes
         .iter()
         .rev()
-        .filter_map(|(enter_or_exit, node)| {
-            matches!(enter_or_exit, EnterOrExit::Enter,).then_some(*node)
-        })
     {
+        if *enter_or_exit == EnterOrExit::Exit {
+            if matches!(node.kind(), CatchClause | FinallyClause) {
+                reached_try_statements.insert(node.parent().unwrap());
+            }
+            continue;
+        }
+
         if STATEMENT_SENTINEL.is_match(node.kind()) {
             return;
         }
@@ -59,19 +72,25 @@ fn look_for_trailing_return<'a>(
             if node.has_non_comment_named_children() {
                 return;
             }
-            if ast_utils::is_in_loop(node) || is_in_finally(node) {
+            if ast_utils::is_in_loop(*node) || is_in_finally(*node) {
                 return;
             }
             if !code_path_analyzer.code_path_segment_arena[segment].reachable {
                 return;
             }
 
-            nodes_to_report.push(node);
+            nodes_to_report.push(*node);
         }
     }
 
     for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].all_prev_segments {
-        look_for_trailing_return(prev_segment, code_path_analyzer, nodes_to_report);
+        look_for_trailing_return(
+            prev_segment,
+            code_path_analyzer,
+            nodes_to_report,
+            seen_segments,
+            reached_try_statements,
+        );
     }
 }
 
@@ -84,11 +103,24 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
         messages => [
             unnecessary_return => "Unnecessary return statement.",
         ],
+        state => {
+            [per-file-run]
+            all_try_body_blocks: Vec<Node<'a>>,
+        },
         listeners => [
+            "(try_statement
+              body: (statement_block) @c
+            )" => |node, context| {
+                self.all_try_body_blocks.push(node);
+            },
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 let mut nodes_to_report: Vec<Node<'a>> = Default::default();
+
+                let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> = Default::default();
+
+                let mut reached_try_statements: HashSet<Node<'a>> = Default::default();
 
                 for &code_path in &code_path_analyzer.code_paths {
                     for &segment in &*code_path_analyzer.code_path_arena[code_path]
@@ -99,6 +131,24 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
                             segment,
                             code_path_analyzer,
                             &mut nodes_to_report,
+                            &mut seen_segments,
+                            &mut reached_try_statements,
+                        );
+                    }
+                }
+
+                for &try_body_block in &self.all_try_body_blocks {
+                    if !reached_try_statements.contains(&try_body_block.parent().unwrap()) {
+                        continue;
+                    }
+
+                    for segment in code_path_analyzer.get_segments_that_include_node_exit(try_body_block) {
+                        look_for_trailing_return(
+                            segment,
+                            code_path_analyzer,
+                            &mut nodes_to_report,
+                            &mut seen_segments,
+                            &mut reached_try_statements,
                         );
                     }
                 }

@@ -33,6 +33,7 @@ use crate::{
         YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
+    EnterOrExit,
 };
 
 use super::{
@@ -908,6 +909,29 @@ impl<'a> CodePathAnalyzer<'a> {
             })
             .copied()
             .unwrap()
+    }
+
+    pub fn get_segments_that_include_node_exit(
+        &self,
+        node: Node<'a>,
+    ) -> Vec<Id<CodePathSegment<'a>>> {
+        let mut segments: Vec<Id<CodePathSegment<'a>>> = Default::default();
+        for &code_path in &self.code_paths {
+            self.code_path_arena[code_path].traverse_all_segments(
+                &self.code_path_segment_arena,
+                None,
+                |_, segment, _| {
+                    if self.code_path_segment_arena[segment].nodes.iter().any(
+                        |(enter_or_exit, segment_node)| {
+                            *segment_node == node && matches!(enter_or_exit, EnterOrExit::Exit,)
+                        },
+                    ) {
+                        segments.push(segment);
+                    }
+                },
+            );
+        }
+        segments
     }
 }
 

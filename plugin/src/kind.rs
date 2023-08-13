@@ -37,6 +37,7 @@ pub const ExportStatement: &str = "export_statement";
 pub const ExpressionStatement: &str = "expression_statement";
 pub const False: &str = "false";
 pub const FieldDefinition: &str = "field_definition";
+pub const FinallyClause: &str = "finally_clause";
 pub const ForInStatement: &str = "for_in_statement";
 pub const FormalParameters: &str = "formal_parameters";
 pub const ForStatement: &str = "for_statement";
