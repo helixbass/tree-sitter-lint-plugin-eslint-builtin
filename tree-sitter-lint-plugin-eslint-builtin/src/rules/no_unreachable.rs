@@ -5,21 +5,28 @@ use std::{
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, Rule};
+use squalid::VecExt;
+use tree_sitter_lint::{
+    compare_nodes, rule,
+    tree_sitter::{Node, Range},
+    violation, QueryMatchContext, Rule,
+};
 
 use crate::{
+    ast_helpers::NodeExtJs,
     kind::{
         BreakStatement, ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement,
         ExportStatement, ExpressionStatement, ForInStatement, ForStatement, IfStatement,
-        ImportStatement, LabeledStatement, ReturnStatement, StatementBlock, SwitchStatement,
-        ThrowStatement, TryStatement, WhileStatement, WithStatement,
+        ImportStatement, LabeledStatement, LexicalDeclaration, ReturnStatement, StatementBlock,
+        SwitchStatement, ThrowStatement, TryStatement, VariableDeclaration, WhileStatement,
+        WithStatement,
     },
     CodePathAnalyzer, EnterOrExit,
 };
 
 static TARGET_NODE_KINDS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&format!(
-        r#"^(?:{StatementBlock}|{BreakStatement}|{ClassDeclaration}|{ContinueStatement}|{DebuggerStatement}|{DoStatement}|{ExpressionStatement}|{ForInStatement}|{ForStatement}|{IfStatement}|{ImportStatement}|{LabeledStatement}|{ReturnStatement}|{SwitchStatement}|{ThrowStatement}|{TryStatement}|{WhileStatement}|{WithStatement}|{ExportStatement})$"#
+        r#"^(?:{StatementBlock}|{BreakStatement}|{ClassDeclaration}|{ContinueStatement}|{DebuggerStatement}|{DoStatement}|{ExpressionStatement}|{ForInStatement}|{ForStatement}|{IfStatement}|{ImportStatement}|{LabeledStatement}|{ReturnStatement}|{SwitchStatement}|{ThrowStatement}|{TryStatement}|{WhileStatement}|{WithStatement}|{ExportStatement}|{LexicalDeclaration})$"#
     )).unwrap()
 });
 
@@ -27,7 +34,49 @@ fn is_target_node(node: Node) -> bool {
     if TARGET_NODE_KINDS.is_match(node.kind()) {
         return true;
     }
+    if node.kind() == VariableDeclaration
+        && node
+            .non_comment_named_children()
+            .any(|child| child.child_by_field_name("value").is_some())
+    {
+        return true;
+    }
     false
+}
+
+struct ConsecutiveRange<'a> {
+    start_node: Node<'a>,
+    end_node: Node<'a>,
+}
+
+impl<'a> ConsecutiveRange<'a> {
+    pub fn new(node: Node<'a>) -> Self {
+        Self {
+            start_node: node,
+            end_node: node,
+        }
+    }
+
+    pub fn contains(&self, node: Node<'a>) -> bool {
+        node.end_byte() <= self.end_node.end_byte()
+    }
+
+    pub fn is_consecutive(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+        self.contains(context.get_token_before(node, Option::<fn(Node) -> bool>::None))
+    }
+
+    pub fn merge(&mut self, node: Node<'a>) {
+        self.end_node = node;
+    }
+
+    pub fn range(&self) -> Range {
+        Range {
+            start_byte: self.start_node.start_byte(),
+            end_byte: self.end_node.end_byte(),
+            start_point: self.start_node.range().start_point,
+            end_point: self.end_node.range().end_point,
+        }
+    }
 }
 
 pub fn no_unreachable_rule() -> Arc<dyn Rule> {
@@ -72,12 +121,33 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                             }
                         );
                 }
-                for (_, node) in maybe_unreachable_nodes
+                for range in maybe_unreachable_nodes
                     .into_iter()
-                    .filter(|(node_id, _)| !reachable_nodes.contains(node_id)) {
+                    .filter(|(node_id, _)| !reachable_nodes.contains(node_id))
+                    .map(|(_, node)| node)
+                    .collect::<Vec<_>>()
+                    .and_sort_by(compare_nodes)
+                    .into_iter()
+                    .fold(Vec::<ConsecutiveRange>::default(), |mut ranges, node| {
+                        if ranges.is_empty() {
+                            ranges.push(ConsecutiveRange::new(node));
+                            return ranges;
+                        }
+                        let range = ranges.last_mut().unwrap();
+                        if range.contains(node) {
+                            return ranges;
+                        }
+                        if range.is_consecutive(node, context) {
+                            range.merge(node);
+                            return ranges;
+                        }
+                        ranges.push(ConsecutiveRange::new(node));
+                        ranges
+                    }) {
                     context.report(violation! {
                         message_id => "unreachable_code",
-                        node => node,
+                        range => range.range(),
+                        node => range.start_node,
                     });
                 }
             },
@@ -88,7 +158,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        kind::{ExpressionStatement, StatementBlock, VariableDeclaration},
+        kind::{ExpressionStatement, LexicalDeclaration, StatementBlock, VariableDeclaration},
         CodePathAnalyzerInstanceProviderFactory,
     };
 
@@ -208,16 +278,16 @@ mod tests {
                     // Merge the warnings of continuous unreachable nodes.
                     {
                         code => "
-                            function foo() {
-                                return;
+                function foo() {
+                    return;
 
-                                a();  // ← ERROR: Unreachable code. (no-unreachable)
+                    a();  // ← ERROR: Unreachable code. (no-unreachable)
 
-                                b()   // ↑ ';' token is included in the unreachable code, so this statement will be merged.
-                                // comment
-                                c();  // ↑ ')' token is included in the unreachable code, so this statement will be merged.
-                            }
-                        ",
+                    b()   // ↑ ';' token is included in the unreachable code, so this statement will be merged.
+                    // comment
+                    c();  // ↑ ')' token is included in the unreachable code, so this statement will be merged.
+                }
+            ",
                         errors => [
                             {
                                 message_id => "unreachable_code",
@@ -231,18 +301,18 @@ mod tests {
                     },
                     {
                         code => "
-                            function foo() {
-                                return;
+                function foo() {
+                    return;
 
-                                a();
+                    a();
 
-                                if (b()) {
-                                    c()
-                                } else {
-                                    d()
-                                }
-                            }
-                        ",
+                    if (b()) {
+                        c()
+                    } else {
+                        d()
+                    }
+                }
+            ",
                         errors => [
                             {
                                 message_id => "unreachable_code",
@@ -256,17 +326,17 @@ mod tests {
                     },
                     {
                         code => "
-                            function foo() {
-                                if (a) {
-                                    return
-                                    b();
-                                    c();
-                                } else {
-                                    throw err
-                                    d();
-                                }
-                            }
-                        ",
+                function foo() {
+                    if (a) {
+                        return
+                        b();
+                        c();
+                    } else {
+                        throw err
+                        d();
+                    }
+                }
+            ",
                         errors => [
                             {
                                 message_id => "unreachable_code",
@@ -288,18 +358,18 @@ mod tests {
                     },
                     {
                         code => "
-                            function foo() {
-                                if (a) {
-                                    return
-                                    b();
-                                    c();
-                                } else {
-                                    throw err
-                                    d();
-                                }
-                                e();
-                            }
-                        ",
+                function foo() {
+                    if (a) {
+                        return
+                        b();
+                        c();
+                    } else {
+                        throw err
+                        d();
+                    }
+                    e();
+                }
+            ",
                         errors => [
                             {
                                 message_id => "unreachable_code",
@@ -329,13 +399,13 @@ mod tests {
                     },
                     {
                         code => "
-                            function* foo() {
-                                try {
-                                    return;
-                                } catch (err) {
-                                    return err;
-                                }
-                            }",
+                function* foo() {
+                    try {
+                        return;
+                    } catch (err) {
+                        return err;
+                    }
+                }",
                         // parserOptions: {
                         //     ecmaVersion: 6
                         // },
@@ -352,13 +422,13 @@ mod tests {
                     },
                     {
                         code => "
-                            function foo() {
-                                try {
-                                    return;
-                                } catch (err) {
-                                    return err;
-                                }
-                            }",
+                function foo() {
+                    try {
+                        return;
+                    } catch (err) {
+                        return err;
+                    }
+                }",
                         // parserOptions: {
                         //     ecmaVersion: 6
                         // },
@@ -375,21 +445,21 @@ mod tests {
                     },
                     {
                         code => "
-                            function foo() {
-                                try {
-                                    return;
-                                    let a = 1;
-                                } catch (err) {
-                                    return err;
-                                }
-                            }",
+                function foo() {
+                    try {
+                        return;
+                        let a = 1;
+                    } catch (err) {
+                        return err;
+                    }
+                }",
                         // parserOptions: {
                         //     ecmaVersion: 6
                         // },
                         errors => [
                             {
                                 message_id => "unreachable_code",
-                                type => VariableDeclaration,
+                                type => LexicalDeclaration,
                                 line => 5,
                                 column => 25,
                                 end_line => 5,
