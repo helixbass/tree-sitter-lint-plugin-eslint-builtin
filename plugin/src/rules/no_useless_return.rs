@@ -76,7 +76,7 @@ fn look_for_trailing_return<'a>(
                 return;
             }
             if !code_path_analyzer.code_path_segment_arena[segment].reachable {
-                return;
+                continue;
             }
 
             nodes_to_report.push(*node);
