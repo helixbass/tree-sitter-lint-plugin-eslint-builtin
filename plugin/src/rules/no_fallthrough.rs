@@ -6,11 +6,14 @@ use std::{
 use regex::Regex;
 use serde::Deserialize;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::NodeExtJs,
-    kind::{BreakStatement, ReturnStatement, SwitchCase, SwitchDefault, ThrowStatement},
+    ast_helpers::{get_comment_contents, NodeExtJs},
+    directives::directives_pattern,
+    kind::{
+        BreakStatement, ReturnStatement, StatementBlock, SwitchCase, SwitchDefault, ThrowStatement,
+    },
     CodePathAnalyzer, EnterOrExit,
 };
 
@@ -33,6 +36,46 @@ impl Default for Options {
 
 fn has_blank_lines_between(node: Node, token: Node) -> bool {
     token.range().start_point.row > node.range().end_point.row + 1
+}
+
+fn is_fall_through_comment(comment: &str, fallthrough_comment_pattern: &Regex) -> bool {
+    fallthrough_comment_pattern.is_match(comment) && !directives_pattern.is_match(comment.trim())
+}
+
+fn has_fallthrough_comment<'a>(
+    case_which_falls_through: Node<'a>,
+    subsequent_case: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+    fallthrough_comment_pattern: &Regex,
+) -> bool {
+    let mut cursor = case_which_falls_through.walk();
+    let mut body_nodes = case_which_falls_through.children_by_field_name("body", &mut cursor);
+    if let Some(block_body_node) = body_nodes
+        .next()
+        .filter(|body_node| body_node.kind() == StatementBlock && body_nodes.next().is_none())
+    {
+        let trailing_close_brace =
+            context.get_last_token(block_body_node, Option::<fn(Node) -> bool>::None);
+        let comment_in_block = context.get_comments_before(trailing_close_brace).next();
+
+        if comment_in_block.matches(|comment_in_block| {
+            is_fall_through_comment(
+                &get_comment_contents(comment_in_block, context),
+                fallthrough_comment_pattern,
+            )
+        }) {
+            return true;
+        }
+    }
+
+    let comment = context.get_comments_before(subsequent_case).next();
+
+    comment.matches(|comment| {
+        is_fall_through_comment(
+            &get_comment_contents(comment, context),
+            fallthrough_comment_pattern,
+        )
+    })
 }
 
 pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
@@ -86,6 +129,10 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
                 self.potential_fallthrough_cases.insert(node.id(), node);
             },
             "program:exit" => |node, context| {
+                if self.potential_fallthrough_cases.is_empty() {
+                    return;
+                }
+
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 type NodeId = usize;
@@ -124,6 +171,14 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
                     }) {
                     let next_case_node = candidate_switch_case_node
                         .next_named_sibling_of_kinds(&[SwitchCase, SwitchDefault]);
+                    if has_fallthrough_comment(
+                        candidate_switch_case_node,
+                        next_case_node,
+                        context,
+                        &self.comment_pattern,
+                    ) {
+                        continue;
+                    }
                     context.report(violation! {
                         message_id => match next_case_node.kind() {
                             SwitchCase => "case",
@@ -150,7 +205,7 @@ mod tests {
     fn test_no_fallthrough_rule() {
         let errors_default = [RuleTestExpectedErrorBuilder::default()
             .message_id("default")
-            .type_(SwitchCase)
+            .type_(SwitchDefault)
             .build()
             .unwrap()];
 
@@ -196,7 +251,10 @@ mod tests {
                     "switch (foo) { case 0: try {} finally { break; } default: b(); }",
                     "switch (foo) { case 0: try { throw 0; } catch (err) { break; } default: b(); }",
                     "switch (foo) { case 0: do { throw 0; } while(a); default: b(); }",
-                    "switch (foo) { case 0: a(); \n// eslint-disable-next-line no-fallthrough\n case 1: }",
+                    // TODO: I believe this is testing behavior of disabling-comments
+                    // (vs testing the rule itself so to speak)? In which case if I
+                    // support those then this can be uncommented?
+                    // "switch (foo) { case 0: a(); \n// eslint-disable-next-line no-fallthrough\n case 1: }",
                     {
                         code => "switch(foo) { case 0: a(); /* no break */ case 1: b(); }",
                         options => {
@@ -261,7 +319,7 @@ mod tests {
                         errors => [
                             {
                                 message_id => "default",
-                                type => SwitchCase,
+                                type => SwitchDefault,
                                 line => 2,
                                 column => 1
                             }
@@ -345,7 +403,7 @@ mod tests {
                         errors => [
                             {
                                 message_id => "default",
-                                type => SwitchCase,
+                                type => SwitchDefault,
                                 line => 4,
                                 column => 1
                             }
@@ -359,7 +417,7 @@ mod tests {
                         errors => [
                             {
                                 message_id => "default",
-                                type => SwitchCase,
+                                type => SwitchDefault,
                                 line => 4,
                                 column => 1
                             }
