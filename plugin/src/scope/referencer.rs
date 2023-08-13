@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     cell::{Ref, RefMut},
+    ops,
 };
 
 use id_arena::Id;
@@ -730,5 +731,9 @@ pub struct PatternAndNode<'a> {
 impl<'a> SourceTextProvider<'a> for Referencer<'a, '_> {
     fn node_text(&self, node: Node) -> Cow<'a, str> {
         self.scope_manager.node_text(node)
+    }
+
+    fn slice(&self, range: ops::Range<usize>) -> Cow<'a, str> {
+        self.scope_manager.slice(range)
     }
 }

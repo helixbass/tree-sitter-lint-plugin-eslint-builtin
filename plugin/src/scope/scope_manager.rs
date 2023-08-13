@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     cell::{Ref, RefCell, RefMut},
     collections::HashMap,
+    ops,
 };
 
 use id_arena::Id;
@@ -167,6 +168,10 @@ impl<'a> ScopeManager<'a> {
 
 impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {
     fn node_text(&self, node: Node) -> Cow<'a, str> {
-        node.utf8_text(self.source_text).unwrap().into()
+        self.source_text.node_text(node)
+    }
+
+    fn slice(&self, range: ops::Range<usize>) -> Cow<'a, str> {
+        self.source_text.slice(range)
     }
 }

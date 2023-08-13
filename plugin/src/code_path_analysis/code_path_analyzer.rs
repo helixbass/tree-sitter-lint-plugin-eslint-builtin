@@ -1,4 +1,4 @@
-use std::{any::TypeId, borrow::Cow, rc::Rc, sync::OnceLock};
+use std::{any::TypeId, borrow::Cow, ops, rc::Rc, sync::OnceLock};
 
 use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
@@ -956,6 +956,10 @@ tid! { impl<'a> TidAble<'a> for CodePathAnalyzer<'a> }
 impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
     fn node_text(&self, node: Node) -> Cow<'a, str> {
         self.file_contents.node_text(node)
+    }
+
+    fn slice(&self, range: ops::Range<usize>) -> Cow<'a, str> {
+        self.file_contents.slice(range)
     }
 }
 

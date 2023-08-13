@@ -2,7 +2,7 @@ use std::cmp;
 
 use tree_sitter_lint::{
     tree_sitter::{Node, Range},
-    Fixer, QueryMatchContext,
+    Fixer, QueryMatchContext, SourceTextProvider,
 };
 
 use super::ast_utils;
@@ -51,6 +51,17 @@ impl<'a, 'b, 'c, 'd> FixTracker<'a, 'b, 'c, 'd> {
                 retained_range.end_point
             },
         });
+
+        self.fixer.replace_text_range(
+            actual_range,
+            format!(
+                "{}{}{}",
+                self.context
+                    .slice(actual_range.start_byte..range.start_byte),
+                text,
+                self.context.slice(range.end_byte..actual_range.end_byte),
+            ),
+        );
     }
 
     pub fn remove(&mut self, node_or_token: Node) {
