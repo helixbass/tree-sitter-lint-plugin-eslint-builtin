@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -36,23 +39,17 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
         ],
         listeners => [
             "program:exit" => |node, context| {
-                println!("program exit");
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
+                type NodeId = usize;
+                let mut reachable_nodes: HashSet<NodeId> = Default::default();
+                let mut maybe_unreachable_nodes: HashMap<NodeId, Node<'_>> = Default::default();
                 for &code_path in &code_path_analyzer.code_paths {
                     code_path_analyzer.code_path_arena[code_path]
                         .traverse_all_segments(
                             &code_path_analyzer.code_path_segment_arena,
                             None,
                             |_, segment, _| {
-                                if code_path_analyzer.code_path_segment_arena[segment]
-                                    .reachable {
-                                    return;
-                                }
-                                println!("nodes: {:#?}",
-                                    code_path_analyzer.code_path_segment_arena[segment]
-                                        .nodes
-                                );
                                 code_path_analyzer.code_path_segment_arena[segment]
                                     .nodes
                                     .iter()
@@ -64,14 +61,24 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                                     })
                                     .for_each(|(_, node)| {
                                         if is_target_node(*node) {
-                                            context.report(violation! {
-                                                message_id => "unreachable_code",
-                                                node => *node,
-                                            });
+                                            if code_path_analyzer.code_path_segment_arena[segment]
+                                                .reachable {
+                                                reachable_nodes.insert(node.id());
+                                            } else {
+                                                maybe_unreachable_nodes.insert(node.id(), *node);
+                                            }
                                         }
                                     });
                             }
                         );
+                }
+                for (_, node) in maybe_unreachable_nodes
+                    .into_iter()
+                    .filter(|(node_id, _)| !reachable_nodes.contains(node_id)) {
+                    context.report(violation! {
+                        message_id => "unreachable_code",
+                        node => node,
+                    });
                 }
             },
         ]
