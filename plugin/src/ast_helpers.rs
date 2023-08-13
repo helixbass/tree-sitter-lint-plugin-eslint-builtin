@@ -341,6 +341,7 @@ pub trait NodeExtJs<'a> {
     fn is_first_call_expression_argument(&self, call_expression: Node) -> bool;
     fn when_kind(&self, kind: Kind) -> Option<Node<'a>>;
     fn is_first_non_comment_named_child(&self) -> bool;
+    fn is_last_non_comment_named_child(&self) -> bool;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -462,6 +463,17 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
     fn is_first_non_comment_named_child(&self) -> bool {
         self.parent()
             .matches(|parent| parent.maybe_first_non_comment_named_child() == Some(*self))
+    }
+
+    fn is_last_non_comment_named_child(&self) -> bool {
+        let mut current_node = *self;
+        while let Some(next_sibling) = current_node.next_named_sibling() {
+            if next_sibling.kind() != Comment {
+                return false;
+            }
+            current_node = next_sibling;
+        }
+        true
     }
 }
 
