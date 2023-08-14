@@ -18,15 +18,16 @@ use crate::{
         is_logical_expression, skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
     },
     kind::{
-        self, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression, AwaitExpression,
-        BinaryExpression, CallExpression, ClassStaticBlock, ComputedPropertyName, Decorator,
-        FieldDefinition, Function, FunctionDeclaration, GeneratorFunction,
+        self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
+        AwaitExpression, BinaryExpression, CallExpression, ClassStaticBlock, ComputedPropertyName,
+        Decorator, False, FieldDefinition, Function, FunctionDeclaration, GeneratorFunction,
         GeneratorFunctionDeclaration, Identifier, Kind, MemberExpression, MethodDefinition,
         NewExpression, Null, Number, Pair, PairPattern, ParenthesizedExpression,
         PrivatePropertyIdentifier, Program, PropertyIdentifier, SequenceExpression,
         ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, StatementBlock,
-        SubscriptExpression, SwitchCase, SwitchDefault, TemplateString, TemplateSubstitution,
-        TernaryExpression, UnaryExpression, Undefined, UpdateExpression, YieldExpression,
+        SubscriptExpression, Super, SwitchCase, SwitchDefault, TemplateString,
+        TemplateSubstitution, TernaryExpression, This, True, UnaryExpression, Undefined,
+        UpdateExpression, YieldExpression,
     },
 };
 
@@ -219,6 +220,77 @@ pub fn is_specific_member_access<'a>(
     }
 
     true
+}
+
+fn equal_literal_value(left: Node, right: Node, context: &QueryMatchContext) -> bool {
+    match (left.kind(), right.kind()) {
+        (kind::String, kind::String) => left.text(context) == right.text(context),
+        (kind::Number, kind::Number) => left.text(context) == right.text(context),
+        (kind::Regex, kind::Regex) => left.text(context) == right.text(context),
+        (Null, Null) => true,
+        (True, True) => true,
+        (False, False) => true,
+        _ => false,
+    }
+}
+
+pub fn is_same_reference(
+    left: Node,
+    right: Node,
+    disable_static_computed_key: Option<bool>,
+    context: &QueryMatchContext,
+) -> bool {
+    let disable_static_computed_key = disable_static_computed_key.unwrap_or_default();
+    if left.kind() != right.kind()
+        && !([MemberExpression, SubscriptExpression].contains(&left.kind())
+            && [MemberExpression, SubscriptExpression].contains(&right.kind()))
+    {
+        return false;
+    }
+
+    match left.kind() {
+        Super | This => true,
+        Identifier | PrivatePropertyIdentifier => left.text(context) == right.text(context),
+        kind if is_literal_kind(kind) => equal_literal_value(left, right, context),
+        MemberExpression | SubscriptExpression => {
+            if !disable_static_computed_key {
+                let name_a = get_static_property_name(left, context);
+
+                if let Some(name_a) = name_a {
+                    return is_same_reference(
+                        left.field("object"),
+                        right.field("object"),
+                        Some(disable_static_computed_key),
+                        context,
+                    ) && Some(name_a) == get_static_property_name(right, context);
+                }
+            }
+
+            left.kind() == right.kind()
+                && is_same_reference(
+                    left.field("object"),
+                    right.field("object"),
+                    Some(disable_static_computed_key),
+                    context,
+                )
+                && match left.kind() {
+                    MemberExpression => is_same_reference(
+                        left.field("property"),
+                        right.field("property"),
+                        Some(disable_static_computed_key),
+                        context,
+                    ),
+                    SubscriptExpression => is_same_reference(
+                        left.field("index"),
+                        right.field("index"),
+                        Some(disable_static_computed_key),
+                        context,
+                    ),
+                    _ => unreachable!(),
+                }
+        }
+        _ => false,
+    }
 }
 
 pub fn is_parenthesised(node: Node) -> bool {

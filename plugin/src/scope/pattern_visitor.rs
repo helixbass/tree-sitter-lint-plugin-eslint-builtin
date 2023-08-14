@@ -3,7 +3,7 @@ use tree_sitter_lint::tree_sitter::Node;
 use crate::{
     kind::{
         ArrayPattern, AssignmentPattern, Identifier, ObjectAssignmentPattern, ObjectPattern,
-        RestElement, SpreadElement,
+        RestPattern, SpreadElement,
     },
     visit::Visit,
 };
@@ -20,7 +20,7 @@ pub fn is_pattern(node: Node) -> bool {
             | ObjectPattern
             | ArrayPattern
             | SpreadElement
-            | RestElement
+            | RestPattern
             | AssignmentPattern
             | ObjectAssignmentPattern
     )

@@ -342,6 +342,7 @@ pub trait NodeExtJs<'a> {
     fn when_kind(&self, kind: Kind) -> Option<Node<'a>>;
     fn is_first_non_comment_named_child(&self) -> bool;
     fn is_last_non_comment_named_child(&self) -> bool;
+    fn num_non_comment_named_children(&self) -> usize;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
@@ -474,6 +475,10 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
             current_node = next_sibling;
         }
         true
+    }
+
+    fn num_non_comment_named_children(&self) -> usize {
+        self.non_comment_named_children().count()
     }
 }
 

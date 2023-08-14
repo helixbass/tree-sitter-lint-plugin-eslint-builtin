@@ -27,7 +27,7 @@ use crate::{
         GeneratorFunctionDeclaration, Identifier, IfStatement, ImportClause, ImportSpecifier,
         LabeledStatement, MemberExpression, MethodDefinition, NamespaceImport, NewExpression, Null,
         ObjectAssignmentPattern, Pair, PairPattern, ParenthesizedExpression, Program,
-        PropertyIdentifier, RestElement, ReturnStatement, ShorthandPropertyIdentifier,
+        PropertyIdentifier, RestPattern, ReturnStatement, ShorthandPropertyIdentifier,
         SubscriptExpression, SwitchBody, SwitchCase, SwitchDefault, SwitchStatement,
         TernaryExpression, ThrowStatement, True, TryStatement, VariableDeclarator, WhileStatement,
         YieldExpression,
@@ -122,7 +122,7 @@ fn is_identifier_reference(node: Node) -> bool {
     let parent = node.parent().unwrap();
 
     match parent.kind() {
-        LabeledStatement | BreakStatement | ContinueStatement | ArrayPattern | RestElement
+        LabeledStatement | BreakStatement | ContinueStatement | ArrayPattern | RestPattern
         | ImportClause | ImportSpecifier | NamespaceImport | CatchClause => false,
         FunctionDeclaration
         | GeneratorFunctionDeclaration
