@@ -1,5 +1,6 @@
 use id_arena::{Arena, Id};
-use squalid::return_if_none;
+use itertools::Itertools;
+use squalid::{return_if_none, VecExt};
 use std::{iter, rc::Rc};
 use tree_sitter_lint::tree_sitter::Node;
 
@@ -8,7 +9,7 @@ use crate::kind::{DoStatement, ForInStatement, ForStatement, Kind, WhileStatemen
 use super::{
     code_path_analyzer::{Event, OnLooped},
     code_path_segment::CodePathSegment,
-    fork_context::ForkContext,
+    fork_context::{ForkContext, SingleOrSplitSegment, SplitSegment},
     id_generator::IdGenerator,
 };
 
@@ -108,36 +109,25 @@ fn remove<T: PartialEq>(xs: &mut Vec<T>, x: &T) {
 
 fn remove_connection<'a>(
     arena: &mut Arena<CodePathSegment<'a>>,
-    prev_segments: &[Id<CodePathSegment<'a>>],
-    next_segments: &[Id<CodePathSegment<'a>>],
+    prev_segments: &SingleOrSplitSegment<'a>,
+    next_segments: &SingleOrSplitSegment<'a>,
 ) {
-    for (i, &prev_segment) in prev_segments.into_iter().enumerate() {
-        let next_segment = next_segments[i];
-
-        remove(
-            &mut arena.get_mut(prev_segment).unwrap().next_segments,
-            &next_segment,
-        );
-        remove(
-            &mut arena.get_mut(prev_segment).unwrap().all_next_segments,
-            &next_segment,
-        );
-        remove(
-            &mut arena.get_mut(next_segment).unwrap().prev_segments,
-            &prev_segment,
-        );
-        remove(
-            &mut arena.get_mut(next_segment).unwrap().all_prev_segments,
-            &prev_segment,
-        );
+    assert!(prev_segments.split_depth() == next_segments.split_depth());
+    for (next_segment, prev_segment) in
+        iter::zip(prev_segments.segments(), next_segments.segments())
+    {
+        remove(&mut arena[prev_segment].next_segments, &next_segment);
+        remove(&mut arena[prev_segment].all_next_segments, &next_segment);
+        remove(&mut arena[next_segment].prev_segments, &prev_segment);
+        remove(&mut arena[next_segment].all_prev_segments, &prev_segment);
     }
 }
 
 fn make_looped<'a>(
     arena: &mut Arena<CodePathSegment<'a>>,
     state: &CodePathState<'a>,
-    unflattened_from_segments: &[Id<CodePathSegment<'a>>],
-    unflattened_to_segments: &[Id<CodePathSegment<'a>>],
+    unflattened_from_segments: &SingleOrSplitSegment<'a>,
+    unflattened_to_segments: &SingleOrSplitSegment<'a>,
 ) {
     let from_segments = CodePathSegment::flatten_unused_segments(arena, unflattened_from_segments);
     let to_segments = CodePathSegment::flatten_unused_segments(arena, unflattened_to_segments);
@@ -859,7 +849,7 @@ impl<'a> CodePathState<'a> {
             .returned_fork_context
             .unwrap();
         let thrown = self.try_context.as_ref().unwrap().thrown_fork_context;
-        let head_of_leaving_segments = arena.get(fork_context).unwrap().head().clone();
+        let head_of_leaving_segments = arena[fork_context].head();
 
         if self.try_context.as_ref().unwrap().position == TryContextPosition::Catch {
             self.pop_fork_context(arena, code_path_segment_arena);
@@ -880,41 +870,44 @@ impl<'a> CodePathState<'a> {
         }
         self.try_context.as_mut().unwrap().position = TryContextPosition::Finally;
 
-        if arena.get(returned).unwrap().empty() && arena.get(thrown).unwrap().empty() {
+        if arena[returned].empty() && arena[thrown].empty() {
             return;
         }
 
-        let mut segments =
-            arena
-                .get(fork_context)
-                .unwrap()
-                .make_next_raw(code_path_segment_arena, -1, -1);
+        let segments = Rc::new(SingleOrSplitSegment::Split(SplitSegment::new(
+            arena[fork_context].make_next(code_path_segment_arena, -1, -1),
+            {
+                let returned_segments = arena[returned]
+                    .segments_list
+                    .iter()
+                    .map(|segment| segment.segments())
+                    .collect_vec();
+                let thrown_segments = arena[thrown]
+                    .segments_list
+                    .iter()
+                    .map(|segment| segment.segments())
+                    .collect_vec();
+                let mut segment_index = 0;
 
-        for i in 0..arena.get(fork_context).unwrap().count {
-            let mut prev_segs_of_leaving_segment = vec![head_of_leaving_segments[i]];
+                Rc::new(head_of_leaving_segments.map(|head_of_leaving_segment| {
+                    let ret = CodePathSegment::new_next(
+                        code_path_segment_arena,
+                        self.id_generator.next(),
+                        &vec![head_of_leaving_segment]
+                            .and_extend(returned_segments[segment_index].clone())
+                            .and_extend(thrown_segments[segment_index].clone()),
+                    );
 
-            for segments in &arena.get(returned).unwrap().segments_list {
-                prev_segs_of_leaving_segment.push(segments[i]);
-            }
-            for segments in &arena.get(thrown).unwrap().segments_list {
-                prev_segs_of_leaving_segment.push(segments[i]);
-            }
+                    segment_index += 1;
 
-            segments.push(CodePathSegment::new_next(
-                code_path_segment_arena,
-                self.id_generator.next(),
-                &prev_segs_of_leaving_segment,
-            ));
-        }
-
-        let segments = Rc::new(segments);
+                    ret
+                }))
+            },
+        )));
 
         self.push_fork_context(arena, Some(true));
 
-        arena
-            .get_mut(self.fork_context)
-            .unwrap()
-            .add(code_path_segment_arena, segments);
+        arena[self.fork_context].add(code_path_segment_arena, segments);
     }
 
     pub fn make_first_throwable_path_in_try_block(
@@ -1597,8 +1590,8 @@ pub struct ChoiceContext<'a> {
 struct SwitchContext<'a> {
     upper: Option<Box<SwitchContext<'a>>>,
     has_case: bool,
-    default_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    default_body_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    default_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
+    default_body_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     found_default: bool,
     last_is_default: bool,
     count_forks: usize,
@@ -1656,7 +1649,7 @@ impl<'a> LoopContext<'a> {
         }
     }
 
-    pub fn continue_dest_segments(&self) -> Option<Rc<Vec<Id<CodePathSegment<'a>>>>> {
+    pub fn continue_dest_segments(&self) -> Option<SingleOrSplitSegment<'a>> {
         match self {
             LoopContext::While(value) => value.continue_dest_segments.clone(),
             LoopContext::Do(_) => None,
@@ -1726,7 +1719,7 @@ struct WhileLoopContext<'a> {
     upper: Option<Box<LoopContext<'a>>>,
     label: Option<String>,
     test: Option<bool>,
-    continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    continue_dest_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     broken_fork_context: Id<ForkContext<'a>>,
 }
 
@@ -1734,7 +1727,7 @@ struct DoLoopContext<'a> {
     upper: Option<Box<LoopContext<'a>>>,
     label: Option<String>,
     test: Option<bool>,
-    entry_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    entry_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     continue_fork_context: Id<ForkContext<'a>>,
     broken_fork_context: Id<ForkContext<'a>>,
 }
@@ -1744,11 +1737,11 @@ struct ForLoopContext<'a> {
     label: Option<String>,
     test: Option<bool>,
     end_of_init_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    test_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    end_of_test_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    test_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
+    end_of_test_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     update_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    end_of_update_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    end_of_update_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
+    continue_dest_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     broken_fork_context: Id<ForkContext<'a>>,
 }
 
@@ -1757,7 +1750,7 @@ struct ForInLoopContext<'a> {
     is_for_of: bool,
     label: Option<String>,
     prev_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    left_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    left_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     end_of_left_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
     continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
     broken_fork_context: Id<ForkContext<'a>>,

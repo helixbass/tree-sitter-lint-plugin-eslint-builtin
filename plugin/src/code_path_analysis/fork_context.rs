@@ -1,80 +1,17 @@
 use std::rc::Rc;
 
 use id_arena::{Arena, Id};
-use squalid::EverythingExt;
+use itertools::Itertools;
+use squalid::{OptionExt, VecExt};
 
 use super::{code_path_segment::CodePathSegment, id_generator::IdGenerator};
-
-fn make_segments<'a>(
-    context: &ForkContext<'a>,
-    begin: isize,
-    end: isize,
-    mut create: impl FnMut(String, &[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
-) -> Vec<Id<CodePathSegment<'a>>> {
-    let list = &context.segments_list;
-
-    let normalized_begin = if begin >= 0 {
-        begin as usize
-    } else {
-        ((list.len() as isize) + begin) as usize
-    };
-    let normalized_end = if end >= 0 {
-        end as usize
-    } else {
-        ((list.len() as isize) + end) as usize
-    };
-
-    (0..context.count)
-        .map(|i| {
-            let all_prev_segments = (normalized_begin..=normalized_end)
-                .map(|j| list[j][i])
-                .collect::<Vec<_>>();
-
-            create(context.id_generator.next(), &all_prev_segments)
-        })
-        .collect()
-}
-
-#[allow(non_snake_case)]
-fn make_segments__missing_begin_end<'a>(
-    context: &ForkContext<'a>,
-    mut create: impl FnMut(String, &[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
-) -> Vec<Id<CodePathSegment<'a>>> {
-    (0..context.count)
-        .map(|_| create(context.id_generator.next(), &[]))
-        .collect()
-}
-
-fn merge_extra_segments<'a>(
-    arena: &mut Arena<CodePathSegment<'a>>,
-    context: &ForkContext,
-    segments: Rc<Vec<Id<CodePathSegment<'a>>>>,
-) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
-    let mut current_segments = segments;
-
-    while current_segments.len() > context.count {
-        let length = current_segments.len() / 2;
-        let merged = (0..length)
-            .map(|i| {
-                CodePathSegment::new_next(
-                    arena,
-                    context.id_generator.next(),
-                    &[current_segments[i], current_segments[i + length]],
-                )
-            })
-            .collect::<Vec<_>>();
-        current_segments = Rc::new(merged);
-    }
-    current_segments
-}
 
 #[derive(Debug)]
 pub struct ForkContext<'a> {
     id_generator: Rc<IdGenerator>,
     pub upper: Option<Id<Self>>,
-    pub count: usize,
-    pub segments_list: Vec<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    default_head: Rc<Vec<Id<CodePathSegment<'a>>>>,
+    pub split_depth: usize,
+    pub segments_list: Vec<Rc<SingleOrSplitSegment<'a>>>,
 }
 
 impl<'a> ForkContext<'a> {
@@ -82,22 +19,22 @@ impl<'a> ForkContext<'a> {
         arena: &mut Arena<Self>,
         id_generator: Rc<IdGenerator>,
         upper: Option<Id<Self>>,
-        count: usize,
+        split_depth: usize,
     ) -> Id<Self> {
         arena.alloc(Self {
             id_generator,
             upper,
-            count,
+            split_depth,
             segments_list: Default::default(),
-            default_head: Default::default(),
         })
     }
 
-    pub fn head(&self) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
-        self.segments_list
-            .last()
-            .cloned()
-            .unwrap_or_else(|| self.default_head.clone())
+    pub fn maybe_head(&self) -> Option<Rc<SingleOrSplitSegment<'a>>> {
+        self.segments_list.last().cloned()
+    }
+
+    pub fn head(&self) -> Rc<SingleOrSplitSegment<'a>> {
+        self.segments_list.last().cloned().unwrap()
     }
 
     pub fn empty(&self) -> bool {
@@ -105,28 +42,44 @@ impl<'a> ForkContext<'a> {
     }
 
     pub fn reachable(&self, arena: &Arena<CodePathSegment<'a>>) -> bool {
-        self.head().thrush(|head| {
-            !head.is_empty()
-                && head
-                    .iter()
-                    .any(|&segment| arena.get(segment).unwrap().reachable)
+        self.maybe_head().matches(|head| head.reachable(arena))
+    }
+
+    fn make_segments(
+        &self,
+        begin: isize,
+        end: isize,
+        mut create: impl FnMut(String, &[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
+    ) -> SingleOrSplitSegment<'a> {
+        let list = &self.segments_list;
+
+        let normalized_begin = if begin >= 0 {
+            begin as usize
+        } else {
+            ((list.len() as isize) + begin) as usize
+        };
+        let normalized_end = if end >= 0 {
+            end as usize
+        } else {
+            ((list.len() as isize) + end) as usize
+        };
+
+        SingleOrSplitSegment::reduce(list, self.split_depth, |segments| {
+            create(
+                self.id_generator.next(),
+                &segments[normalized_begin..=normalized_end],
+            )
         })
     }
 
-    pub fn make_next_raw(
+    #[allow(non_snake_case)]
+    fn make_segments__missing_begin_end(
         &self,
-        arena: &mut Arena<CodePathSegment<'a>>,
-        begin: isize,
-        end: isize,
-    ) -> Vec<Id<CodePathSegment<'a>>> {
-        make_segments(
-            self,
-            begin,
-            end,
-            |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
-                CodePathSegment::new_next(arena, id, all_prev_segments)
-            },
-        )
+        mut create: impl FnMut(String, &[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
+    ) -> SingleOrSplitSegment<'a> {
+        SingleOrSplitSegment::reduce(&self.segments_list, self.split_depth, |_| {
+            create(self.id_generator.next(), &[])
+        })
     }
 
     pub fn make_next(
@@ -134,8 +87,14 @@ impl<'a> ForkContext<'a> {
         arena: &mut Arena<CodePathSegment<'a>>,
         begin: isize,
         end: isize,
-    ) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
-        Rc::new(self.make_next_raw(arena, begin, end))
+    ) -> Rc<SingleOrSplitSegment<'a>> {
+        Rc::new(self.make_segments(
+            begin,
+            end,
+            |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
+                CodePathSegment::new_next(arena, id, all_prev_segments)
+            },
+        ))
     }
 
     pub fn make_unreachable(
@@ -143,9 +102,8 @@ impl<'a> ForkContext<'a> {
         arena: &mut Arena<CodePathSegment<'a>>,
         begin: isize,
         end: isize,
-    ) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
-        Rc::new(make_segments(
-            self,
+    ) -> Rc<SingleOrSplitSegment<'a>> {
+        Rc::new(self.make_segments(
             begin,
             end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
@@ -158,9 +116,8 @@ impl<'a> ForkContext<'a> {
     pub fn make_unreachable__missing_begin_end(
         &self,
         arena: &mut Arena<CodePathSegment<'a>>,
-    ) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
-        Rc::new(make_segments__missing_begin_end(
-            self,
+    ) -> Rc<SingleOrSplitSegment<'a>> {
+        Rc::new(self.make_segments__missing_begin_end(
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_unreachable(arena, id, all_prev_segments)
             },
@@ -172,9 +129,8 @@ impl<'a> ForkContext<'a> {
         arena: &mut Arena<CodePathSegment<'a>>,
         begin: isize,
         end: isize,
-    ) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
-        Rc::new(make_segments(
-            self,
+    ) -> Rc<SingleOrSplitSegment<'a>> {
+        Rc::new(self.make_segments(
             begin,
             end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
@@ -183,48 +139,62 @@ impl<'a> ForkContext<'a> {
         ))
     }
 
+    fn merge_extra_segments(
+        &self,
+        arena: &mut Arena<CodePathSegment<'a>>,
+        segments: Rc<SingleOrSplitSegment<'a>>,
+    ) -> Rc<SingleOrSplitSegment<'a>> {
+        if segments.split_depth() == self.split_depth {
+            return segments;
+        }
+
+        let mut current_segments = segments;
+        while current_segments.split_depth() > self.split_depth {
+            current_segments = current_segments.unsplit(|a, b| {
+                CodePathSegment::new_next(arena, self.id_generator.next(), &[a, b])
+            });
+        }
+        current_segments
+    }
+
     pub fn add(
         &mut self,
         arena: &mut Arena<CodePathSegment<'a>>,
-        segments: Rc<Vec<Id<CodePathSegment<'a>>>>,
+        segments: Rc<SingleOrSplitSegment<'a>>,
     ) {
         assert!(
-            segments.len() >= self.count,
+            segments.split_depth() >= self.split_depth,
             "{} >= {}",
-            segments.len(),
-            self.count
+            segments.split_depth(),
+            self.split_depth
         );
 
         self.segments_list
-            .push(merge_extra_segments(arena, self, segments));
+            .push(self.merge_extra_segments(arena, segments));
     }
 
     pub fn replace_head(
         &mut self,
         arena: &mut Arena<CodePathSegment<'a>>,
-        segments: Rc<Vec<Id<CodePathSegment<'a>>>>,
+        segments: Rc<SingleOrSplitSegment<'a>>,
     ) {
         assert!(
-            segments.len() >= self.count,
+            segments.split_depth() >= self.split_depth,
             "{} >= {}",
-            segments.len(),
-            self.count,
+            segments.split_depth(),
+            self.split_depth,
         );
 
-        self.segments_list.splice(
-            self.segments_list.len() - 1..,
-            [merge_extra_segments(arena, self, segments)],
-        );
+        *self.segments_list.last_mut().unwrap() = self.merge_extra_segments(arena, segments);
     }
 
     pub fn add_all(arena: &mut Arena<Self>, self_: Id<Self>, context: Id<Self>) {
-        assert!(arena.get(context).unwrap().count == arena.get(self_).unwrap().count);
+        assert!(arena[context].split_depth == arena[self_].split_depth);
 
-        let source = arena.get(context).unwrap().segments_list.clone();
+        let source = arena[context].segments_list.clone();
 
-        let self_value = arena.get_mut(self_).unwrap();
         for source_item in source {
-            self_value.segments_list.push(source_item);
+            arena[self_].segments_list.push(source_item);
         }
     }
 
@@ -240,10 +210,10 @@ impl<'a> ForkContext<'a> {
         let context = Self::new(arena, id_generator.clone(), None, 1);
 
         let segment = CodePathSegment::new_root(code_path_segment_arena, id_generator.next());
-        arena
-            .get_mut(context)
-            .unwrap()
-            .add(code_path_segment_arena, Rc::new(vec![segment]));
+        arena.get_mut(context).unwrap().add(
+            code_path_segment_arena,
+            Rc::new(SingleOrSplitSegment::Single(segment)),
+        );
 
         context
     }
@@ -254,16 +224,203 @@ impl<'a> ForkContext<'a> {
         fork_leaving_path: Option<bool>,
     ) -> Id<Self> {
         let id_generator = arena[parent_context].id_generator.clone();
-        let parent_context_count = arena[parent_context].count;
+        let parent_context_split_depth = arena[parent_context].split_depth;
         Self::new(
             arena,
             id_generator,
             Some(parent_context),
             if fork_leaving_path.unwrap_or_default() {
-                2
+                parent_context_split_depth + 1
             } else {
-                1
-            } * parent_context_count,
+                parent_context_split_depth
+            },
         )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum SingleOrSplitSegment<'a> {
+    Single(Id<CodePathSegment<'a>>),
+    Split(SplitSegment<'a>),
+}
+
+impl<'a> SingleOrSplitSegment<'a> {
+    pub fn split_depth(&self) -> usize {
+        match self {
+            SingleOrSplitSegment::Single(_) => 0,
+            SingleOrSplitSegment::Split(split_segment) => split_segment.split_depth,
+        }
+    }
+
+    pub fn reduce(
+        // list: impl IntoIterator<Item = &'b Self>,
+        list: &[Rc<Self>],
+        split_depth: usize,
+        mut create: impl FnMut(&[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
+    ) -> Self {
+        if split_depth == 0 {
+            Self::Single(create(
+                &list
+                    .into_iter()
+                    .map(|item| match &**item {
+                        SingleOrSplitSegment::Single(item) => *item,
+                        SingleOrSplitSegment::Split(_) => panic!("Not of expected split depth"),
+                    })
+                    .collect_vec(),
+            ))
+        } else {
+            Self::Split(SplitSegment::new(
+                Rc::new(Self::reduce(
+                    &list
+                        .into_iter()
+                        .map(|item| match &**item {
+                            SingleOrSplitSegment::Split(split_segment) => {
+                                split_segment.segments.0.clone()
+                            }
+                            SingleOrSplitSegment::Single(_) => {
+                                panic!("Not of expected split depth")
+                            }
+                        })
+                        .collect_vec(),
+                    split_depth - 1,
+                    &mut create,
+                )),
+                Rc::new(Self::reduce(
+                    &list
+                        .into_iter()
+                        .map(|item| match &**item {
+                            SingleOrSplitSegment::Split(split_segment) => {
+                                split_segment.segments.1.clone()
+                            }
+                            SingleOrSplitSegment::Single(_) => {
+                                panic!("Not of expected split depth")
+                            }
+                        })
+                        .collect_vec(),
+                    split_depth - 1,
+                    &mut create,
+                )),
+            ))
+        }
+    }
+
+    pub fn unsplit(
+        self: Rc<Self>,
+        merge: impl FnMut(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
+    ) -> Rc<Self> {
+        match &*self {
+            SingleOrSplitSegment::Single(_) => self.clone(),
+            SingleOrSplitSegment::Split(split_segment) => Rc::new(split_segment.unsplit(merge)),
+        }
+    }
+
+    pub fn reachable(&self, arena: &Arena<CodePathSegment<'a>>) -> bool {
+        match self {
+            SingleOrSplitSegment::Single(segment) => arena[*segment].reachable,
+            SingleOrSplitSegment::Split(split_segment) => split_segment.reachable(arena),
+        }
+    }
+
+    pub fn segments(&self) -> Vec<Id<CodePathSegment<'a>>> {
+        match self {
+            SingleOrSplitSegment::Single(segment) => {
+                vec![*segment]
+            }
+            SingleOrSplitSegment::Split(split_segment) => split_segment.segments(),
+        }
+    }
+
+    pub fn map(
+        &self,
+        mut mapper: impl FnMut(Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
+    ) -> Self {
+        match self {
+            SingleOrSplitSegment::Single(segment) => Self::Single(mapper(*segment)),
+            SingleOrSplitSegment::Split(split_segment) => Self::Split(SplitSegment::new(
+                Rc::new(split_segment.segments.0.map(&mut mapper)),
+                Rc::new(split_segment.segments.1.map(&mut mapper)),
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SplitSegment<'a> {
+    split_depth: usize,
+    segments: (Rc<SingleOrSplitSegment<'a>>, Rc<SingleOrSplitSegment<'a>>),
+}
+
+impl<'a> SplitSegment<'a> {
+    pub fn new(left: Rc<SingleOrSplitSegment<'a>>, right: Rc<SingleOrSplitSegment<'a>>) -> Self {
+        assert!(left.split_depth() == right.split_depth());
+        Self {
+            split_depth: left.split_depth() + 1,
+            segments: (left, right),
+        }
+    }
+
+    pub fn unsplit(
+        &self,
+        merge: impl FnMut(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
+    ) -> SingleOrSplitSegment<'a> {
+        match self.split_depth {
+            1 => SingleOrSplitSegment::Single(merge(
+                match &*self.segments.0 {
+                    SingleOrSplitSegment::Single(segment) => *segment,
+                    SingleOrSplitSegment::Split(_) => unreachable!(),
+                },
+                match &*self.segments.1 {
+                    SingleOrSplitSegment::Single(segment) => *segment,
+                    SingleOrSplitSegment::Split(_) => unreachable!(),
+                },
+            )),
+            _ => SingleOrSplitSegment::Split(SplitSegment::new(
+                Rc::new(
+                    Self::new(
+                        match &*self.segments.0 {
+                            SingleOrSplitSegment::Split(split_segment) => {
+                                split_segment.segments.0.clone()
+                            }
+                            SingleOrSplitSegment::Single(_) => unreachable!(),
+                        },
+                        match &*self.segments.1 {
+                            SingleOrSplitSegment::Split(split_segment) => {
+                                split_segment.segments.0.clone()
+                            }
+                            SingleOrSplitSegment::Single(_) => unreachable!(),
+                        },
+                    )
+                    .unsplit(&mut merge),
+                ),
+                Rc::new(
+                    Self::new(
+                        match &*self.segments.0 {
+                            SingleOrSplitSegment::Split(split_segment) => {
+                                split_segment.segments.1.clone()
+                            }
+                            SingleOrSplitSegment::Single(_) => unreachable!(),
+                        },
+                        match &*self.segments.1 {
+                            SingleOrSplitSegment::Split(split_segment) => {
+                                split_segment.segments.1.clone()
+                            }
+                            SingleOrSplitSegment::Single(_) => unreachable!(),
+                        },
+                    )
+                    .unsplit(&mut merge),
+                ),
+            )),
+        }
+    }
+
+    pub fn reachable(&self, arena: &Arena<CodePathSegment<'a>>) -> bool {
+        self.segments.0.reachable(arena) || self.segments.1.reachable(arena)
+    }
+
+    pub fn segments(&self) -> Vec<Id<CodePathSegment<'a>>> {
+        self.segments
+            .0
+            .segments()
+            .and_extend(self.segments.1.segments())
     }
 }
