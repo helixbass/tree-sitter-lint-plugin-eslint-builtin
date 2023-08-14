@@ -47,27 +47,19 @@ impl<'a> ForkContext<'a> {
 
     fn make_segments(
         &self,
-        begin: isize,
-        end: isize,
         mut create: impl FnMut(String, &[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
+        just_head: bool,
     ) -> SingleOrSplitSegment<'a> {
         let list = &self.segments_list;
-
-        let normalized_begin = if begin >= 0 {
-            begin as usize
-        } else {
-            ((list.len() as isize) + begin) as usize
-        };
-        let normalized_end = if end >= 0 {
-            end as usize
-        } else {
-            ((list.len() as isize) + end) as usize
-        };
 
         SingleOrSplitSegment::reduce(list, self.split_depth, &mut |segments| {
             create(
                 self.id_generator.next(),
-                &segments[normalized_begin..=normalized_end],
+                if just_head {
+                    &segments[list.len() - 1..]
+                } else {
+                    segments
+                },
             )
         })
     }
@@ -85,30 +77,26 @@ impl<'a> ForkContext<'a> {
     pub fn make_next(
         &self,
         arena: &mut Arena<CodePathSegment<'a>>,
-        begin: isize,
-        end: isize,
+        just_head: bool,
     ) -> Rc<SingleOrSplitSegment<'a>> {
         Rc::new(self.make_segments(
-            begin,
-            end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_next(arena, id, all_prev_segments)
             },
+            just_head,
         ))
     }
 
     pub fn make_unreachable(
         &self,
         arena: &mut Arena<CodePathSegment<'a>>,
-        begin: isize,
-        end: isize,
+        just_head: bool,
     ) -> Rc<SingleOrSplitSegment<'a>> {
         Rc::new(self.make_segments(
-            begin,
-            end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_unreachable(arena, id, all_prev_segments)
             },
+            just_head,
         ))
     }
 
@@ -127,15 +115,13 @@ impl<'a> ForkContext<'a> {
     pub fn make_disconnected(
         &self,
         arena: &mut Arena<CodePathSegment<'a>>,
-        begin: isize,
-        end: isize,
+        just_head: bool,
     ) -> Rc<SingleOrSplitSegment<'a>> {
         Rc::new(self.make_segments(
-            begin,
-            end,
             |id: String, all_prev_segments: &[Id<CodePathSegment>]| {
                 CodePathSegment::new_disconnected(arena, id, all_prev_segments)
             },
+            just_head,
         ))
     }
 
