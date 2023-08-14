@@ -5,8 +5,16 @@ use squalid::{EverythingExt, OptionExt};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
-    kind::{CallExpression, ClassHeritage, MethodDefinition, ReturnStatement, Super},
+    ast_helpers::{
+        get_last_expression_of_sequence_expression, get_method_definition_kind,
+        is_logical_expression, MethodDefinitionKind, NodeExtJs,
+    },
+    kind::{
+        AssignmentExpression, AugmentedAssignmentExpression, BinaryExpression, CallExpression,
+        Class, ClassHeritage, Function, Identifier, MemberExpression, MetaProperty,
+        MethodDefinition, NewExpression, ReturnStatement, SequenceExpression, SubscriptExpression,
+        Super, TernaryExpression, This, YieldExpression,
+    },
     utils::ast_utils,
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
@@ -14,6 +22,42 @@ use crate::{
 fn is_constructor_function(node: Node, context: &QueryMatchContext) -> bool {
     node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
+}
+
+fn is_possible_constructor(node: Node) -> bool {
+    match node.kind() {
+        Class | Function | This | MemberExpression | SubscriptExpression | CallExpression
+        | NewExpression | YieldExpression | MetaProperty | Identifier => true,
+        AssignmentExpression => is_possible_constructor(node.field("right")),
+        AugmentedAssignmentExpression => match node.field("operator").kind() {
+            "&&=" => is_possible_constructor(node.field("right")),
+            "||=" | "??=" => {
+                is_possible_constructor(node.field("left"))
+                    || is_possible_constructor(node.field("right"))
+            }
+            _ => false,
+        },
+        BinaryExpression => {
+            if !is_logical_expression(node) {
+                return false;
+            }
+            match node.field("operator").kind() {
+                "&&" => is_possible_constructor(node.field("right")),
+                _ => {
+                    is_possible_constructor(node.field("left"))
+                        || is_possible_constructor(node.field("right"))
+                }
+            }
+        }
+        TernaryExpression => {
+            is_possible_constructor(node.field("consequence"))
+                || is_possible_constructor(node.field("alternative"))
+        }
+        SequenceExpression => {
+            is_possible_constructor(get_last_expression_of_sequence_expression(node))
+        }
+        _ => false,
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -115,11 +159,23 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                 function: (super)
               ) @c
             "# => |node, context| {
-                if !ast_utils::get_upper_function(node).matches(|node| is_constructor_function(node, context)) {
+                let enclosing_method_definition = ast_utils::get_upper_function(node);
+                if !enclosing_method_definition.matches(|node| is_constructor_function(node, context)) {
                     context.report(violation! {
                         node => node,
                         message_id => "unexpected",
                     });
+                    return;
+                }
+                let enclosing_method_definition = enclosing_method_definition.unwrap();
+                let class_node = enclosing_method_definition.parent().unwrap().parent().unwrap();
+                if let Some(class_heritage) = class_node.maybe_first_child_of_kind(ClassHeritage) {
+                    if !is_possible_constructor(class_heritage.first_non_comment_named_child().skip_parentheses()) {
+                        context.report(violation! {
+                            node => node,
+                            message_id => "bad_super",
+                        });
+                    }
                 }
             },
             "program:exit" => |node, context| {

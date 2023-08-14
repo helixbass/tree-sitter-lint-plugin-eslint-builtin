@@ -569,12 +569,12 @@ pub fn get_last_expression_of_sequence_expression(mut node: Node) -> Node {
     node
 }
 
-pub fn is_logical_expression(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_logical_expression(node: Node) -> bool {
     if node.kind() != BinaryExpression {
         return false;
     }
 
-    matches!(&*node.field("operator").text(context), "&&" | "||" | "??")
+    matches!(node.field("operator").kind(), "&&" | "||" | "??")
 }
 
 pub fn get_object_property_computed_property_name(node: Node) -> Option<Node> {

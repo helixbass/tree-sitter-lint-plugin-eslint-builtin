@@ -639,7 +639,7 @@ pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
             could_be_error(get_last_expression_of_sequence_expression(node), context)
         }
         BinaryExpression => {
-            if !is_logical_expression(node, context) {
+            if !is_logical_expression(node) {
                 return false;
             }
 
