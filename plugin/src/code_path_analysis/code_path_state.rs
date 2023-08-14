@@ -112,7 +112,7 @@ fn remove_connection<'a>(
     next_segments: &SingleOrSplitSegment<'a>,
 ) {
     assert!(prev_segments.split_depth() == next_segments.split_depth());
-    for (next_segment, prev_segment) in
+    for (prev_segment, next_segment) in
         iter::zip(prev_segments.segments(), next_segments.segments())
     {
         remove(&mut arena[prev_segment].next_segments, &next_segment);
@@ -134,32 +134,16 @@ fn make_looped<'a>(
         CodePathSegment::flatten_unused_segments(arena, &unflattened_to_segments.segments());
 
     for (from_segment, to_segment) in iter::zip(from_segments, to_segments) {
-        if arena.get(to_segment).unwrap().reachable {
-            arena
-                .get_mut(from_segment)
-                .unwrap()
-                .next_segments
-                .push(to_segment);
+        if arena[to_segment].reachable {
+            arena[from_segment].next_segments.push(to_segment);
         }
-        if arena.get(from_segment).unwrap().reachable {
-            arena
-                .get_mut(to_segment)
-                .unwrap()
-                .prev_segments
-                .push(from_segment);
+        if arena[from_segment].reachable {
+            arena[to_segment].prev_segments.push(from_segment);
         }
-        arena
-            .get_mut(from_segment)
-            .unwrap()
-            .all_next_segments
-            .push(to_segment);
-        arena
-            .get_mut(to_segment)
-            .unwrap()
-            .all_prev_segments
-            .push(from_segment);
+        arena[from_segment].all_next_segments.push(to_segment);
+        arena[to_segment].all_prev_segments.push(from_segment);
 
-        if arena.get(to_segment).unwrap().all_prev_segments.len() >= 2 {
+        if arena[to_segment].all_prev_segments.len() >= 2 {
             CodePathSegment::mark_prev_segment_as_looped(arena, to_segment, from_segment);
         }
 
@@ -706,7 +690,7 @@ impl<'a> CodePathState<'a> {
                 self.switch_context.as_mut().unwrap().found_default = true;
             } else {
                 self.switch_context.as_mut().unwrap().default_body_segments =
-                    Some(arena.get(fork_context).unwrap().head());
+                    Some(arena[fork_context].head());
             }
         } else {
             if !is_empty && self.switch_context.as_ref().unwrap().found_default {
