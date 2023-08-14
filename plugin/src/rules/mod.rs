@@ -1,5 +1,6 @@
 mod complexity;
 mod consistent_return;
+mod constructor_super;
 mod default_case;
 mod default_case_last;
 mod for_direction;
@@ -53,6 +54,7 @@ mod sort_keys;
 
 pub use complexity::complexity_rule;
 pub use consistent_return::consistent_return_rule;
+pub use constructor_super::constructor_super_rule;
 pub use default_case::default_case_rule;
 pub use default_case_last::default_case_last_rule;
 pub use for_direction::for_direction_rule;
