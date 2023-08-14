@@ -706,3 +706,50 @@ pub fn is_generator_method_definition(node: Node, context: &QueryMatchContext) -
     }
     false
 }
+
+pub fn get_comma_separated_optional_non_comment_named_children(
+    node: Node,
+) -> impl Iterator<Item = Option<Node>> {
+    CommaSeparated::new(node.non_comment_children())
+}
+
+struct CommaSeparated<'a> {
+    non_comment_children: NonCommentChildren<'a>,
+    just_saw_item: bool,
+}
+
+impl<'a> CommaSeparated<'a> {
+    fn new(non_comment_children: NonCommentChildren<'a>) -> Self {
+        Self {
+            non_comment_children,
+            just_saw_item: Default::default(),
+        }
+    }
+}
+
+impl<'a> Iterator for CommaSeparated<'a> {
+    type Item = Option<Node<'a>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.non_comment_children.next()?;
+            match next.kind() {
+                "," => match self.just_saw_item {
+                    true => {
+                        self.just_saw_item = false;
+                    }
+                    false => {
+                        return Some(None);
+                    }
+                },
+                _ => {
+                    if !next.is_named() {
+                        continue;
+                    }
+                    self.just_saw_item = true;
+                    return Some(Some(next));
+                }
+            }
+        }
+    }
+}

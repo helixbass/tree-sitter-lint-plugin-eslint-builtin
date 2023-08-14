@@ -6,10 +6,11 @@ use squalid::{regex, OptionExt};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::NodeExtJs,
+    ast_helpers::{get_comma_separated_optional_non_comment_named_children, NodeExtJs},
     kind::{
         Array, ArrayPattern, Identifier, MemberExpression, Object, ObjectPattern, Pair,
-        PairPattern, RestPattern, SpreadElement, SubscriptExpression,
+        PairPattern, RestPattern, ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern,
+        SpreadElement, SubscriptExpression,
     },
     utils::ast_utils,
 };
@@ -42,8 +43,10 @@ fn each_self_assignment<'a>(
     props: bool,
     context: &QueryMatchContext<'a, '_>,
 ) {
-    if left.kind() == Identifier
-        && right.kind() == Identifier
+    let left = left.skip_parentheses();
+    let right = right.skip_parentheses();
+    if [Identifier, ShorthandPropertyIdentifierPattern].contains(&left.kind())
+        && [Identifier, ShorthandPropertyIdentifier].contains(&right.kind())
         && left.text(context) == right.text(context)
     {
         report(right, context);
@@ -51,21 +54,25 @@ fn each_self_assignment<'a>(
     }
 
     if left.kind() == ArrayPattern && right.kind() == Array {
+        let num_right_elements =
+            get_comma_separated_optional_non_comment_named_children(right).count();
         for (index, (left_element, right_element)) in iter::zip(
-            left.non_comment_named_children(),
-            right.non_comment_named_children(),
+            get_comma_separated_optional_non_comment_named_children(left),
+            get_comma_separated_optional_non_comment_named_children(right),
         )
         .enumerate()
         {
-            if left_element.kind() == RestPattern
-                && index < right.num_non_comment_named_children() - 1
+            if left_element.matches(|left_element| left_element.kind() == RestPattern)
+                && index < num_right_elements - 1
             {
                 break;
             }
 
-            each_self_assignment(left_element, right_element, props, context);
+            if let (Some(left_element), Some(right_element)) = (left_element, right_element) {
+                each_self_assignment(left_element, right_element, props, context);
+            }
 
-            if right_element.kind() == SpreadElement {
+            if right_element.matches(|right_element| right_element.kind() == SpreadElement) {
                 break;
             }
         }
@@ -83,16 +90,20 @@ fn each_self_assignment<'a>(
     }
 
     if left.kind() == ObjectPattern && right.kind() == Object {
-        let right_properties = right.non_comment_named_children().collect_vec();
+        let right_properties =
+            get_comma_separated_optional_non_comment_named_children(right).collect_vec();
         if right_properties.is_empty() {
             return;
         }
-        let left_properties = left.non_comment_named_children().collect_vec();
+        let left_properties =
+            get_comma_separated_optional_non_comment_named_children(left).collect_vec();
         let right_spread_index = right_properties
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, right_property)| right_property.kind() == SpreadElement)
+            .find(|(_, right_property)| {
+                right_property.matches(|right_property| right_property.kind() == SpreadElement)
+            })
             .map(|(index, _)| index);
         // TODO: this looks weird that it's doing "combinations" of these two
         // (vs "pair-wise" (?))?
@@ -100,7 +111,10 @@ fn each_self_assignment<'a>(
             for &right_property in right_properties.iter().skip(
                 right_spread_index.map_or_default(|right_spread_index| right_spread_index + 1),
             ) {
-                each_self_assignment(left_property, right_property, props, context);
+                if let (Some(left_property), Some(right_property)) = (left_property, right_property)
+                {
+                    each_self_assignment(left_property, right_property, props, context);
+                }
             }
         }
         return;

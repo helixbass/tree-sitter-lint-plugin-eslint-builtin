@@ -224,6 +224,7 @@ pub fn is_specific_member_access<'a>(
 
 fn equal_literal_value(left: Node, right: Node, context: &QueryMatchContext) -> bool {
     match (left.kind(), right.kind()) {
+        // TODO: these presumably need much refinement?
         (kind::String, kind::String) => left.text(context) == right.text(context),
         (kind::Number, kind::Number) => left.text(context) == right.text(context),
         (kind::Regex, kind::Regex) => left.text(context) == right.text(context),
@@ -240,6 +241,8 @@ pub fn is_same_reference(
     disable_static_computed_key: Option<bool>,
     context: &QueryMatchContext,
 ) -> bool {
+    let left = left.skip_parentheses();
+    let right = right.skip_parentheses();
     let disable_static_computed_key = disable_static_computed_key.unwrap_or_default();
     if left.kind() != right.kind()
         && !([MemberExpression, SubscriptExpression].contains(&left.kind())
