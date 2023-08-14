@@ -884,8 +884,16 @@ impl<'a> CodePathState<'a> {
                             code_path_segment_arena,
                             self.id_generator.next(),
                             &vec![head_of_leaving_segment]
-                                .and_extend(returned_segments[segment_index].clone())
-                                .and_extend(thrown_segments[segment_index].clone()),
+                                .and_extend(
+                                    returned_segments
+                                        .iter()
+                                        .map(|returned_segment| returned_segment[segment_index]),
+                                )
+                                .and_extend(
+                                    thrown_segments
+                                        .iter()
+                                        .map(|thrown_segment| thrown_segment[segment_index]),
+                                ),
                         );
 
                         segment_index += 1;
