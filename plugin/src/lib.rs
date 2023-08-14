@@ -15,8 +15,7 @@ mod visit;
 
 pub use code_path_analysis::{
     CodePath, CodePathAnalyzer, CodePathAnalyzerInstanceProviderFactory, CodePathOrigin,
-    CodePathSegment, EnterOrExit, ON_CODE_PATH_END, ON_CODE_PATH_SEGMENT_END,
-    ON_CODE_PATH_SEGMENT_LOOP, ON_CODE_PATH_SEGMENT_START, ON_CODE_PATH_START,
+    CodePathSegment, EnterOrExit,
 };
 use rules::{
     complexity_rule, consistent_return_rule, default_case_last_rule, default_case_rule,

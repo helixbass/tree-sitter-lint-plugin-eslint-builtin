@@ -5,7 +5,6 @@ use itertools::{EitherOrBoth, Itertools};
 use squalid::OptionExt;
 use tree_sitter_lint::{
     better_any::{tid, Tid},
-    get_const_listener_selector,
     tree_sitter::{Node, Tree},
     tree_sitter_grep::RopeOrSlice,
     EventEmitter, EventTypeIndex, FileRunContext, FromFileRunContext,
@@ -57,7 +56,7 @@ fn is_handled_logical_operator_str(operator: &str) -> bool {
     matches!(operator, "&&" | "||" | "??")
 }
 
-fn is_handled_logical_operator<'a>(node: Node) -> bool {
+fn is_handled_logical_operator(node: Node) -> bool {
     is_handled_logical_operator_str(node.field("operator").kind())
 }
 
@@ -75,10 +74,7 @@ fn get_label<'a>(
         .map(|parent| parent.field("label").text(source_text_provider))
 }
 
-fn is_forking_by_true_or_false<'a>(
-    node: Node,
-    source_text_provider: &impl SourceTextProvider<'a>,
-) -> bool {
+fn is_forking_by_true_or_false(node: Node) -> bool {
     let parent = node.next_non_parentheses_ancestor();
 
     if parent.kind() == ExpressionStatement && {
@@ -94,7 +90,7 @@ fn is_forking_by_true_or_false<'a>(
         }
         BinaryExpression => is_handled_logical_operator(parent),
         AugmentedAssignmentExpression => {
-            is_logical_assignment_operator(&parent.field("operator").text(source_text_provider))
+            is_logical_assignment_operator(parent.field("operator").kind())
         }
         _ => false,
     }
@@ -177,7 +173,7 @@ impl<'a> CodePathAnalyzer<'a> {
         self.maybe_code_path().unwrap()
     }
 
-    fn forward_current_to_head(&mut self, node: Node<'a>) {
+    fn forward_current_to_head(&mut self, _node: Node<'a>) {
         let code_path = self.active_code_path.unwrap();
         let state = &mut self.code_path_arena[code_path].state;
         let current_segments = state
@@ -258,7 +254,7 @@ impl<'a> CodePathAnalyzer<'a> {
         }
     }
 
-    fn leave_from_current_segment(&mut self, node: Node<'a>) {
+    fn leave_from_current_segment(&mut self, _node: Node<'a>) {
         self.code_path_arena[self.code_path()]
             .state
             .current_segments
@@ -328,9 +324,7 @@ impl<'a> CodePathAnalyzer<'a> {
             }
             AugmentedAssignmentExpression => {
                 if parent.field("right") == node
-                    && is_logical_assignment_operator(
-                        &parent.field("operator").text(&self.file_contents),
-                    )
+                    && is_logical_assignment_operator(parent.field("operator").kind())
                 {
                     state.make_logical_right(
                         &mut self.fork_context_arena,
@@ -504,7 +498,7 @@ impl<'a> CodePathAnalyzer<'a> {
             BinaryExpression => {
                 let operator = node.field("operator").kind();
                 if is_handled_logical_operator_str(operator) {
-                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
+                    let is_forking_as_result = is_forking_by_true_or_false(node);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
@@ -522,7 +516,7 @@ impl<'a> CodePathAnalyzer<'a> {
             AugmentedAssignmentExpression => {
                 let operator = node.field("operator").text(self);
                 if is_logical_assignment_operator(&operator) {
-                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
+                    let is_forking_as_result = is_forking_by_true_or_false(node);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
@@ -1036,57 +1030,10 @@ fn walk_tree<'a, TEventEmitter: EventEmitter<'a>>(
     }
 }
 
-const EVENT_EMITTER_NAME: &str = "code-path-analyzer";
-const ON_CODE_PATH_SEGMENT_START_NAME: &str = "on-code-path-segment-start";
-const ON_CODE_PATH_SEGMENT_END_NAME: &str = "on-code-path-segment-end";
-const ON_CODE_PATH_SEGMENT_LOOP_NAME: &str = "on-code-path-segment-loop";
-const ON_CODE_PATH_START_NAME: &str = "on-code-path-start";
-const ON_CODE_PATH_END_NAME: &str = "on-code-path-end";
-
-const ALL_EVENT_TYPES: [&str; 5] = [
-    ON_CODE_PATH_SEGMENT_START_NAME,
-    ON_CODE_PATH_SEGMENT_END_NAME,
-    ON_CODE_PATH_SEGMENT_LOOP_NAME,
-    ON_CODE_PATH_START_NAME,
-    ON_CODE_PATH_END_NAME,
-];
-
-pub const ON_CODE_PATH_SEGMENT_START: &str =
-    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_SEGMENT_START_NAME);
-pub const ON_CODE_PATH_SEGMENT_END: &str =
-    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_SEGMENT_END_NAME);
-pub const ON_CODE_PATH_SEGMENT_LOOP: &str =
-    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_SEGMENT_LOOP_NAME);
-pub const ON_CODE_PATH_START: &str =
-    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_START_NAME);
-pub const ON_CODE_PATH_END: &str =
-    get_const_listener_selector!(EVENT_EMITTER_NAME, ON_CODE_PATH_END_NAME);
-
-#[allow(clippy::enum_variant_names)]
-pub enum Event<'a> {
-    OnCodePathSegmentStart(Id<CodePathSegment<'a>>, Node<'a>),
-    OnCodePathSegmentEnd(Id<CodePathSegment<'a>>, Node<'a>),
-    OnCodePathSegmentLoop(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>, Node<'a>),
-    OnCodePathStart(Node<'a>),
-    OnCodePathEnd(Id<CodePath<'a>>, Node<'a>),
-}
-
-impl<'a> Event<'a> {
-    pub fn index(&self) -> usize {
-        match self {
-            Event::OnCodePathSegmentStart(_, _) => 0,
-            Event::OnCodePathSegmentEnd(_, _) => 1,
-            Event::OnCodePathSegmentLoop(_, _, _) => 2,
-            Event::OnCodePathStart(_) => 3,
-            Event::OnCodePathEnd(_, _) => 4,
-        }
-    }
-}
-
 pub struct OnLooped;
 
 impl OnLooped {
-    pub fn on_looped<'a>(
+    pub fn on_looped(
         &self,
         arena: &Arena<CodePathSegment>,
         from_segment: Id<CodePathSegment>,
