@@ -210,7 +210,7 @@ impl<'a> ForkContext<'a> {
         let context = Self::new(arena, id_generator.clone(), None, 1);
 
         let segment = CodePathSegment::new_root(code_path_segment_arena, id_generator.next());
-        arena.get_mut(context).unwrap().add(
+        arena[context].add(
             code_path_segment_arena,
             Rc::new(SingleOrSplitSegment::Single(segment)),
         );
@@ -347,7 +347,7 @@ impl<'a> SingleOrSplitSegment<'a> {
 #[derive(Clone, Debug)]
 pub struct SplitSegment<'a> {
     split_depth: usize,
-    segments: (Rc<SingleOrSplitSegment<'a>>, Rc<SingleOrSplitSegment<'a>>),
+    pub segments: (Rc<SingleOrSplitSegment<'a>>, Rc<SingleOrSplitSegment<'a>>),
 }
 
 impl<'a> SplitSegment<'a> {
@@ -361,7 +361,10 @@ impl<'a> SplitSegment<'a> {
 
     pub fn unsplit(
         &self,
-        merge: impl FnMut(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
+        mut merge: impl FnMut(
+            Id<CodePathSegment<'a>>,
+            Id<CodePathSegment<'a>>,
+        ) -> Id<CodePathSegment<'a>>,
     ) -> SingleOrSplitSegment<'a> {
         match self.split_depth {
             1 => SingleOrSplitSegment::Single(merge(

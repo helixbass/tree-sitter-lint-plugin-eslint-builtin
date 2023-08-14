@@ -2,12 +2,11 @@ use id_arena::{Arena, Id};
 use itertools::Itertools;
 use squalid::{return_if_none, VecExt};
 use std::{iter, rc::Rc};
-use tree_sitter_lint::tree_sitter::Node;
 
 use crate::kind::{DoStatement, ForInStatement, ForStatement, Kind, WhileStatement};
 
 use super::{
-    code_path_analyzer::{Event, OnLooped},
+    code_path_analyzer::OnLooped,
     code_path_segment::CodePathSegment,
     fork_context::{ForkContext, SingleOrSplitSegment, SplitSegment},
     id_generator::IdGenerator,
@@ -17,9 +16,9 @@ fn add_to_returned_or_thrown<'a>(
     dest: &mut Vec<Id<CodePathSegment<'a>>>,
     others: &[Id<CodePathSegment<'a>>],
     all: &mut Vec<Id<CodePathSegment<'a>>>,
-    segments: &[Id<CodePathSegment<'a>>],
+    segments: Rc<SingleOrSplitSegment<'a>>,
 ) {
-    for &segment in segments {
+    for segment in segments.segments() {
         dest.push(segment);
         if !others.contains(&segment) {
             all.push(segment);
@@ -129,8 +128,10 @@ fn make_looped<'a>(
     unflattened_from_segments: &SingleOrSplitSegment<'a>,
     unflattened_to_segments: &SingleOrSplitSegment<'a>,
 ) {
-    let from_segments = CodePathSegment::flatten_unused_segments(arena, unflattened_from_segments);
-    let to_segments = CodePathSegment::flatten_unused_segments(arena, unflattened_to_segments);
+    let from_segments =
+        CodePathSegment::flatten_unused_segments(arena, &unflattened_from_segments.segments());
+    let to_segments =
+        CodePathSegment::flatten_unused_segments(arena, &unflattened_to_segments.segments());
 
     for (from_segment, to_segment) in iter::zip(from_segments, to_segments) {
         if arena.get(to_segment).unwrap().reachable {
@@ -173,7 +174,7 @@ fn finalize_test_segments_of_for<'a>(
     code_path_segment_arena: &mut Arena<CodePathSegment<'a>>,
     context: &mut ForLoopContext<'a>,
     choice_context: &ChoiceContext<'a>,
-    head: Rc<Vec<Id<CodePathSegment<'a>>>>,
+    head: Rc<SingleOrSplitSegment<'a>>,
 ) {
     if !choice_context.processed {
         arena[choice_context.true_fork_context].add(code_path_segment_arena, head.clone());
@@ -202,7 +203,7 @@ pub struct CodePathState<'a> {
     loop_context: Option<LoopContext<'a>>,
     break_context: Option<BreakContext<'a>>,
     chain_context: Option<ChainContext>,
-    pub current_segments: Rc<Vec<Id<CodePathSegment<'a>>>>,
+    pub current_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     pub initial_segment: Id<CodePathSegment<'a>>,
     pub final_segments: Vec<Id<CodePathSegment<'a>>>,
     pub returned_fork_context: Vec<Id<CodePathSegment<'a>>>,
@@ -221,7 +222,7 @@ impl<'a> CodePathState<'a> {
             code_path_segment_arena,
             id_generator.clone(),
         );
-        let initial_segment = fork_context_arena.get(fork_context).unwrap().head()[0];
+        let initial_segment = fork_context_arena[fork_context].head().segments()[0];
         Self {
             id_generator,
             notify_looped: on_looped,
@@ -240,7 +241,7 @@ impl<'a> CodePathState<'a> {
         }
     }
 
-    fn returned_fork_context_add(&mut self, segments: &[Id<CodePathSegment<'a>>]) {
+    fn returned_fork_context_add(&mut self, segments: Rc<SingleOrSplitSegment<'a>>) {
         add_to_returned_or_thrown(
             &mut self.returned_fork_context,
             &self.thrown_fork_context,
@@ -249,7 +250,7 @@ impl<'a> CodePathState<'a> {
         );
     }
 
-    fn thrown_fork_context_add(&mut self, segments: &[Id<CodePathSegment<'a>>]) {
+    fn thrown_fork_context_add(&mut self, segments: Rc<SingleOrSplitSegment<'a>>) {
         add_to_returned_or_thrown(
             &mut self.thrown_fork_context,
             &self.returned_fork_context,
@@ -258,10 +259,7 @@ impl<'a> CodePathState<'a> {
         );
     }
 
-    pub fn head_segments(
-        &self,
-        arena: &Arena<ForkContext<'a>>,
-    ) -> Rc<Vec<Id<CodePathSegment<'a>>>> {
+    pub fn head_segments(&self, arena: &Arena<ForkContext<'a>>) -> Rc<SingleOrSplitSegment<'a>> {
         arena[self.fork_context].head()
     }
 
@@ -756,32 +754,29 @@ impl<'a> CodePathState<'a> {
             return;
         }
 
-        let head_segments = arena[self.fork_context].head().clone();
+        let head_segments = arena[self.fork_context].head();
 
         self.fork_context = arena[self.fork_context].upper.unwrap();
-        let normal_segments = &head_segments[..head_segments.len() / 2];
-        let leaving_segments = &head_segments[head_segments.len() / 2..];
+        let (normal_segments, leaving_segments) = match &*head_segments {
+            SingleOrSplitSegment::Split(split_segment) => split_segment.segments.clone(),
+            _ => unreachable!(),
+        };
 
         if !arena.get(returned).unwrap().empty() {
             match get_return_context(self) {
                 Some(returned_fork_context) => {
-                    arena.get_mut(returned_fork_context).unwrap().add(
-                        code_path_segment_arena,
-                        Rc::new(leaving_segments.to_owned()),
-                    );
+                    arena[returned_fork_context]
+                        .add(code_path_segment_arena, leaving_segments.clone());
                 }
                 None => {
-                    self.returned_fork_context_add(leaving_segments);
+                    self.returned_fork_context_add(leaving_segments.clone());
                 }
             }
         }
-        if !arena.get(thrown).unwrap().empty() {
+        if !arena[thrown].empty() {
             match get_throw_context(self) {
                 Some((thrown_fork_context, _)) => {
-                    arena.get_mut(thrown_fork_context).unwrap().add(
-                        code_path_segment_arena,
-                        Rc::new(leaving_segments.to_owned()),
-                    );
+                    arena[thrown_fork_context].add(code_path_segment_arena, leaving_segments);
                 }
                 None => {
                     self.thrown_fork_context_add(leaving_segments);
@@ -789,16 +784,10 @@ impl<'a> CodePathState<'a> {
             }
         }
 
-        arena
-            .get_mut(self.fork_context)
-            .unwrap()
-            .replace_head(code_path_segment_arena, Rc::new(normal_segments.to_owned()));
+        arena[self.fork_context].replace_head(code_path_segment_arena, normal_segments);
 
         if !context.last_of_try_is_reachable && !context.last_of_catch_is_reachable {
-            arena
-                .get_mut(self.fork_context)
-                .unwrap()
-                .make_unreachable__missing_begin_end(code_path_segment_arena);
+            arena[self.fork_context].make_unreachable__missing_begin_end(code_path_segment_arena);
         }
     }
 
@@ -1172,7 +1161,7 @@ impl<'a> CodePathState<'a> {
             .unwrap()
             .as_for_loop_context_mut();
         let fork_context = self.fork_context;
-        let end_of_init_segments = arena[fork_context].head().clone();
+        let end_of_init_segments = arena[fork_context].head();
         let test_segments = arena[fork_context].make_next(code_path_segment_arena, -1, -1);
 
         context.test = test;
@@ -1205,7 +1194,7 @@ impl<'a> CodePathState<'a> {
                 segments,
             );
         } else {
-            context.end_of_init_segments = Some(arena[fork_context].head().clone());
+            context.end_of_init_segments = Some(arena[fork_context].head());
         }
 
         let update_segments =
@@ -1282,7 +1271,7 @@ impl<'a> CodePathState<'a> {
                 .as_mut()
                 .unwrap()
                 .as_for_loop_context_mut()
-                .end_of_init_segments = Some(arena[fork_context].head().clone());
+                .end_of_init_segments = Some(arena[fork_context].head());
         }
 
         let body_segments = self
@@ -1349,7 +1338,7 @@ impl<'a> CodePathState<'a> {
         let fork_context = self.fork_context;
         let left_segments = arena[fork_context].make_disconnected(code_path_segment_arena, -1, -1);
 
-        context.prev_segments = Some(arena[fork_context].head().clone());
+        context.prev_segments = Some(arena[fork_context].head());
         context.continue_dest_segments = Some(left_segments.clone());
         context.left_segments = Some(left_segments.clone());
         arena[fork_context].replace_head(code_path_segment_arena, left_segments);
@@ -1374,7 +1363,7 @@ impl<'a> CodePathState<'a> {
         );
         let right_segments = arena[temp].make_next(code_path_segment_arena, -1, -1);
 
-        context.end_of_left_segments = Some(arena[fork_context].head().clone());
+        context.end_of_left_segments = Some(arena[fork_context].head());
         arena[fork_context].replace_head(code_path_segment_arena, right_segments);
     }
 
@@ -1522,13 +1511,13 @@ impl<'a> CodePathState<'a> {
         let fork_context = self.fork_context;
 
         if arena[fork_context].reachable(code_path_segment_arena) {
-            let segments = arena[fork_context].head().clone();
+            let segments = arena[fork_context].head();
             match get_return_context(self) {
                 Some(returned_fork_context) => {
                     arena[returned_fork_context].add(code_path_segment_arena, segments);
                 }
                 None => {
-                    self.returned_fork_context_add(&segments);
+                    self.returned_fork_context_add(segments);
                 }
             }
             let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
@@ -1544,13 +1533,13 @@ impl<'a> CodePathState<'a> {
         let fork_context = self.fork_context;
 
         if arena[fork_context].reachable(code_path_segment_arena) {
-            let segments = arena[fork_context].head().clone();
+            let segments = arena[fork_context].head();
             match get_throw_context(self) {
                 Some((thrown_fork_context, _)) => {
                     arena[thrown_fork_context].add(code_path_segment_arena, segments);
                 }
                 None => {
-                    self.thrown_fork_context_add(&segments);
+                    self.thrown_fork_context_add(segments);
                 }
             }
             let segments = arena[fork_context].make_unreachable(code_path_segment_arena, -1, -1);
@@ -1559,10 +1548,10 @@ impl<'a> CodePathState<'a> {
     }
 
     pub fn make_final(&mut self, code_path_segment_arena: &Arena<CodePathSegment<'a>>) {
-        let segments = self.current_segments.clone();
+        let segments = return_if_none!(self.current_segments.as_ref());
 
-        if !segments.is_empty() && code_path_segment_arena[segments[0]].reachable {
-            self.returned_fork_context_add(&segments);
+        if code_path_segment_arena[segments.segments()[0]].reachable {
+            self.returned_fork_context_add(segments.clone());
         }
     }
 }
@@ -1649,7 +1638,7 @@ impl<'a> LoopContext<'a> {
         }
     }
 
-    pub fn continue_dest_segments(&self) -> Option<SingleOrSplitSegment<'a>> {
+    pub fn continue_dest_segments(&self) -> Option<Rc<SingleOrSplitSegment<'a>>> {
         match self {
             LoopContext::While(value) => value.continue_dest_segments.clone(),
             LoopContext::Do(_) => None,
@@ -1736,10 +1725,10 @@ struct ForLoopContext<'a> {
     upper: Option<Box<LoopContext<'a>>>,
     label: Option<String>,
     test: Option<bool>,
-    end_of_init_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    end_of_init_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     test_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     end_of_test_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
-    update_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    update_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     end_of_update_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     continue_dest_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     broken_fork_context: Id<ForkContext<'a>>,
@@ -1749,10 +1738,10 @@ struct ForInLoopContext<'a> {
     upper: Option<Box<LoopContext<'a>>>,
     is_for_of: bool,
     label: Option<String>,
-    prev_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    prev_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     left_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
-    end_of_left_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
-    continue_dest_segments: Option<Rc<Vec<Id<CodePathSegment<'a>>>>>,
+    end_of_left_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
+    continue_dest_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     broken_fork_context: Id<ForkContext<'a>>,
 }
 

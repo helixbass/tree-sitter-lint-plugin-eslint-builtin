@@ -123,10 +123,11 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
                 let mut reached_try_statements: HashSet<Node<'a>> = Default::default();
 
                 for &code_path in &code_path_analyzer.code_paths {
-                    for &segment in &*code_path_analyzer.code_path_arena[code_path]
+                    for segment in code_path_analyzer.code_path_arena[code_path]
                         // .returned_segments() {
                         .state
-                        .head_segments(&code_path_analyzer.fork_context_arena) {
+                        .head_segments(&code_path_analyzer.fork_context_arena)
+                        .segments() {
                         look_for_trailing_return(
                             segment,
                             code_path_analyzer,

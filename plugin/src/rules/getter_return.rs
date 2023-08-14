@@ -177,10 +177,7 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
                         code_path_analyzer.code_path_arena[code_path]
                             .state
                             .head_segments(&code_path_analyzer.fork_context_arena)
-                            .iter()
-                            .any(|&segment| {
-                                code_path_analyzer.code_path_segment_arena[segment].reachable
-                            })
+                            .reachable(&code_path_analyzer.code_path_segment_arena)
                     })
                 {
                     let node = code_path_analyzer

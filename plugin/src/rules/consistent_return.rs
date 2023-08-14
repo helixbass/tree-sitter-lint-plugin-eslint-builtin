@@ -120,19 +120,16 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                         self.func_infos.get(&code_path).matches(|func_info| {
                             func_info.has_return_value
                         }) &&
-                        !code_path_analyzer.code_path_arena[code_path]
+                        code_path_analyzer.code_path_arena[code_path]
                             .state
                             .head_segments(&code_path_analyzer.fork_context_arena)
-                            .iter()
-                            .all(|&segment| {
-                                !code_path_analyzer.code_path_segment_arena[segment].reachable
-                            }) && {
-                            let root_node = code_path_analyzer.code_path_arena[code_path].root_node(
-                                &code_path_analyzer.code_path_segment_arena
-                            );
-                            !ast_utils::is_es5_constructor(root_node, context) &&
-                            !is_class_constructor(root_node, context)
-                        }
+                            .reachable(&code_path_analyzer.code_path_segment_arena) && {
+                                let root_node = code_path_analyzer.code_path_arena[code_path].root_node(
+                                    &code_path_analyzer.code_path_segment_arena
+                                );
+                                !ast_utils::is_es5_constructor(root_node, context) &&
+                                !is_class_constructor(root_node, context)
+                            }
                     })
                 {
                     let root_node = code_path_analyzer.code_path_arena[code_path].root_node(&code_path_analyzer.code_path_segment_arena);

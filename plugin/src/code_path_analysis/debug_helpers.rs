@@ -55,7 +55,11 @@ pub fn dump_state<'a>(
     state: &CodePathState<'a>,
     leaving: bool,
 ) {
-    for &current_segment in &*state.current_segments {
+    for current_segment in state
+        .current_segments
+        .as_ref()
+        .map_or_default(|current_segments| current_segments.segments())
+    {
         let current_segment = &mut arena[current_segment];
 
         let nodes = &mut current_segment.nodes;
@@ -83,8 +87,10 @@ pub fn dump_state<'a>(
         "{} {}{}",
         state
             .current_segments
-            .iter()
-            .map(|&segment| { get_id(&arena[segment]) })
+            .as_ref()
+            .map_or_default(|current_segments| current_segments.segments())
+            .into_iter()
+            .map(|segment| { get_id(&arena[segment]) })
             .collect::<Vec<_>>()
             .join(","),
         node.kind(),

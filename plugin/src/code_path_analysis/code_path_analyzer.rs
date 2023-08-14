@@ -183,10 +183,17 @@ impl<'a> CodePathAnalyzer<'a> {
     fn forward_current_to_head(&mut self, node: Node<'a>) {
         let code_path = self.active_code_path.unwrap();
         let state = &mut self.code_path_arena[code_path].state;
-        let current_segments = state.current_segments.clone();
+        let current_segments = state
+            .current_segments
+            .as_ref()
+            .map_or_default(|current_segments| current_segments.segments());
         let head_segments = state.head_segments(&self.fork_context_arena);
+        let head_segments_segments = head_segments.segments();
 
-        for either_or_both in current_segments.iter().zip_longest(&*head_segments) {
+        for either_or_both in current_segments
+            .iter()
+            .zip_longest(&*head_segments_segments)
+        {
             match either_or_both {
                 EitherOrBoth::Both(current_segment, head_segment)
                     if current_segment != head_segment =>
@@ -216,9 +223,12 @@ impl<'a> CodePathAnalyzer<'a> {
             }
         }
 
-        state.current_segments = head_segments.clone();
+        state.current_segments = Some(head_segments.clone());
 
-        for either_or_both in current_segments.iter().zip_longest(&*head_segments) {
+        for either_or_both in current_segments
+            .iter()
+            .zip_longest(&*head_segments_segments)
+        {
             match either_or_both {
                 EitherOrBoth::Both(current_segment, head_segment)
                     if current_segment != head_segment =>
@@ -255,8 +265,10 @@ impl<'a> CodePathAnalyzer<'a> {
         self.code_path_arena[self.code_path()]
             .state
             .current_segments
-            .iter()
-            .for_each(|&current_segment| {
+            .as_ref()
+            .map_or_default(|current_segments| current_segments.segments())
+            .into_iter()
+            .for_each(|current_segment| {
                 debug::dump(&format!(
                     "onCodePathSegmentEnd {}",
                     self.code_path_segment_arena[current_segment].id

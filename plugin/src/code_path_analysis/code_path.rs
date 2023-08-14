@@ -6,8 +6,11 @@ use squalid::OptionExt;
 use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
-    code_path_analyzer::OnLooped, code_path_segment::CodePathSegment,
-    code_path_state::CodePathState, fork_context::ForkContext, id_generator::IdGenerator,
+    code_path_analyzer::OnLooped,
+    code_path_segment::CodePathSegment,
+    code_path_state::CodePathState,
+    fork_context::{ForkContext, SingleOrSplitSegment},
+    id_generator::IdGenerator,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -71,8 +74,12 @@ impl<'a> CodePath<'a> {
         &self.state.thrown_fork_context
     }
 
-    pub fn current_segments(&self) -> &[Id<CodePathSegment<'a>>] {
-        &self.state.current_segments
+    pub fn maybe_current_segments(&self) -> Option<Rc<SingleOrSplitSegment<'a>>> {
+        self.state.current_segments.clone()
+    }
+
+    pub fn current_segments(&self) -> Rc<SingleOrSplitSegment<'a>> {
+        self.maybe_current_segments().unwrap()
     }
 
     pub fn traverse_segments(
