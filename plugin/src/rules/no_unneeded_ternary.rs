@@ -5,13 +5,10 @@ use std::{
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::{
-        get_binary_expression_operator, get_unary_expression_operator,
-        skip_parenthesized_expressions,
-    },
+    ast_helpers::skip_parenthesized_expressions,
     kind::{BinaryExpression, False, Identifier, True, UnaryExpression},
     utils::ast_utils,
 };
@@ -70,17 +67,16 @@ fn invert_expression(node: Node, context: &QueryMatchContext) -> String {
         }
     }
 
-    if ast_utils::get_precedence(node, context) < ast_utils::get_kind_precedence(UnaryExpression) {
+    if ast_utils::get_precedence(node) < ast_utils::get_kind_precedence(UnaryExpression) {
         format!("!({})", context.get_node_text(node))
     } else {
         format!("!{}", ast_utils::get_parenthesised_text(context, node))
     }
 }
 
-fn is_boolean_expression(node: Node, context: &QueryMatchContext) -> bool {
-    node.kind() == BinaryExpression
-        && BOOLEAN_OPERATORS.contains(&*get_binary_expression_operator(node, context))
-        || node.kind() == UnaryExpression && get_unary_expression_operator(node, context) == "!"
+fn is_boolean_expression(node: Node) -> bool {
+    node.kind() == BinaryExpression && BOOLEAN_OPERATORS.contains(node.field("operator").kind())
+        || node.kind() == UnaryExpression && node.field("operator").kind() == "!"
 }
 
 fn matches_default_assignment(node: Node, context: &QueryMatchContext) -> bool {
@@ -140,7 +136,7 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
                                 (True, False) => {
                                     fixer.replace_text(
                                         node,
-                                        if is_boolean_expression(test, context) {
+                                        if is_boolean_expression(test) {
                                             ast_utils::get_parenthesised_text(context, test).into_owned()
                                         } else {
                                             format!("!{}", invert_expression(test, context))
@@ -157,8 +153,8 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
                         message_id => "unnecessary_conditional_assignment",
                         fix => |fixer| {
                             let should_parenthesize_alternate = (
-                                ast_utils::get_precedence(alternate, context) < *OR_PRECEDENCE ||
-                                ast_utils::is_coalesce_expression(alternate, context)
+                                ast_utils::get_precedence(alternate) < *OR_PRECEDENCE ||
+                                ast_utils::is_coalesce_expression(alternate)
                             ) && !ast_utils::is_parenthesised(alternate);
                             let alternate_text = if should_parenthesize_alternate {
                                 format!("({})", context.get_node_text(alternate)).into()

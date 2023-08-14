@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
 use squalid::{BoolExt, VecExt};
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::{
-        get_binary_expression_operator, is_binary_expression_with_one_of_operators,
-        is_binary_expression_with_operator, is_logical_and, skip_parenthesized_expressions,
-    },
-    kind::{ElseClause, IfStatement},
+    ast_helpers::{is_logical_and, skip_parenthesized_expressions},
+    kind::{BinaryExpression, ElseClause, IfStatement},
     utils::ast_utils,
 };
 
@@ -22,19 +19,11 @@ fn is_subset_by_comparator<TItem>(
         .all(|a| arr_b.into_iter().any(|b| comparator(a, b)))
 }
 
-fn split_by_logical_operator<'a, 'b>(
-    operator: &str,
-    node: Node<'b>,
-    context: &QueryMatchContext,
-) -> Vec<Node<'b>> {
+fn split_by_logical_operator<'a>(operator: &str, node: Node<'a>) -> Vec<Node<'a>> {
     let node = skip_parenthesized_expressions(node);
-    if is_binary_expression_with_operator(node, operator, context) {
-        split_by_logical_operator(operator, node.child_by_field_name("left").unwrap(), context)
-            .and_extend(split_by_logical_operator(
-                operator,
-                node.child_by_field_name("right").unwrap(),
-                context,
-            ))
+    if node.kind() == BinaryExpression && node.field("operator").kind() == operator {
+        split_by_logical_operator(operator, node.field("left"))
+            .and_extend(split_by_logical_operator(operator, node.field("right")))
     } else {
         vec![node]
     }
@@ -45,11 +34,12 @@ fn equal<'a>(context: &QueryMatchContext<'a, '_>, a: Node<'a>, b: Node<'a>) -> b
         return false;
     }
 
-    if is_binary_expression_with_one_of_operators(a, &["&&", "||"], context)
+    if a.kind() == BinaryExpression
+        && matches!(a.field("operator").kind(), "&&" | "||")
         && matches!(
             b.child_by_field_name("operator"),
-            Some(b_operator) if get_binary_expression_operator(a, context) ==
-                context.get_node_text(b_operator)
+            Some(b_operator) if a.field("operator").kind() ==
+                b_operator.kind()
         )
     {
         return equal(
@@ -86,8 +76,8 @@ pub fn no_dupe_else_if_rule() -> Arc<dyn Rule> {
               (if_statement) @c
             )"# => |node, context| {
                 let test = skip_parenthesized_expressions(node.child_by_field_name("condition").unwrap());
-                let conditions_to_check = if is_logical_and(test, context) {
-                    vec![test].and_extend(split_by_logical_operator("&&", test, context))
+                let conditions_to_check = if is_logical_and(test) {
+                    vec![test].and_extend(split_by_logical_operator("&&", test))
                 } else {
                     vec![test]
                 };
@@ -96,9 +86,9 @@ pub fn no_dupe_else_if_rule() -> Arc<dyn Rule> {
                 let mut list_to_check = conditions_to_check
                     .into_iter()
                     .map(|c| {
-                        split_by_logical_operator("||", c, context)
+                        split_by_logical_operator("||", c)
                             .into_iter()
-                            .map(|node| split_by_logical_operator("&&", node, context))
+                            .map(|node| split_by_logical_operator("&&", node))
                             .collect::<Vec<_>>()
                     })
                     .collect::<Vec<_>>();
@@ -111,8 +101,7 @@ pub fn no_dupe_else_if_rule() -> Arc<dyn Rule> {
                     let current_or_operands = split_by_logical_operator(
                         "||",
                         current.child_by_field_name("condition").unwrap(),
-                        context,
-                    ).into_iter().map(|node| split_by_logical_operator("&&", node, context))
+                    ).into_iter().map(|node| split_by_logical_operator("&&", node))
                         .collect::<Vec<_>>();
 
                     list_to_check = list_to_check.into_iter().map(|or_operands| {

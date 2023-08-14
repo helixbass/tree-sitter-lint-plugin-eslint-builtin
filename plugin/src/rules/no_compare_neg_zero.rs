@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
-
-use crate::ast_helpers::get_binary_expression_operator;
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
     const NEGATIVE_ZERO: &str = r#"
@@ -48,7 +46,7 @@ pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
                         node => node,
                         message_id => "unexpected",
                         data => {
-                            operator => get_binary_expression_operator(node, context),
+                            operator => node.field("operator").kind(),
                         }
                     });
                 },

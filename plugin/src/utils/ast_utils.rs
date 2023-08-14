@@ -12,10 +12,10 @@ use tree_sitter_lint::{
 use crate::{
     assert_kind,
     ast_helpers::{
-        get_binary_expression_operator, get_first_non_comment_child,
-        get_last_expression_of_sequence_expression, get_method_definition_kind,
-        get_number_literal_string_value, get_prev_non_comment_sibling, is_chain_expression,
-        is_logical_expression, skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
+        get_first_non_comment_child, get_last_expression_of_sequence_expression,
+        get_method_definition_kind, get_number_literal_string_value, get_prev_non_comment_sibling,
+        is_chain_expression, is_logical_expression, skip_nodes_of_type, MethodDefinitionKind,
+        NodeExtJs,
     },
     kind::{
         self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
@@ -344,8 +344,8 @@ pub fn equal_tokens<'a>(
     }
 }
 
-pub fn is_coalesce_expression(node: Node, context: &QueryMatchContext) -> bool {
-    node.kind() == BinaryExpression && get_binary_expression_operator(node, context) == "??"
+pub fn is_coalesce_expression(node: Node) -> bool {
+    node.kind() == BinaryExpression && node.field("operator").kind() == "??"
 }
 
 pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
@@ -359,24 +359,24 @@ pub fn is_breakable_statement(node: Node) -> bool {
     BREAKABLE_TYPE_PATTERN.is_match(node.kind())
 }
 
-pub fn get_precedence(node: Node, context: &QueryMatchContext) -> u32 {
+pub fn get_precedence(node: Node) -> u32 {
     _get_precedence(
         node.kind(),
-        (node.kind() == BinaryExpression).then(|| get_binary_expression_operator(node, context)),
+        (node.kind() == BinaryExpression).then(|| node.field("operator").kind()),
         (node.kind() == MemberExpression).then(|| is_chain_expression(node)),
     )
 }
 
 fn _get_precedence(
     kind: Kind,
-    binary_expression_operator: Option<Cow<'_, str>>,
+    binary_expression_operator: Option<&str>,
     member_expression_is_chain_expression: Option<bool>,
 ) -> u32 {
     match kind {
         SequenceExpression => 0,
         AssignmentExpression | AugmentedAssignmentExpression | ArrowFunction | YieldExpression => 1,
         TernaryExpression => 3,
-        BinaryExpression => match &*binary_expression_operator.unwrap() {
+        BinaryExpression => match binary_expression_operator.unwrap() {
             "||" | "??" => 4,
             "&&" => 5,
             "|" => 6,
@@ -407,8 +407,7 @@ pub fn get_kind_precedence(kind: Kind) -> u32 {
     _get_precedence(kind, None, None)
 }
 
-pub fn get_binary_expression_operator_precedence<'a>(operator: impl Into<Cow<'a, str>>) -> u32 {
-    let operator = operator.into();
+pub fn get_binary_expression_operator_precedence(operator: &str) -> u32 {
     _get_precedence(BinaryExpression, Some(operator), None)
 }
 

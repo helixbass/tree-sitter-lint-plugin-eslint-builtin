@@ -13,7 +13,7 @@ use crate::{
         self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
         FieldDefinition, ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression,
         Object, Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString, UnaryExpression,
+        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
     },
     return_default_if_none,
 };
@@ -255,48 +255,8 @@ pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) 
     }
 }
 
-pub fn is_logical_and(node: Node, context: &QueryMatchContext) -> bool {
-    is_binary_expression_with_operator(node, "&&", context)
-}
-
-pub fn is_binary_expression_with_operator(
-    node: Node,
-    operator: &str,
-    context: &QueryMatchContext,
-) -> bool {
-    node.kind() == BinaryExpression && get_binary_expression_operator(node, context) == operator
-}
-
-pub fn is_binary_expression_with_one_of_operators(
-    node: Node,
-    operators: &[impl AsRef<str>],
-    context: &QueryMatchContext,
-) -> bool {
-    if node.kind() != BinaryExpression {
-        return false;
-    }
-    let operator_text = get_binary_expression_operator(node, context);
-    operators
-        .iter()
-        .any(|operator| operator_text == operator.as_ref())
-}
-
-pub fn get_binary_expression_operator<'a>(
-    node: Node,
-    source_text_provider: &impl SourceTextProvider<'a>,
-) -> Cow<'a, str> {
-    assert_kind!(node, BinaryExpression);
-    node.child_by_field_name("operator")
-        .unwrap()
-        .text(source_text_provider)
-}
-
-pub fn get_unary_expression_operator<'a>(
-    node: Node,
-    context: &QueryMatchContext<'a, '_>,
-) -> Cow<'a, str> {
-    assert_kind!(node, UnaryExpression);
-    context.get_node_text(node.child_by_field_name("operator").unwrap())
+pub fn is_logical_and(node: Node) -> bool {
+    node.kind() == BinaryExpression && node.field("operator").kind() == "&&"
 }
 
 pub fn get_first_child_of_kind(node: Node, kind: Kind) -> Node {

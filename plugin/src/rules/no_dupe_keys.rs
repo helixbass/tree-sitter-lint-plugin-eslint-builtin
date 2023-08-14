@@ -37,7 +37,7 @@ impl<'a> ObjectInfo<'a> {
     }
 
     pub fn define_property(&mut self, name: Cow<'a, str>, kind: ObjectPropertyKind) {
-        let mut entry = self.properties.entry(name).or_default();
+        let entry = self.properties.entry(name).or_default();
         if matches!(kind, ObjectPropertyKind::Init | ObjectPropertyKind::Get) {
             entry.get = true;
         }

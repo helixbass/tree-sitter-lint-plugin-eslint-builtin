@@ -15,8 +15,8 @@ use tree_sitter_lint::{
 
 use crate::{
     ast_helpers::{
-        get_binary_expression_operator, get_num_call_expression_arguments, is_for_of,
-        is_outermost_chain_expression, NodeExtJs, Number,
+        get_num_call_expression_arguments, is_for_of, is_outermost_chain_expression, NodeExtJs,
+        Number,
     },
     kind::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
@@ -57,11 +57,8 @@ fn is_handled_logical_operator_str(operator: &str) -> bool {
     matches!(operator, "&&" | "||" | "??")
 }
 
-fn is_handled_logical_operator<'a>(
-    node: Node,
-    source_text_provider: &impl SourceTextProvider<'a>,
-) -> bool {
-    is_handled_logical_operator_str(&get_binary_expression_operator(node, source_text_provider))
+fn is_handled_logical_operator<'a>(node: Node) -> bool {
+    is_handled_logical_operator_str(node.field("operator").kind())
 }
 
 fn is_logical_assignment_operator(operator: &str) -> bool {
@@ -95,7 +92,7 @@ fn is_forking_by_true_or_false<'a>(
         TernaryExpression | IfStatement | WhileStatement | DoStatement | ForStatement => {
             parent.field("condition").skip_parentheses() == node
         }
-        BinaryExpression => is_handled_logical_operator(parent, source_text_provider),
+        BinaryExpression => is_handled_logical_operator(parent),
         AugmentedAssignmentExpression => {
             is_logical_assignment_operator(&parent.field("operator").text(source_text_provider))
         }
@@ -322,9 +319,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             BinaryExpression => {
-                if parent.field("right") == node
-                    && is_handled_logical_operator(parent, &self.file_contents)
-                {
+                if parent.field("right") == node && is_handled_logical_operator(parent) {
                     state.make_logical_right(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
@@ -507,14 +502,14 @@ impl<'a> CodePathAnalyzer<'a> {
                 }
             }
             BinaryExpression => {
-                let operator = get_binary_expression_operator(node, &self.file_contents);
-                if is_handled_logical_operator_str(&operator) {
+                let operator = node.field("operator").kind();
+                if is_handled_logical_operator_str(operator) {
                     let is_forking_as_result = is_forking_by_true_or_false(node, self);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
                             &mut self.fork_context_arena,
-                            match &*operator {
+                            match operator {
                                 "&&" => ChoiceContextKind::LogicalAnd,
                                 "||" => ChoiceContextKind::LogicalOr,
                                 "??" => ChoiceContextKind::LogicalNullCoalesce,
@@ -655,7 +650,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             BinaryExpression => {
-                if is_handled_logical_operator(node, self) {
+                if is_handled_logical_operator(node) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_choice_context(

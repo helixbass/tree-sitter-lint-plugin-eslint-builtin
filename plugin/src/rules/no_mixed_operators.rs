@@ -5,7 +5,6 @@ use serde::Deserialize;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::get_binary_expression_operator,
     kind::{BinaryExpression, TernaryExpression},
     utils::ast_utils,
 };
@@ -90,28 +89,25 @@ fn should_ignore(
     node: Node,
     groups: &[Vec<Cow<'static, str>>],
     allow_same_precedence: bool,
-    context: &QueryMatchContext,
 ) -> bool {
     let a = node;
     let b = node.parent().unwrap();
 
     !includes_both_in_a_group(
         groups,
-        &get_binary_expression_operator(a, context),
-        &if b.kind() == TernaryExpression {
-            "?:".into()
+        a.field("operator").kind(),
+        if b.kind() == TernaryExpression {
+            "?:"
         } else {
-            get_binary_expression_operator(b, context)
+            b.field("operator").kind()
         },
-    ) || allow_same_precedence
-        && ast_utils::get_precedence(a, context) == ast_utils::get_precedence(b, context)
+    ) || allow_same_precedence && ast_utils::get_precedence(a) == ast_utils::get_precedence(b)
 }
 
-fn is_mixed_with_parent(node: Node, context: &QueryMatchContext) -> bool {
+fn is_mixed_with_parent(node: Node) -> bool {
     let parent = node.parent().unwrap();
     parent.kind() != BinaryExpression
-        || get_binary_expression_operator(node, context)
-            != get_binary_expression_operator(parent, context)
+        || node.field("operator").kind() != parent.field("operator").kind()
 }
 
 fn get_operator_token<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Node<'a> {
@@ -134,14 +130,14 @@ fn report_both_operators<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>
         parent
     };
     let left_operator = if left.kind() == BinaryExpression {
-        get_binary_expression_operator(left, context)
+        left.field("operator").kind()
     } else {
-        "?:".into()
+        "?:"
     };
     let right_operator = if right.kind() == BinaryExpression {
-        get_binary_expression_operator(right, context)
+        right.field("operator").kind()
     } else {
-        "?:".into()
+        "?:"
     };
 
     context.report(violation! {
@@ -186,8 +182,8 @@ pub fn no_mixed_operators_rule() -> Arc<dyn Rule> {
                 (binary_expression) @c
               )
             "# => |node, context| {
-                if is_mixed_with_parent(node, context) &&
-                    !should_ignore(node, &self.groups, self.allow_same_precedence, context) {
+                if is_mixed_with_parent(node) &&
+                    !should_ignore(node, &self.groups, self.allow_same_precedence) {
                     report_both_operators(node, context);
                 }
             },
