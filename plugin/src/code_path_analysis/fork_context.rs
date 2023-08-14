@@ -64,7 +64,7 @@ impl<'a> ForkContext<'a> {
             ((list.len() as isize) + end) as usize
         };
 
-        SingleOrSplitSegment::reduce(list, self.split_depth, |segments| {
+        SingleOrSplitSegment::reduce(list, self.split_depth, &mut |segments| {
             create(
                 self.id_generator.next(),
                 &segments[normalized_begin..=normalized_end],
@@ -77,7 +77,7 @@ impl<'a> ForkContext<'a> {
         &self,
         mut create: impl FnMut(String, &[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
     ) -> SingleOrSplitSegment<'a> {
-        SingleOrSplitSegment::reduce(&self.segments_list, self.split_depth, |_| {
+        SingleOrSplitSegment::reduce(&self.segments_list, self.split_depth, &mut |_| {
             create(self.id_generator.next(), &[])
         })
     }
@@ -150,7 +150,7 @@ impl<'a> ForkContext<'a> {
 
         let mut current_segments = segments;
         while current_segments.split_depth() > self.split_depth {
-            current_segments = current_segments.unsplit(|a, b| {
+            current_segments = current_segments.unsplit(&mut |a, b| {
                 CodePathSegment::new_next(arena, self.id_generator.next(), &[a, b])
             });
         }
@@ -207,7 +207,7 @@ impl<'a> ForkContext<'a> {
         code_path_segment_arena: &mut Arena<CodePathSegment<'a>>,
         id_generator: Rc<IdGenerator>,
     ) -> Id<Self> {
-        let context = Self::new(arena, id_generator.clone(), None, 1);
+        let context = Self::new(arena, id_generator.clone(), None, 0);
 
         let segment = CodePathSegment::new_root(code_path_segment_arena, id_generator.next());
         arena[context].add(
@@ -256,7 +256,7 @@ impl<'a> SingleOrSplitSegment<'a> {
         // list: impl IntoIterator<Item = &'b Self>,
         list: &[Rc<Self>],
         split_depth: usize,
-        mut create: impl FnMut(&[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
+        create: &mut dyn FnMut(&[Id<CodePathSegment<'a>>]) -> Id<CodePathSegment<'a>>,
     ) -> Self {
         if split_depth == 0 {
             Self::Single(create(
@@ -283,7 +283,7 @@ impl<'a> SingleOrSplitSegment<'a> {
                         })
                         .collect_vec(),
                     split_depth - 1,
-                    &mut create,
+                    create,
                 )),
                 Rc::new(Self::reduce(
                     &list
@@ -298,7 +298,7 @@ impl<'a> SingleOrSplitSegment<'a> {
                         })
                         .collect_vec(),
                     split_depth - 1,
-                    &mut create,
+                    create,
                 )),
             ))
         }
@@ -306,7 +306,10 @@ impl<'a> SingleOrSplitSegment<'a> {
 
     pub fn unsplit(
         self: Rc<Self>,
-        merge: impl FnMut(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
+        merge: &mut dyn FnMut(
+            Id<CodePathSegment<'a>>,
+            Id<CodePathSegment<'a>>,
+        ) -> Id<CodePathSegment<'a>>,
     ) -> Rc<Self> {
         match &*self {
             SingleOrSplitSegment::Single(_) => self.clone(),
@@ -332,13 +335,13 @@ impl<'a> SingleOrSplitSegment<'a> {
 
     pub fn map(
         &self,
-        mut mapper: impl FnMut(Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
+        mapper: &mut dyn FnMut(Id<CodePathSegment<'a>>) -> Id<CodePathSegment<'a>>,
     ) -> Self {
         match self {
             SingleOrSplitSegment::Single(segment) => Self::Single(mapper(*segment)),
             SingleOrSplitSegment::Split(split_segment) => Self::Split(SplitSegment::new(
-                Rc::new(split_segment.segments.0.map(&mut mapper)),
-                Rc::new(split_segment.segments.1.map(&mut mapper)),
+                Rc::new(split_segment.segments.0.map(mapper)),
+                Rc::new(split_segment.segments.1.map(mapper)),
             )),
         }
     }
@@ -361,7 +364,7 @@ impl<'a> SplitSegment<'a> {
 
     pub fn unsplit(
         &self,
-        mut merge: impl FnMut(
+        merge: &mut dyn FnMut(
             Id<CodePathSegment<'a>>,
             Id<CodePathSegment<'a>>,
         ) -> Id<CodePathSegment<'a>>,
@@ -393,7 +396,7 @@ impl<'a> SplitSegment<'a> {
                             SingleOrSplitSegment::Single(_) => unreachable!(),
                         },
                     )
-                    .unsplit(&mut merge),
+                    .unsplit(merge),
                 ),
                 Rc::new(
                     Self::new(
@@ -410,7 +413,7 @@ impl<'a> SplitSegment<'a> {
                             SingleOrSplitSegment::Single(_) => unreachable!(),
                         },
                     )
-                    .unsplit(&mut merge),
+                    .unsplit(merge),
                 ),
             )),
         }

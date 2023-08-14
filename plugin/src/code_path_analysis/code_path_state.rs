@@ -878,19 +878,21 @@ impl<'a> CodePathState<'a> {
                     .collect_vec();
                 let mut segment_index = 0;
 
-                Rc::new(head_of_leaving_segments.map(|head_of_leaving_segment| {
-                    let ret = CodePathSegment::new_next(
-                        code_path_segment_arena,
-                        self.id_generator.next(),
-                        &vec![head_of_leaving_segment]
-                            .and_extend(returned_segments[segment_index].clone())
-                            .and_extend(thrown_segments[segment_index].clone()),
-                    );
+                Rc::new(
+                    head_of_leaving_segments.map(&mut |head_of_leaving_segment| {
+                        let ret = CodePathSegment::new_next(
+                            code_path_segment_arena,
+                            self.id_generator.next(),
+                            &vec![head_of_leaving_segment]
+                                .and_extend(returned_segments[segment_index].clone())
+                                .and_extend(thrown_segments[segment_index].clone()),
+                        );
 
-                    segment_index += 1;
+                        segment_index += 1;
 
-                    ret
-                }))
+                        ret
+                    }),
+                )
             },
         )));
 
