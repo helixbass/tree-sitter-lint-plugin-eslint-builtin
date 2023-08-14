@@ -96,24 +96,20 @@ impl<'a> CodePathSegment<'a> {
     }
 
     pub fn mark_used(arena: &mut Arena<Self>, segment: Id<Self>) {
-        if arena.get(segment).unwrap().used {
+        if arena[segment].used {
             return;
         }
-        arena.get_mut(segment).unwrap().used = true;
+        arena[segment].used = true;
 
-        if arena.get(segment).unwrap().reachable {
-            for prev_segment in arena.get(segment).unwrap().all_prev_segments.clone() {
-                let prev_segment_value = arena.get_mut(prev_segment).unwrap();
+        if arena[segment].reachable {
+            for prev_segment in arena[segment].all_prev_segments.clone() {
+                let prev_segment_value = &mut arena[prev_segment];
                 prev_segment_value.all_next_segments.push(segment);
                 prev_segment_value.next_segments.push(segment);
             }
         } else {
-            for prev_segment in arena.get(segment).unwrap().all_prev_segments.clone() {
-                arena
-                    .get_mut(prev_segment)
-                    .unwrap()
-                    .all_next_segments
-                    .push(segment);
+            for prev_segment in arena[segment].all_prev_segments.clone() {
+                arena[prev_segment].all_next_segments.push(segment);
             }
         }
     }
@@ -123,11 +119,7 @@ impl<'a> CodePathSegment<'a> {
         segment: Id<Self>,
         prev_segment: Id<Self>,
     ) {
-        arena
-            .get_mut(segment)
-            .unwrap()
-            .looped_prev_segments
-            .push(prev_segment);
+        arena[segment].looped_prev_segments.push(prev_segment);
     }
 
     pub fn flatten_unused_segments(arena: &Arena<Self>, segments: &[Id<Self>]) -> Vec<Id<Self>> {
@@ -139,7 +131,7 @@ impl<'a> CodePathSegment<'a> {
                 continue;
             }
 
-            let segment_value = arena.get(segment).unwrap();
+            let segment_value = &arena[segment];
 
             if !segment_value.used {
                 for prev_segment in &segment_value.all_prev_segments {
