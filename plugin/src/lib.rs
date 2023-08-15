@@ -18,13 +18,13 @@ pub use code_path_analysis::{
     CodePathSegment, EnterOrExit,
 };
 use rules::{
-    complexity_rule, consistent_return_rule, constructor_super_rule, default_case_last_rule,
-    default_case_rule, for_direction_rule, getter_return_rule, max_nested_callbacks_rule,
-    max_params_rule, no_array_constructor_rule, no_async_promise_executor_rule,
-    no_await_in_loop_rule, no_compare_neg_zero_rule, no_cond_assign_rule,
-    no_constructor_return_rule, no_debugger_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
-    no_dupe_keys_rule, no_duplicate_case_rule, no_empty_pattern_rule, no_eq_null_rule,
-    no_extra_bind_rule, no_extra_label_rule, no_fallthrough_rule, no_labels_rule,
+    array_callback_return_rule, complexity_rule, consistent_return_rule, constructor_super_rule,
+    default_case_last_rule, default_case_rule, for_direction_rule, getter_return_rule,
+    max_nested_callbacks_rule, max_params_rule, no_array_constructor_rule,
+    no_async_promise_executor_rule, no_await_in_loop_rule, no_compare_neg_zero_rule,
+    no_cond_assign_rule, no_constructor_return_rule, no_debugger_rule, no_dupe_class_members_rule,
+    no_dupe_else_if_rule, no_dupe_keys_rule, no_duplicate_case_rule, no_empty_pattern_rule,
+    no_eq_null_rule, no_extra_bind_rule, no_extra_label_rule, no_fallthrough_rule, no_labels_rule,
     no_lonely_if_rule, no_mixed_operators_rule, no_multi_assign_rule, no_multi_str_rule,
     no_negated_condition_rule, no_nested_ternary_rule, no_new_rule, no_new_wrappers_rule,
     no_octal_escape_rule, no_octal_rule, no_plusplus_rule, no_proto_rule,
@@ -92,6 +92,7 @@ pub fn instantiate() -> Plugin {
             no_self_assign_rule(),
             constructor_super_rule(),
             no_unreachable_loop_rule(),
+            array_callback_return_rule(),
         ],
         event_emitter_factories: vec![],
     }

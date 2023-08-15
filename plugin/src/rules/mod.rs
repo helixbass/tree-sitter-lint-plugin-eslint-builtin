@@ -1,3 +1,4 @@
+mod array_callback_return;
 mod complexity;
 mod consistent_return;
 mod constructor_super;
@@ -53,6 +54,7 @@ mod no_useless_return;
 mod require_yield;
 mod sort_keys;
 
+pub use array_callback_return::array_callback_return_rule;
 pub use complexity::complexity_rule;
 pub use consistent_return::consistent_return_rule;
 pub use constructor_super::constructor_super_rule;
