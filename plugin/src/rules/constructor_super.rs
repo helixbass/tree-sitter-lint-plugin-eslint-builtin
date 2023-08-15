@@ -109,7 +109,7 @@ fn check_for_no_super<'a>(
     if code_path_analyzer.code_path_segment_arena[segment]
         .nodes
         .iter()
-        .filter(|(enter_or_exit, _)| *enter_or_exit == EnterOrExit::Enter)
+        .filter(|(enter_or_exit, _)| *enter_or_exit == EnterOrExit::Exit)
         .any(|(_, node)| {
             node.kind() == ReturnStatement && node.has_non_comment_named_children()
                 || node.kind() == CallExpression && node.field("function").kind() == Super
@@ -164,7 +164,7 @@ fn check_for_duplicate_super<'a>(
         .nodes
         .iter()
         .filter_map(|(enter_or_exit, node)| {
-            if *enter_or_exit != EnterOrExit::Enter {
+            if *enter_or_exit != EnterOrExit::Exit {
                 return None;
             }
 
@@ -359,7 +359,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                                 .nodes
                                                 .iter()
                                                 .filter(|(enter_or_exit, node)| {
-                                                    *enter_or_exit == EnterOrExit::Enter &&
+                                                    *enter_or_exit == EnterOrExit::Exit &&
                                                         node.kind() == CallExpression && node.field("function").kind() == Super
                                                 })
                                             {
@@ -594,7 +594,7 @@ mod tests {
                     },
                     {
                         code => "class A extends B { constructor() { try { super(); } catch (err) {} } }",
-                        errors => [{ message_id => "missing_some", type => MethodDefinition }]
+                        errors => [{ message_id => "missing_some", type => MethodDefinition }],
                     },
                     {
                         code => "class A extends B { constructor() { try { a; } catch (err) { super(); } } }",
