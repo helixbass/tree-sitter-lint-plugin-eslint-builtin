@@ -426,6 +426,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_for_body(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
                     );
                 }
             }
@@ -445,6 +446,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     state.make_for_in_of_body(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
                     );
                 }
             }
@@ -671,6 +673,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     .pop_switch_context(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
                     );
             }
             SwitchCase | SwitchDefault => {
@@ -723,6 +726,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     .make_continue(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
                         label.as_deref(),
                     );
                 dont_forward = true;
@@ -781,6 +785,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     .pop_loop_context(
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
+                        self.current_node.unwrap(),
                     );
             }
             AssignmentPattern | ObjectAssignmentPattern => {

@@ -156,10 +156,6 @@ fn check_for_duplicate_super<'a>(
 ) {
     seen_segments.insert(segment);
 
-    println!(
-        "check_for_duplicate_super() 1, segment: {segment:#?} {:#?}",
-        &code_path_analyzer.code_path_segment_arena[segment]
-    );
     for node in code_path_analyzer.code_path_segment_arena[segment]
         .nodes
         .iter()
@@ -173,7 +169,6 @@ fn check_for_duplicate_super<'a>(
                 .then_some(*node)
         })
     {
-        println!("check_for_duplicate_super() 2, has_seen: {has_seen:#?}");
         if let Some(has_seen) = has_seen {
             if has_seen.start_byte() < node.start_byte() {
                 context.report(violation! {
@@ -192,7 +187,6 @@ fn check_for_duplicate_super<'a>(
     }
 
     for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].prev_segments {
-        println!("check_for_duplicate_super() 3");
         if seen_segments.contains(&prev_segment) {
             if let (Some(has_seen_present), Some(prev_seen)) =
                 (has_seen, segments_where_seen.get(&prev_segment))
@@ -213,7 +207,6 @@ fn check_for_duplicate_super<'a>(
             }
             continue;
         }
-        println!("check_for_duplicate_super() 4");
 
         check_for_duplicate_super(
             prev_segment,
@@ -264,7 +257,6 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                 }
             },
             "program:exit" => |node, context| {
-                println!("program exit");
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 for &code_path in code_path_analyzer
@@ -276,7 +268,6 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                             .thrush(|root_node| is_constructor_function(root_node, context))
                     })
                 {
-                    println!("code path");
                     let root_node = code_path_analyzer.code_path_arena[code_path]
                         .root_node(&code_path_analyzer.code_path_segment_arena);
 
@@ -284,8 +275,6 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                     let has_extends = class_node.has_child_of_kind(ClassHeritage);
 
                     if has_extends {
-                        println!("has extends");
-
                         let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> = Default::default();
                         let mut seen_segments_found: HashMap<Id<CodePathSegment<'a>>, Found> = Default::default();
 
@@ -326,7 +315,6 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                             .returned_segments()
                             .into_iter()
                             .for_each(|&returned_segment| {
-                                println!("entering check_for_duplicate_super()");
                                 check_for_duplicate_super(
                                     returned_segment,
                                     code_path_analyzer,
@@ -337,7 +325,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                 )
                             });
 
-                        for (from_segment, to_segment) in &code_path_analyzer
+                        for (from_segment, to_segment, _) in &code_path_analyzer
                             .code_path_arena[code_path]
                             .state
                             .looped_segments {

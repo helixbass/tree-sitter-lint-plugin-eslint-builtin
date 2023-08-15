@@ -152,6 +152,70 @@ impl<'a> CodePath<'a> {
         }
     }
 
+    // TODO: it looks like the ESLint traverseSegments()
+    // algorithm has bugs eg for `for (; ; c++) ;`
+    // so this is a workaround (not sure how to "fix" the
+    // algorithm in traverseSegments()?)
+    pub fn traverse_segments_in_any_order(
+        &self,
+        arena: &Arena<CodePathSegment<'a>>,
+        options: Option<TraverseSegmentsOptions<'a>>,
+        mut callback: impl FnMut(&Self, Id<CodePathSegment<'a>>, &mut TraverseSegmentsController),
+    ) {
+        let options = options.unwrap_or_default();
+        let start_segment = options.first.unwrap_or(self.state.initial_segment);
+        let last_segment = options.last;
+
+        let mut visited: HashMap<Id<CodePathSegment>, bool> = Default::default();
+        let mut stack: Vec<(Id<CodePathSegment>, usize)> = vec![(start_segment, 0)];
+        let mut skipped_segment: Option<Id<CodePathSegment>> = Default::default();
+        let mut broken: bool = Default::default();
+
+        while !stack.is_empty() {
+            let (segment, index) = stack.last().copied().unwrap();
+            if index == 0 {
+                if visited.get(&segment).copied() == Some(true) {
+                    stack.pop().unwrap();
+                    continue;
+                }
+
+                if skipped_segment.matches(|skipped_segment| {
+                    arena[segment].prev_segments.contains(&skipped_segment)
+                }) {
+                    skipped_segment = None;
+                }
+                visited.insert(segment, true);
+
+                if skipped_segment.is_none() {
+                    let mut controller =
+                        TraverseSegmentsController::new(&mut broken, &mut skipped_segment, &stack);
+                    callback(self, segment, &mut controller);
+                    if Some(segment) == last_segment {
+                        controller.skip();
+                    }
+                    if broken {
+                        break;
+                    }
+                }
+            }
+
+            let end = (arena[segment].next_segments.len() as isize) - 1;
+            match (index as isize).cmp(&end) {
+                Ordering::Less => {
+                    stack.last_mut().unwrap().1 += 1;
+                    stack.push((arena[segment].next_segments[index], 0));
+                }
+                Ordering::Equal => {
+                    stack.last_mut().unwrap().0 = arena[segment].next_segments[index];
+                    stack.last_mut().unwrap().1 = 0;
+                }
+                Ordering::Greater => {
+                    stack.pop().unwrap();
+                }
+            }
+        }
+    }
+
     pub fn traverse_all_segments(
         &self,
         arena: &Arena<CodePathSegment<'a>>,

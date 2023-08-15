@@ -6,10 +6,11 @@ use std::{
 use id_arena::Id;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use squalid::{continue_if_none, return_default_if_none};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::{
-    kind::{DoStatement, ForInStatement, ForStatement, Kind, WhileStatement},
+    kind::{ContinueStatement, DoStatement, ForInStatement, ForStatement, Kind, WhileStatement},
     CodePath, CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
 
@@ -38,6 +39,26 @@ impl LoopType {
 static ALL_LOOP_TYPES: Lazy<HashSet<Kind>> =
     Lazy::new(|| [WhileStatement, DoStatement, ForStatement, ForInStatement].into());
 
+fn is_looping_target(node: Node, target_loop_kinds: &HashSet<Kind>) -> bool {
+    let parent = return_default_if_none!(node.parent());
+
+    if !target_loop_kinds.contains(parent.kind()) {
+        return false;
+    }
+
+    match parent.kind() {
+        WhileStatement => node == parent.field("condition"),
+        DoStatement => node == parent.field("body"),
+        ForStatement => {
+            Some(node) == parent.child_by_field_name("increment")
+                || node == parent.field("condition")
+                || node == parent.field("body")
+        }
+        ForInStatement => node == parent.field("left"),
+        _ => unreachable!(),
+    }
+}
+
 #[derive(Default, Deserialize)]
 #[serde(default)]
 struct Options {
@@ -47,45 +68,37 @@ struct Options {
 fn look_for_loops<'a>(
     code_path: Id<CodePath<'a>>,
     code_path_analyzer: &CodePathAnalyzer<'a>,
-    context: &QueryMatchContext<'a, '_>,
     target_loop_kinds: &HashSet<Kind>,
-) {
-    type SawLoopedSegment = bool;
-
-    let mut loop_start_segments: HashMap<Id<CodePathSegment<'a>>, (Node<'a>, SawLoopedSegment)> =
+) -> HashMap<Id<CodePathSegment<'a>>, Node<'a>> {
+    let mut loops_by_target_segments: HashMap<Id<CodePathSegment<'a>>, Node<'a>> =
         Default::default();
-    code_path_analyzer.code_path_arena[code_path].traverse_segments(
+    code_path_analyzer.code_path_arena[code_path].traverse_segments_in_any_order(
         &code_path_analyzer.code_path_segment_arena,
         None,
         |_, segment, _| {
+            println!(
+                "segment 1, segment: {segment:#?}, target_loop_kinds: {target_loop_kinds:#?}, nodes: {:#?}",
+                code_path_analyzer.code_path_segment_arena[segment].nodes
+            );
+            if !code_path_analyzer.code_path_segment_arena[segment].reachable {
+                println!("segment 2");
+                return;
+            }
             if let Some((_, node)) = code_path_analyzer.code_path_segment_arena[segment]
                 .nodes
                 .get(0)
                 .filter(|(enter_or_exit, node)| {
-                    *enter_or_exit == EnterOrExit::Enter && target_loop_kinds.contains(node.kind())
+                    *enter_or_exit == EnterOrExit::Enter
+                        && is_looping_target(*node, target_loop_kinds)
                 })
             {
-                loop_start_segments.insert(segment, (*node, false));
-            }
-
-            for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].prev_segments
-            {
-                if let Some(loop_start_segment) = loop_start_segments.get_mut(&prev_segment) {
-                    loop_start_segment.1 = true;
-                }
+                println!("segment 3");
+                loops_by_target_segments.insert(segment, node.parent().unwrap());
             }
         },
     );
 
-    loop_start_segments
-        .into_values()
-        .filter(|(_, saw_looped_segment)| !saw_looped_segment)
-        .for_each(|(node, _)| {
-            context.report(violation! {
-                node => node,
-                message_id => "invalid",
-            });
-        });
+    loops_by_target_segments
 }
 
 fn get_difference(a: &HashSet<Kind>, b: &[LoopType]) -> HashSet<Kind> {
@@ -109,19 +122,64 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
         state => {
             [per-run]
             target_loop_kinds: HashSet<Kind> = get_difference(&ALL_LOOP_TYPES, &options.ignore),
+
+            [per-file-run]
+            loops_to_report: HashSet<Node<'a>>,
         },
         listeners => [
+            "
+              (while_statement) @c
+              (do_statement) @c
+              (for_statement) @c
+              (for_in_statement) @c
+            " => |node, context| {
+                if !self.target_loop_kinds.contains(&node.kind()) {
+                    return;
+                }
+
+                self.loops_to_report.insert(node);
+            },
             "program:exit" => |node, context| {
+                println!("program exit");
+                println!("loops to report: {:#?}", self.loops_to_report);
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 for &code_path in &code_path_analyzer
                     .code_paths {
-                    look_for_loops(
+                    println!("code path");
+                    let loops_by_target_segments = look_for_loops(
                         code_path,
                         code_path_analyzer,
-                        context,
                         &self.target_loop_kinds,
                     );
+
+                    println!("loops by target segments: {loops_by_target_segments:#?}");
+                    println!("looped segments: {:#?}",
+                    code_path_analyzer
+                        .code_path_arena[code_path]
+                        .state
+                        .looped_segments
+                    );
+                    for (_, to_segment, node) in &code_path_analyzer
+                        .code_path_arena[code_path]
+                        .state
+                        .looped_segments {
+                        println!("looped segment 1");
+                        let loop_ = continue_if_none!(loops_by_target_segments.get(to_segment).copied());
+                        println!("looped segment 2");
+
+                        if loop_ == *node || node.kind() == ContinueStatement {
+                            println!("looped segment 3");
+                            self.loops_to_report.remove(&loop_);
+                        }
+                    }
+
+                    for &node in &self.loops_to_report {
+                        context.report(violation! {
+                            node => node,
+                            message_id => "invalid",
+                        });
+                    }
                 }
             },
         ]
