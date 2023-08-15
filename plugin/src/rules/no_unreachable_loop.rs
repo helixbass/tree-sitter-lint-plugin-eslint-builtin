@@ -76,12 +76,7 @@ fn look_for_loops<'a>(
         &code_path_analyzer.code_path_segment_arena,
         None,
         |_, segment, _| {
-            println!(
-                "segment 1, segment: {segment:#?}, target_loop_kinds: {target_loop_kinds:#?}, nodes: {:#?}",
-                code_path_analyzer.code_path_segment_arena[segment].nodes
-            );
             if !code_path_analyzer.code_path_segment_arena[segment].reachable {
-                println!("segment 2");
                 return;
             }
             if let Some((_, node)) = code_path_analyzer.code_path_segment_arena[segment]
@@ -92,7 +87,6 @@ fn look_for_loops<'a>(
                         && is_looping_target(*node, target_loop_kinds)
                 })
             {
-                println!("segment 3");
                 loops_by_target_segments.insert(segment, node.parent().unwrap());
             }
         },
@@ -154,26 +148,16 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
                 self.loops_to_report.insert(node);
             },
             "program:exit" => |node, context| {
-                println!("program exit");
-                println!("loops to report: {:#?}", self.loops_to_report);
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 for &code_path in &code_path_analyzer
                     .code_paths {
-                    println!("code path");
                     let loops_by_target_segments = look_for_loops(
                         code_path,
                         code_path_analyzer,
                         &self.target_loop_kinds,
                     );
 
-                    println!("loops by target segments: {loops_by_target_segments:#?}");
-                    println!("looped segments: {:#?}",
-                    code_path_analyzer
-                        .code_path_arena[code_path]
-                        .state
-                        .looped_segments
-                    );
                     for (_, to_segment, node) in code_path_analyzer
                         .code_path_arena[code_path]
                         .state
@@ -184,20 +168,15 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
                                 .code_path_segment_arena[*from_segment]
                                 .reachable
                         }) {
-                        println!("looped segment 1");
                         let loop_ = continue_if_none!(loops_by_target_segments.get(to_segment).copied());
-                        println!("looped segment 2");
 
                         if loop_ == *node || node.kind() == ContinueStatement {
-                            println!("looped segment 3 loops_to_report: {:#?}, loop_: {loop_:#?}", self.loops_to_report);
                             self.loops_to_report.remove(&loop_);
-                            println!("looped segment 3.1 loops_to_report: {:#?}", self.loops_to_report);
                         }
                     }
                 }
 
                 for &node in &self.loops_to_report {
-                    println!("report 1");
                     context.report(violation! {
                         node => node,
                         message_id => "invalid",
