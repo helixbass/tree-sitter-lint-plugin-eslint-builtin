@@ -160,26 +160,34 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
                         .state
                         .looped_segments
                     );
-                    for (_, to_segment, node) in &code_path_analyzer
+                    for (_, to_segment, node) in code_path_analyzer
                         .code_path_arena[code_path]
                         .state
-                        .looped_segments {
+                        .looped_segments
+                        .iter()
+                        .filter(|(from_segment, _, _)| {
+                            code_path_analyzer
+                                .code_path_segment_arena[*from_segment]
+                                .reachable
+                        }) {
                         println!("looped segment 1");
                         let loop_ = continue_if_none!(loops_by_target_segments.get(to_segment).copied());
                         println!("looped segment 2");
 
                         if loop_ == *node || node.kind() == ContinueStatement {
-                            println!("looped segment 3");
+                            println!("looped segment 3 loops_to_report: {:#?}, loop_: {loop_:#?}", self.loops_to_report);
                             self.loops_to_report.remove(&loop_);
+                            println!("looped segment 3.1 loops_to_report: {:#?}", self.loops_to_report);
                         }
                     }
+                }
 
-                    for &node in &self.loops_to_report {
-                        context.report(violation! {
-                            node => node,
-                            message_id => "invalid",
-                        });
-                    }
+                for &node in &self.loops_to_report {
+                    println!("report 1");
+                    context.report(violation! {
+                        node => node,
+                        message_id => "invalid",
+                    });
                 }
             },
         ]
