@@ -1,7 +1,17 @@
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
+use id_arena::Id;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+
+use crate::{
+    kind::{DoStatement, ForInStatement, ForStatement, Kind, WhileStatement},
+    CodePath, CodePathAnalyzer, CodePathSegment, EnterOrExit,
+};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Deserialize)]
@@ -13,10 +23,79 @@ enum LoopType {
     ForOfStatement,
 }
 
+impl LoopType {
+    pub fn kind(&self) -> Kind {
+        match self {
+            LoopType::WhileStatement => WhileStatement,
+            LoopType::DoWhileStatement => DoStatement,
+            LoopType::ForStatement => ForStatement,
+            LoopType::ForInStatement => ForInStatement,
+            LoopType::ForOfStatement => ForInStatement,
+        }
+    }
+}
+
+static ALL_LOOP_TYPES: Lazy<HashSet<Kind>> =
+    Lazy::new(|| [WhileStatement, DoStatement, ForStatement, ForInStatement].into());
+
 #[derive(Default, Deserialize)]
 #[serde(default)]
 struct Options {
     ignore: Vec<LoopType>,
+}
+
+fn look_for_loops<'a>(
+    code_path: Id<CodePath<'a>>,
+    code_path_analyzer: &CodePathAnalyzer<'a>,
+    context: &QueryMatchContext<'a, '_>,
+    target_loop_kinds: &HashSet<Kind>,
+) {
+    type SawLoopedSegment = bool;
+
+    let mut loop_start_segments: HashMap<Id<CodePathSegment<'a>>, (Node<'a>, SawLoopedSegment)> =
+        Default::default();
+    code_path_analyzer.code_path_arena[code_path].traverse_segments(
+        &code_path_analyzer.code_path_segment_arena,
+        None,
+        |_, segment, _| {
+            if let Some((_, node)) = code_path_analyzer.code_path_segment_arena[segment]
+                .nodes
+                .get(0)
+                .filter(|(enter_or_exit, node)| {
+                    *enter_or_exit == EnterOrExit::Enter && target_loop_kinds.contains(node.kind())
+                })
+            {
+                loop_start_segments.insert(segment, (*node, false));
+            }
+
+            for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].prev_segments
+            {
+                if let Some(loop_start_segment) = loop_start_segments.get_mut(&prev_segment) {
+                    loop_start_segment.1 = true;
+                }
+            }
+        },
+    );
+
+    loop_start_segments
+        .into_values()
+        .filter(|(_, saw_looped_segment)| !saw_looped_segment)
+        .for_each(|(node, _)| {
+            context.report(violation! {
+                node => node,
+                message_id => "invalid",
+            });
+        });
+}
+
+fn get_difference(a: &HashSet<Kind>, b: &[LoopType]) -> HashSet<Kind> {
+    let mut ret = a.clone();
+    b.into_iter()
+        .map(|loop_type| loop_type.kind())
+        .for_each(|kind| {
+            ret.remove(&kind);
+        });
+    ret
 }
 
 pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
@@ -27,14 +106,23 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
             invalid => "Invalid loop. Its body allows only one iteration.",
         ],
         options_type => Options,
+        state => {
+            [per-run]
+            target_loop_kinds: HashSet<Kind> = get_difference(&ALL_LOOP_TYPES, &options.ignore),
+        },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            "program:exit" => |node, context| {
+                let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                for &code_path in &code_path_analyzer
+                    .code_paths {
+                    look_for_loops(
+                        code_path,
+                        code_path_analyzer,
+                        context,
+                        &self.target_loop_kinds,
+                    );
+                }
             },
         ]
     }
@@ -52,7 +140,10 @@ mod tests {
         RuleTester,
     };
 
-    use crate::kind::{DoStatement, ForInStatement, ForStatement, WhileStatement};
+    use crate::{
+        kind::{DoStatement, ForInStatement, ForStatement, WhileStatement},
+        CodePathAnalyzerInstanceProviderFactory,
+    };
 
     static LOOP_TEMPLATES: Lazy<HashMap<&'static str, Vec<&'static str>>> = Lazy::new(|| {
         [
@@ -190,6 +281,54 @@ mod tests {
         }
     }
 
+    // TODO: these aren't parsing correctly https://github.com/tree-sitter/tree-sitter-javascript/issues/263
+    static NOT_PARSING_TEST_CASES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+        [
+            "do do ; while (a) while (a)",
+            "do do ; while (a) while (a && b)",
+            "for (a in b) { do ; while (a) break; }",
+            "do { do ; while (a) break; } while (a)",
+            "while (a) { do ; while (a) break; }",
+            "for (a; b; c) { do ; while (a) break; }",
+            "for (a of b) { do ; while (a) break; }",
+            "do { do ; while (a) break; } while (a)",
+            "for (a of b) { do ; while (a) break; }",
+            "while (a && b) { do ; while (a) break; }",
+            "for (a in f(b)) { do ; while (a) break; }",
+            "for (var a in b) { do ; while (a) break; }",
+            "for (var i = 0; i < a.length; i++) { do ; while (a) break; }",
+            "do { do ; while (a) break; } while (a && b)",
+            "for (let a in f(b)) { do ; while (a) break; }",
+            "for (a of f(b)) { do ; while (a) break; }",
+            "for ({ a, b } of c) { do ; while (a) break; }",
+            "for (; b; c) { do ; while (a) break; }",
+            "for (; b < foo; c++) { do ; while (a) break; }",
+            "for (var a of f(b)) { do ; while (a) break; }",
+            "for (a; ; c) { do ; while (a) break; }",
+            "async function foo() { for await (const a of b) { do ; while (a) break; } }",
+            "for (a = 0; ; c++) { do ; while (a) break; }",
+            "for (a; b;) { do ; while (a) break; }",
+            "for (a = 0; b < foo; ) { do ; while (a) break; }",
+            "for (; ; c) { do ; while (a) break; }",
+            "for (; ; c++) { do ; while (a) break; }",
+            "for (; b;) { do ; while (a) break; }",
+            "for (; b < foo; ) { do ; while (a) break; }",
+            "for (a; ;) { do ; while (a) break; }",
+            "for (a = 0; ;) { do ; while (a) break; }",
+            "for (;;) { do ; while (a) break; }",
+            "for (a in b) { do ; while (a) break; }",
+            "for (a in f(b)) { do ; while (a) break; }",
+            "for (var a in b) { do ; while (a) break; }",
+            "for (let a in f(b)) { do ; while (a) break; }",
+            "for (a of b) { do ; while (a) break; }",
+            "for (a of f(b)) { do ; while (a) break; }",
+            "for ({ a, b } of c) { do ; while (a) break; }",
+            "for (var a of f(b)) { do ; while (a) break; }",
+            "async function foo() { for await (const a of b) { do ; while (a) break; } }",
+        ]
+        .into()
+    });
+
     fn get_basic_valid_tests() -> Vec<String> {
         LOOP_TEMPLATES
             .values()
@@ -200,6 +339,7 @@ mod tests {
                         .map(|body| get_source_code(template, body))
                 })
             })
+            .filter(|code| !NOT_PARSING_TEST_CASES.contains(&&**code))
             .collect()
     }
 
@@ -228,12 +368,13 @@ mod tests {
                     })
                 })
             })
+            .filter(|rule_test_invalid| !NOT_PARSING_TEST_CASES.contains(&&*rule_test_invalid.code))
             .collect()
     }
 
     #[test]
     fn test_no_unreachable_loop_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             no_unreachable_loop_rule(),
             rule_tests! {
                 valid => [
@@ -479,6 +620,7 @@ mod tests {
                     }
                 ]
             },
+            Box::new(CodePathAnalyzerInstanceProviderFactory),
         )
     }
 }

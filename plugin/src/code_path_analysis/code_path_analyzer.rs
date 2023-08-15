@@ -393,6 +393,8 @@ impl<'a> CodePathAnalyzer<'a> {
                         &mut self.code_path_segment_arena,
                     );
                 } else {
+                    // TODO: I have to be careful about these type of things
+                    // because there could always be error nodes "floating around"?
                     assert!(parent.field("condition") == node);
                     state.make_do_while_test(
                         &mut self.fork_context_arena,
