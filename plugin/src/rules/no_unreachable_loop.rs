@@ -137,6 +137,20 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
                     return;
                 }
 
+                let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                if !code_path_analyzer
+                    .get_segments_that_include_node_enter(node)
+                    .into_iter()
+                    .any(|segment| {
+                        code_path_analyzer
+                            .code_path_segment_arena[segment]
+                            .reachable
+                    })
+                {
+                    return;
+                }
+
                 self.loops_to_report.insert(node);
             },
             "program:exit" => |node, context| {
