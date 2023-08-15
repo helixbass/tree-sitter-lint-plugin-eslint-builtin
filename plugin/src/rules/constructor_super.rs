@@ -103,6 +103,7 @@ fn check_for_no_super<'a>(
     segment: Id<CodePathSegment<'a>>,
     code_path_analyzer: &CodePathAnalyzer<'a>,
     seen_segments: &mut HashSet<Id<CodePathSegment<'a>>>,
+    seen_segments_found: &mut HashMap<Id<CodePathSegment<'a>>, Found>,
 ) -> Found {
     seen_segments.insert(segment);
     if code_path_analyzer.code_path_segment_arena[segment]
@@ -114,29 +115,35 @@ fn check_for_no_super<'a>(
                 || node.kind() == CallExpression && node.field("function").kind() == Super
         })
     {
+        seen_segments_found.insert(segment, Found::InAll);
         return Found::InAll;
     }
 
-    (&code_path_analyzer.code_path_segment_arena[segment].prev_segments).thrush(|prev_segments| {
-        if prev_segments.is_empty() {
-            Found::No
-        } else {
-            prev_segments
-                .into_iter()
-                .filter_map(|&prev_segment| {
-                    if seen_segments.contains(&prev_segment) {
-                        None
-                    } else {
-                        Some(check_for_no_super(
-                            prev_segment,
-                            code_path_analyzer,
-                            seen_segments,
-                        ))
-                    }
-                })
-                .into()
-        }
-    })
+    let ret = (&code_path_analyzer.code_path_segment_arena[segment].prev_segments).thrush(
+        |prev_segments| {
+            if prev_segments.is_empty() {
+                Found::No
+            } else {
+                prev_segments
+                    .into_iter()
+                    .filter_map(|&prev_segment| {
+                        if seen_segments.contains(&prev_segment) {
+                            seen_segments_found.get(&prev_segment).copied()
+                        } else {
+                            Some(check_for_no_super(
+                                prev_segment,
+                                code_path_analyzer,
+                                seen_segments,
+                                seen_segments_found,
+                            ))
+                        }
+                    })
+                    .into()
+            }
+        },
+    );
+    seen_segments_found.insert(segment, ret);
+    ret
 }
 
 fn check_for_duplicate_super<'a>(
@@ -168,10 +175,17 @@ fn check_for_duplicate_super<'a>(
     {
         println!("check_for_duplicate_super() 2, has_seen: {has_seen:#?}");
         if let Some(has_seen) = has_seen {
-            context.report(violation! {
-                message_id => "duplicate",
-                node => has_seen,
-            });
+            if has_seen.start_byte() < node.start_byte() {
+                context.report(violation! {
+                    message_id => "duplicate",
+                    node => node,
+                });
+            } else {
+                context.report(violation! {
+                    message_id => "duplicate",
+                    node => has_seen,
+                });
+            }
         }
         segments_where_seen.insert(segment, node);
         has_seen = Some(node);
@@ -231,10 +245,6 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 let enclosing_method_definition = ast_utils::get_upper_function(node);
                 if !enclosing_method_definition.matches(|node| is_constructor_function(node, context)) {
-                    context.report(violation! {
-                        node => node,
-                        message_id => "unexpected",
-                    });
                     return;
                 }
                 let enclosing_method_definition = enclosing_method_definition.unwrap();
@@ -246,6 +256,11 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                             message_id => "bad_super",
                         });
                     }
+                } else {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "unexpected",
+                    });
                 }
             },
             "program:exit" => |node, context| {
@@ -272,6 +287,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                         println!("has extends");
 
                         let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> = Default::default();
+                        let mut seen_segments_found: HashMap<Id<CodePathSegment<'a>>, Found> = Default::default();
 
                         let no_supers: Found = code_path_analyzer
                             .code_path_arena[code_path]
@@ -282,6 +298,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                     returned_segment,
                                     code_path_analyzer,
                                     &mut seen_segments,
+                                    &mut seen_segments_found,
                                 )
                             })
                             .into();
@@ -521,7 +538,7 @@ mod tests {
                     },
                     {
                         code => "class A extends B { constructor() { for (var a of b) super.foo(); } }",
-                        errors => [{ message_id => "missing_all", type => MethodDefinition }]
+                        errors => [{ message_id => "missing_all", type => MethodDefinition }],
                     },
 
                     // nested execution scope.
@@ -535,7 +552,7 @@ mod tests {
                     },
                     {
                         code => "class A extends B { constructor() { var c = () => super(); } }",
-                        errors => [{ message_id => "missing_all", type => MethodDefinition }]
+                        errors => [{ message_id => "missing_all", type => MethodDefinition }],
                     },
                     {
                         code => "class A extends B { constructor() { class C extends D { constructor() { super(); } } } }",
@@ -591,7 +608,7 @@ mod tests {
                     // duplicate.
                     {
                         code => "class A extends B { constructor() { super(); super(); } }",
-                        errors => [{ message_id => "duplicate", type => CallExpression, column => 46 }]
+                        errors => [{ message_id => "duplicate", type => CallExpression, column => 46 }],
                     },
                     {
                         code => "class A extends B { constructor() { super() || super(); } }",
