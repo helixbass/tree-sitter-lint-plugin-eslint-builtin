@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use id_arena::Id;
 use squalid::{EverythingExt, OptionExt};
@@ -9,6 +12,7 @@ use crate::{
         get_last_expression_of_sequence_expression, get_method_definition_kind,
         is_logical_expression, MethodDefinitionKind, NodeExtJs,
     },
+    code_path_analysis::TraverseSegmentsOptions,
     kind::{
         AssignmentExpression, AugmentedAssignmentExpression, BinaryExpression, CallExpression,
         Class, ClassHeritage, Function, Identifier, MemberExpression, MetaProperty,
@@ -101,10 +105,6 @@ fn check_for_no_super<'a>(
     seen_segments: &mut HashSet<Id<CodePathSegment<'a>>>,
 ) -> Found {
     seen_segments.insert(segment);
-    println!(
-        "check_for_no_super() 1, segment: {:#?}",
-        &code_path_analyzer.code_path_segment_arena[segment]
-    );
     if code_path_analyzer.code_path_segment_arena[segment]
         .nodes
         .iter()
@@ -114,16 +114,13 @@ fn check_for_no_super<'a>(
                 || node.kind() == CallExpression && node.field("function").kind() == Super
         })
     {
-        println!("check_for_no_super() 2");
         return Found::InAll;
     }
 
     (&code_path_analyzer.code_path_segment_arena[segment].prev_segments).thrush(|prev_segments| {
         if prev_segments.is_empty() {
-            println!("check_for_no_super() 3");
             Found::No
         } else {
-            println!("check_for_no_super() 4");
             prev_segments
                 .into_iter()
                 .filter_map(|&prev_segment| {
@@ -140,6 +137,79 @@ fn check_for_no_super<'a>(
                 .into()
         }
     })
+}
+
+fn check_for_duplicate_super<'a>(
+    segment: Id<CodePathSegment<'a>>,
+    code_path_analyzer: &CodePathAnalyzer<'a>,
+    seen_segments: &mut HashSet<Id<CodePathSegment<'a>>>,
+    context: &QueryMatchContext<'a, '_>,
+    mut has_seen: Option<Node<'a>>,
+    segments_where_seen: &mut HashMap<Id<CodePathSegment<'a>>, Node<'a>>,
+) {
+    seen_segments.insert(segment);
+
+    println!(
+        "check_for_duplicate_super() 1, segment: {segment:#?} {:#?}",
+        &code_path_analyzer.code_path_segment_arena[segment]
+    );
+    for node in code_path_analyzer.code_path_segment_arena[segment]
+        .nodes
+        .iter()
+        .filter_map(|(enter_or_exit, node)| {
+            if *enter_or_exit != EnterOrExit::Enter {
+                return None;
+            }
+
+            (node.kind() == ReturnStatement && node.has_non_comment_named_children()
+                || node.kind() == CallExpression && node.field("function").kind() == Super)
+                .then_some(*node)
+        })
+    {
+        println!("check_for_duplicate_super() 2, has_seen: {has_seen:#?}");
+        if let Some(has_seen) = has_seen {
+            context.report(violation! {
+                message_id => "duplicate",
+                node => has_seen,
+            });
+        }
+        segments_where_seen.insert(segment, node);
+        has_seen = Some(node);
+    }
+
+    for &prev_segment in &code_path_analyzer.code_path_segment_arena[segment].prev_segments {
+        println!("check_for_duplicate_super() 3");
+        if seen_segments.contains(&prev_segment) {
+            if let (Some(has_seen_present), Some(prev_seen)) =
+                (has_seen, segments_where_seen.get(&prev_segment))
+            {
+                if has_seen_present.start_byte() > prev_seen.start_byte() {
+                    context.report(violation! {
+                        message_id => "duplicate",
+                        node => has_seen_present,
+                    });
+                    has_seen = None;
+                } else {
+                    context.report(violation! {
+                        message_id => "duplicate",
+                        node => *prev_seen,
+                    });
+                    segments_where_seen.remove(&prev_segment);
+                }
+            }
+            continue;
+        }
+        println!("check_for_duplicate_super() 4");
+
+        check_for_duplicate_super(
+            prev_segment,
+            code_path_analyzer,
+            seen_segments,
+            context,
+            has_seen,
+            segments_where_seen,
+        );
+    }
 }
 
 pub fn constructor_super_rule() -> Arc<dyn Rule> {
@@ -208,7 +278,6 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                             .returned_segments()
                             .into_iter()
                             .map(|&returned_segment| {
-                                println!("entering check_for_no_super()");
                                 check_for_no_super(
                                     returned_segment,
                                     code_path_analyzer,
@@ -230,6 +299,61 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                 });
                             }
                             _ => ()
+                        }
+
+                        let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> = Default::default();
+                        let mut segments_where_seen: HashMap<Id<CodePathSegment<'a>>, Node<'a>> = Default::default();
+
+                        code_path_analyzer
+                            .code_path_arena[code_path]
+                            .returned_segments()
+                            .into_iter()
+                            .for_each(|&returned_segment| {
+                                println!("entering check_for_duplicate_super()");
+                                check_for_duplicate_super(
+                                    returned_segment,
+                                    code_path_analyzer,
+                                    &mut seen_segments,
+                                    context,
+                                    None,
+                                    &mut segments_where_seen,
+                                )
+                            });
+
+                        for (from_segment, to_segment) in &code_path_analyzer
+                            .code_path_arena[code_path]
+                            .state
+                            .looped_segments {
+                            let is_real_loop = code_path_analyzer
+                                .code_path_segment_arena[*to_segment]
+                                .prev_segments.len() >= 2;
+
+                            code_path_analyzer.code_path_arena[code_path]
+                                .traverse_segments(
+                                    &code_path_analyzer.code_path_segment_arena,
+                                    Some(TraverseSegmentsOptions {
+                                        first: Some(*to_segment),
+                                        last: Some(*from_segment),
+                                    }),
+                                    |_, segment, _| {
+                                        if is_real_loop {
+                                            for (_, node) in code_path_analyzer
+                                                .code_path_segment_arena[segment]
+                                                .nodes
+                                                .iter()
+                                                .filter(|(enter_or_exit, node)| {
+                                                    *enter_or_exit == EnterOrExit::Enter &&
+                                                        node.kind() == CallExpression && node.field("function").kind() == Super
+                                                })
+                                            {
+                                                context.report(violation! {
+                                                    node => *node,
+                                                    message_id => "duplicate",
+                                                });
+                                            }
+                                        }
+                                    }
+                                );
                         }
                     }
                 }
@@ -471,7 +595,7 @@ mod tests {
                     },
                     {
                         code => "class A extends B { constructor() { super() || super(); } }",
-                        errors => [{ message_id => "duplicate", type => CallExpression, column => 48 }]
+                        errors => [{ message_id => "duplicate", type => CallExpression, column => 48 }],
                     },
                     {
                         code => "class A extends B { constructor() { if (a) super(); super(); } }",
@@ -479,14 +603,14 @@ mod tests {
                     },
                     {
                         code => "class A extends B { constructor() { switch (a) { case 0: super(); default: super(); } } }",
-                        errors => [{ message_id => "duplicate", type => CallExpression, column => 76 }]
+                        errors => [{ message_id => "duplicate", type => CallExpression, column => 76 }],
                     },
                     {
                         code => "class A extends B { constructor(a) { while (a) super(); } }",
                         errors => [
                             { message_id => "missing_some", type => MethodDefinition },
                             { message_id => "duplicate", type => CallExpression, column => 48 }
-                        ]
+                        ],
                     },
 
                     // ignores `super()` on unreachable paths.

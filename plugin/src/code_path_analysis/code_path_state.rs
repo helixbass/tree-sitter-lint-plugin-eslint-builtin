@@ -27,15 +27,15 @@ fn add_to_returned_or_thrown<'a>(
 }
 
 fn get_continue_context<'a, 'b>(
-    state: &'a CodePathState<'b>,
+    state_loop_context: Option<&'a LoopContext<'b>>,
     label: Option<&str>,
 ) -> Option<&'a LoopContext<'b>> {
     let label = match label {
-        None => return state.loop_context.as_ref(),
+        None => return state_loop_context,
         Some(label) => label,
     };
 
-    let mut context = state.loop_context.as_ref();
+    let mut context = state_loop_context;
     while let Some(context_present) = context {
         if context_present.label() == Some(label) {
             return Some(context_present);
@@ -124,7 +124,8 @@ fn remove_connection<'a>(
 
 fn make_looped<'a>(
     arena: &mut Arena<CodePathSegment<'a>>,
-    state: &CodePathState<'a>,
+    state_looped_segments: &mut Vec<(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>)>,
+    state_notify_looped: &OnLooped,
     unflattened_from_segments: &SingleOrSplitSegment<'a>,
     unflattened_to_segments: &SingleOrSplitSegment<'a>,
 ) {
@@ -147,9 +148,9 @@ fn make_looped<'a>(
             CodePathSegment::mark_prev_segment_as_looped(arena, to_segment, from_segment);
         }
 
-        state
-            .notify_looped
-            .on_looped(arena, from_segment, to_segment);
+        state_looped_segments.push((from_segment, to_segment));
+
+        state_notify_looped.on_looped(arena, from_segment, to_segment);
     }
 }
 
@@ -192,6 +193,7 @@ pub struct CodePathState<'a> {
     pub final_segments: Vec<Id<CodePathSegment<'a>>>,
     pub returned_fork_context: Vec<Id<CodePathSegment<'a>>>,
     pub thrown_fork_context: Vec<Id<CodePathSegment<'a>>>,
+    pub looped_segments: Vec<(Id<CodePathSegment<'a>>, Id<CodePathSegment<'a>>)>,
 }
 
 impl<'a> CodePathState<'a> {
@@ -222,6 +224,7 @@ impl<'a> CodePathState<'a> {
             final_segments: Default::default(),
             returned_fork_context: Default::default(),
             thrown_fork_context: Default::default(),
+            looped_segments: Default::default(),
         }
     }
 
@@ -641,7 +644,8 @@ impl<'a> CodePathState<'a> {
                 );
                 make_looped(
                     code_path_segment_arena,
-                    self,
+                    &mut self.looped_segments,
+                    &self.notify_looped,
                     &last_case_segments,
                     default_body_segments,
                 );
@@ -993,7 +997,8 @@ impl<'a> CodePathState<'a> {
                 self.pop_choice_context(arena, code_path_segment_arena);
                 make_looped(
                     code_path_segment_arena,
-                    self,
+                    &mut self.looped_segments,
+                    &self.notify_looped,
                     &arena[fork_context].head(),
                     context.continue_dest_segments.as_ref().unwrap(),
                 );
@@ -1002,7 +1007,8 @@ impl<'a> CodePathState<'a> {
                 self.pop_choice_context(arena, code_path_segment_arena);
                 make_looped(
                     code_path_segment_arena,
-                    self,
+                    &mut self.looped_segments,
+                    &self.notify_looped,
                     &arena[fork_context].head(),
                     context.continue_dest_segments.as_ref().unwrap(),
                 );
@@ -1029,7 +1035,8 @@ impl<'a> CodePathState<'a> {
                 for segments in segments_list {
                     make_looped(
                         code_path_segment_arena,
-                        self,
+                        &mut self.looped_segments,
+                        &self.notify_looped,
                         segments,
                         context.entry_segments.as_ref().unwrap(),
                     );
@@ -1040,7 +1047,8 @@ impl<'a> CodePathState<'a> {
                 arena[broken_fork_context].add(code_path_segment_arena, segments);
                 make_looped(
                     code_path_segment_arena,
-                    self,
+                    &mut self.looped_segments,
+                    &self.notify_looped,
                     &arena[fork_context].head(),
                     context.left_segments.as_ref().unwrap(),
                 );
@@ -1219,11 +1227,12 @@ impl<'a> CodePathState<'a> {
                 .unwrap()
                 .as_for_loop_context()
                 .test_segments
-                .as_ref()
+                .clone()
             {
                 make_looped(
                     code_path_segment_arena,
-                    self,
+                    &mut self.looped_segments,
+                    &self.notify_looped,
                     self.loop_context
                         .as_ref()
                         .unwrap()
@@ -1231,7 +1240,7 @@ impl<'a> CodePathState<'a> {
                         .end_of_update_segments
                         .as_ref()
                         .unwrap(),
-                    test_segments,
+                    &test_segments,
                 );
             }
         } else if self
@@ -1354,7 +1363,7 @@ impl<'a> CodePathState<'a> {
     }
 
     pub fn make_for_in_of_body(
-        &self,
+        &mut self,
         arena: &mut Arena<ForkContext<'a>>,
         code_path_segment_arena: &mut Arena<CodePathSegment<'a>>,
     ) {
@@ -1370,7 +1379,8 @@ impl<'a> CodePathState<'a> {
 
         make_looped(
             code_path_segment_arena,
-            self,
+            &mut self.looped_segments,
+            &self.notify_looped,
             &arena[fork_context].head(),
             context.left_segments.as_ref().unwrap(),
         );
@@ -1452,7 +1462,7 @@ impl<'a> CodePathState<'a> {
     }
 
     pub fn make_continue(
-        &self,
+        &mut self,
         arena: &mut Arena<ForkContext<'a>>,
         code_path_segment_arena: &mut Arena<CodePathSegment<'a>>,
         label: Option<&str>,
@@ -1463,13 +1473,14 @@ impl<'a> CodePathState<'a> {
             return;
         }
 
-        let context = get_continue_context(self, label);
+        let context = get_continue_context(self.loop_context.as_ref(), label);
 
         if let Some(context) = context {
             if let Some(continue_dest_segments) = context.continue_dest_segments() {
                 make_looped(
                     code_path_segment_arena,
-                    self,
+                    &mut self.looped_segments,
+                    &self.notify_looped,
                     &arena[fork_context].head(),
                     &continue_dest_segments,
                 );

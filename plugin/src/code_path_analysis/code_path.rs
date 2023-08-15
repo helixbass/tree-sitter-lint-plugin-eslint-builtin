@@ -230,8 +230,8 @@ impl<'a> CodePath<'a> {
 #[derive(Builder, Default)]
 #[builder(default, setter(strip_option))]
 pub struct TraverseSegmentsOptions<'a> {
-    first: Option<Id<CodePathSegment<'a>>>,
-    last: Option<Id<CodePathSegment<'a>>>,
+    pub first: Option<Id<CodePathSegment<'a>>>,
+    pub last: Option<Id<CodePathSegment<'a>>>,
 }
 
 pub struct TraverseSegmentsController<'a, 'b> {
