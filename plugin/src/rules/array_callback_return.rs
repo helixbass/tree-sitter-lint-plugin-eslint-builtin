@@ -1,13 +1,92 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
+use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::{get_call_expression_arguments, is_logical_expression, NodeExtJs},
+    kind::{
+        ArrowFunction, BinaryExpression, CallExpression, Function, ReturnStatement, StatementBlock,
+        TernaryExpression,
+    },
+    utils::ast_utils,
+    CodePathAnalyzer,
+};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
 struct Options {
     allow_implicit: bool,
     check_for_each: bool,
+}
+
+static TARGET_NODE_TYPE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(&format!(r#"^(?:{ArrowFunction}|{Function})$"#)).unwrap());
+static TARGET_METHODS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"^(?:every|filter|find(?:Last)?(?:Index)?|flatMap|forEach|map|reduce(?:Right)?|some|sort|toSorted)$"#).unwrap()
+});
+
+fn is_target_method(node: Node, context: &QueryMatchContext) -> bool {
+    ast_utils::is_specific_member_access(
+        node,
+        Option::<&'static str>::None,
+        Some(&*TARGET_METHODS),
+        context,
+    )
+}
+
+fn get_array_method_name<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> Option<Cow<'a, str>> {
+    let mut current_node = node;
+
+    loop {
+        let parent = current_node.parent().unwrap();
+
+        match parent.kind() {
+            BinaryExpression => {
+                if !is_logical_expression(parent) {
+                    return None;
+                }
+                current_node = parent;
+            }
+            TernaryExpression => current_node = parent,
+            ReturnStatement => {
+                let func = ast_utils::get_upper_function(parent)
+                    .filter(|&func| ast_utils::is_callee(func))?;
+
+                current_node = func.parent()?;
+            }
+            CallExpression => {
+                let callee = parent.field("function");
+                if ast_utils::is_array_from_method(callee, context) {
+                    let arguments = get_call_expression_arguments(parent)?.collect_vec();
+                    if arguments.len() >= 2 && arguments[1] == current_node {
+                        return Some("from".into());
+                    }
+                }
+                if is_target_method(callee, context) {
+                    let arguments = get_call_expression_arguments(parent)?.collect_vec();
+                    if arguments.get(0).copied() == Some(current_node) {
+                        return ast_utils::get_static_property_name(callee, context);
+                    }
+                }
+                return None;
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn full_method_name(array_method_name: &str) -> String {
+    match array_method_name {
+        "from" | "of" | "isArray" => format!("Array.{array_method_name}"),
+        _ => format!("Array.prototype.{array_method_name}"),
+    }
 }
 
 pub fn array_callback_return_rule() -> Arc<dyn Rule> {
@@ -27,13 +106,70 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
             check_for_each: bool = options.check_for_each,
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            "program:exit" => |node, context| {
+                let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                for (code_path, node, array_method_name) in code_path_analyzer
+                    .code_paths
+                    .iter()
+                    .filter_map(|&code_path| {
+                        let node =
+                            code_path_analyzer
+                                .code_path_arena[code_path]
+                                .root_node(&code_path_analyzer.code_path_segment_arena);
+                        if !TARGET_NODE_TYPE.is_match(node.kind()) {
+                            return None;
+                        }
+
+                        let array_method_name = get_array_method_name(node, context)?;
+
+                        if node.has_child_of_kind("async") {
+                            return None;
+                        }
+
+                        Some((code_path, node, array_method_name))
+                    })
+                {
+                    let mut has_return = false;
+
+                    let mut message_id = None;
+
+                    #[allow(clippy::collapsible_else_if)]
+                    if array_method_name == "for_each" {
+                        if self.check_for_each && node.kind() == ArrowFunction &&
+                            node.field("body").kind() != StatementBlock {
+                            message_id = Some("expected_no_return_value");
+                        }
+                    } else {
+                        if node.field("body").kind() == StatementBlock &&
+                            code_path_analyzer
+                                .code_path_arena[code_path]
+                                .state
+                                .head_segments(&code_path_analyzer.fork_context_arena)
+                                .reachable(&code_path_analyzer.code_path_segment_arena)
+                        {
+                            message_id = Some(if has_return {
+                                "expected_at_end"
+                            } else {
+                                "expected_inside"
+                            });
+                        }
+                    }
+
+                    if let Some(message_id) = message_id {
+                        let name = ast_utils::get_function_name_with_kind(node, context);
+
+                        context.report(violation! {
+                            node => node,
+                            range => ast_utils::get_function_head_range(node),
+                            message_id => message_id,
+                            data => {
+                                name => name,
+                                array_method_name => full_method_name(&array_method_name),
+                            },
+                        });
+                    }
+                }
             },
         ]
     }
@@ -45,6 +181,8 @@ mod tests {
 
     use tree_sitter_lint::{rule_tests, serde_json::json, RuleTester};
 
+    use crate::CodePathAnalyzerInstanceProviderFactory;
+
     #[test]
     fn test_array_callback_return_rule() {
         let allow_implicit_options = json!({ "allow_implicit": true });
@@ -54,7 +192,7 @@ mod tests {
         let allow_implicit_check_for_each =
             json!({ "allow_implicit": true, "check_for_each": true });
 
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             array_callback_return_rule(),
             rule_tests! {
                 valid => [
@@ -254,7 +392,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 1,
                             column => 16,
                             end_line => 1,
@@ -267,7 +405,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 2,
                             column => 4,
                             end_line => 2,
@@ -280,7 +418,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 1,
                             column => 26,
                             end_line => 1,
@@ -306,7 +444,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "arrow function", array_method_name => "Array.from" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 1,
                             column => 21,
                             end_line => 1,
@@ -320,7 +458,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedNoReturnValue",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 1,
                             column => 17,
                             end_line => 1,
@@ -334,7 +472,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedNoReturnValue",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 1,
                             column => 41,
                             end_line => 1,
@@ -348,7 +486,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedNoReturnValue",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
-                            type => "ArrowFunctionExpression",
+                            type => ArrowFunction,
                             line => 2,
                             column => 13,
                             end_line => 2,
@@ -374,7 +512,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function", array_method_name => "Array.prototype.filter" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 12,
                             end_line => 1,
@@ -386,7 +524,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function", array_method_name => "Array.prototype.filter" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 12,
                             end_line => 1,
@@ -398,7 +536,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function", array_method_name => "Array.prototype.filter" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 12,
                             end_line => 2,
@@ -410,7 +548,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 12,
                             end_line => 1,
@@ -422,7 +560,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 12,
                             end_line => 1,
@@ -434,7 +572,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 12,
                             end_line => 2,
@@ -446,7 +584,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function 'bar'", array_method_name => "Array.from" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 17,
                             end_line => 1,
@@ -458,7 +596,7 @@ mod tests {
                         errors => [{
                             message_id => "expectedInside",
                             data => { name => "function", array_method_name => "Array.from" },
-                            type => "FunctionExpression",
+                            type => Function,
                             line => 1,
                             column => 23,
                             end_line => 1,
@@ -519,6 +657,7 @@ mod tests {
                     }
                 ]
             },
+            Box::new(CodePathAnalyzerInstanceProviderFactory),
         )
     }
 }

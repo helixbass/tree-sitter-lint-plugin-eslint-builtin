@@ -31,6 +31,8 @@ use crate::{
     },
 };
 
+static ARRAY_OR_TYPED_ARRAY_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"Array$"#).unwrap());
+
 pub const LINE_BREAK_PATTERN_STR: &str = r#"\r\n|[\r\n\u2028\u2029]"#;
 
 pub static LINE_BREAK_PATTERN: Lazy<Regex> =
@@ -105,6 +107,11 @@ pub fn is_null_or_undefined(node: Node, context: &QueryMatchContext) -> bool {
     is_null_literal(node)
         || node.kind() == Undefined
         || node.kind() == UnaryExpression && node.field("operator").text(context) == "void"
+}
+
+pub fn is_callee(node: Node) -> bool {
+    node.parent()
+        .matches(|parent| parent.kind() == CallExpression && parent.field("function") == node)
 }
 
 pub fn get_static_string_value<'a>(
@@ -294,6 +301,15 @@ pub fn is_same_reference(
         }
         _ => false,
     }
+}
+
+pub fn is_array_from_method(node: Node, context: &QueryMatchContext) -> bool {
+    is_specific_member_access(
+        node,
+        Some(&*ARRAY_OR_TYPED_ARRAY_PATTERN),
+        Some("from"),
+        context,
+    )
 }
 
 pub fn is_parenthesised(node: Node) -> bool {
