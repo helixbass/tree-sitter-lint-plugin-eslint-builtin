@@ -32,7 +32,7 @@ fn is_valid_this_arg<'a>(
     context: &QueryMatchContext<'a, '_>,
 ) -> bool {
     match expected_this {
-        None => ast_utils::is_null_or_undefined(this_arg, context),
+        None => ast_utils::is_null_or_undefined(this_arg),
         Some(expected_this) => ast_utils::equal_tokens(expected_this, this_arg, context),
     }
 }

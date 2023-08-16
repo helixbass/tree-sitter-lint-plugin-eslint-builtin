@@ -103,10 +103,10 @@ pub fn is_null_literal(node: Node) -> bool {
     node.kind() == Null
 }
 
-pub fn is_null_or_undefined(node: Node, context: &QueryMatchContext) -> bool {
+pub fn is_null_or_undefined(node: Node) -> bool {
     is_null_literal(node)
         || node.kind() == Undefined
-        || node.kind() == UnaryExpression && node.field("operator").text(context) == "void"
+        || node.kind() == UnaryExpression && node.field("operator").kind() == "void"
 }
 
 pub fn is_callee(node: Node) -> bool {

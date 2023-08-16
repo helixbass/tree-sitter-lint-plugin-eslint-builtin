@@ -1,6 +1,74 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use tree_sitter_lint::{rule, violation, Rule};
+use id_arena::Id;
+use squalid::{EverythingExt, OptionExt};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+
+use crate::{
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
+    kind::{CallExpression, MethodDefinition, Super, This},
+    utils::ast_utils,
+    CodePath, CodePathAnalyzer, CodePathSegment, EnterOrExit,
+};
+
+fn _look_for_this_before_super<'a>(
+    current_segment: Id<CodePathSegment<'a>>,
+    code_path_analyzer: &CodePathAnalyzer<'a>,
+    mut seen_segments: HashSet<Id<CodePathSegment<'a>>>,
+    nodes_to_report: &mut HashSet<Node<'a>>,
+) {
+    if seen_segments.contains(&current_segment) {
+        return;
+    }
+    seen_segments.insert(current_segment);
+
+    for (enter_or_exit, node) in &code_path_analyzer.code_path_segment_arena[current_segment].nodes
+    {
+        match *enter_or_exit {
+            EnterOrExit::Exit => {
+                if node.kind() == CallExpression && node.field("function").kind() == Super {
+                    return;
+                }
+            }
+            EnterOrExit::Enter => match node.kind() {
+                This => {
+                    nodes_to_report.insert(*node);
+                }
+                Super if !ast_utils::is_callee(*node) => {
+                    nodes_to_report.insert(*node);
+                }
+                _ => (),
+            },
+        }
+    }
+
+    code_path_analyzer.code_path_segment_arena[current_segment]
+        .next_segments
+        .iter()
+        .for_each(|&next_segment| {
+            _look_for_this_before_super(
+                next_segment,
+                code_path_analyzer,
+                seen_segments.clone(),
+                nodes_to_report,
+            );
+        });
+}
+
+fn look_for_this_before_super<'a>(
+    code_path: Id<CodePath<'a>>,
+    code_path_analyzer: &CodePathAnalyzer<'a>,
+    nodes_to_report: &mut HashSet<Node<'a>>,
+) {
+    _look_for_this_before_super(
+        code_path_analyzer.code_path_arena[code_path]
+            .state
+            .initial_segment,
+        code_path_analyzer,
+        Default::default(),
+        nodes_to_report,
+    )
+}
 
 pub fn no_this_before_super_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,13 +78,52 @@ pub fn no_this_before_super_rule() -> Arc<dyn Rule> {
             no_before_super => "'{{kind}}' is not allowed before 'super()'.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            "program:exit" => |node, context| {
+                let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
+
+                let mut nodes_to_report: HashSet<Node<'a>> = Default::default();
+
+                for &code_path in code_path_analyzer
+                    .code_paths
+                    .iter()
+                    .filter(|&&code_path| {
+                        code_path_analyzer
+                            .code_path_arena[code_path]
+                            .root_node(&code_path_analyzer.code_path_segment_arena)
+                            .thrush(|root_node| {
+                                if !(root_node.kind() == MethodDefinition &&
+                                    get_method_definition_kind(root_node, context) == MethodDefinitionKind::Constructor) {
+                                    return false;
+                                }
+
+                                let class_node = root_node.parent().unwrap().parent().unwrap();
+
+                                class_node.maybe_first_child_of_kind("class_heritage").matches(|class_heritage| {
+                                    !ast_utils::is_null_or_undefined(class_heritage)
+                                })
+                            })
+                    })
+                {
+                    look_for_this_before_super(
+                        code_path,
+                        code_path_analyzer,
+                        &mut nodes_to_report,
+                    );
+                }
+
+                for node in nodes_to_report {
+                    context.report(violation! {
+                        message_id => "no_before_super",
+                        node => node,
+                        data => {
+                            kind => match node.kind() {
+                                Super => "super",
+                                This => "this",
+                                _ => unreachable!()
+                            }
+                        }
+                    });
+                }
             },
         ]
     }
@@ -24,7 +131,10 @@ pub fn no_this_before_super_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::{Super, This};
+    use crate::{
+        kind::{Super, This},
+        CodePathAnalyzerInstanceProviderFactory,
+    };
 
     use super::*;
 
@@ -32,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_no_this_before_super_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             no_this_before_super_rule(),
             rule_tests! {
                 valid => [
@@ -201,6 +311,7 @@ mod tests {
                     }
                 ]
             },
+            Box::new(CodePathAnalyzerInstanceProviderFactory),
         )
     }
 }
