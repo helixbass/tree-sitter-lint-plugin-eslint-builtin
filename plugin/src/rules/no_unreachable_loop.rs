@@ -331,54 +331,6 @@ mod tests {
         }
     }
 
-    // TODO: these aren't parsing correctly https://github.com/tree-sitter/tree-sitter-javascript/issues/263
-    static NOT_PARSING_TEST_CASES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-        [
-            "do do ; while (a) while (a)",
-            "do do ; while (a) while (a && b)",
-            "for (a in b) { do ; while (a) break; }",
-            "do { do ; while (a) break; } while (a)",
-            "while (a) { do ; while (a) break; }",
-            "for (a; b; c) { do ; while (a) break; }",
-            "for (a of b) { do ; while (a) break; }",
-            "do { do ; while (a) break; } while (a)",
-            "for (a of b) { do ; while (a) break; }",
-            "while (a && b) { do ; while (a) break; }",
-            "for (a in f(b)) { do ; while (a) break; }",
-            "for (var a in b) { do ; while (a) break; }",
-            "for (var i = 0; i < a.length; i++) { do ; while (a) break; }",
-            "do { do ; while (a) break; } while (a && b)",
-            "for (let a in f(b)) { do ; while (a) break; }",
-            "for (a of f(b)) { do ; while (a) break; }",
-            "for ({ a, b } of c) { do ; while (a) break; }",
-            "for (; b; c) { do ; while (a) break; }",
-            "for (; b < foo; c++) { do ; while (a) break; }",
-            "for (var a of f(b)) { do ; while (a) break; }",
-            "for (a; ; c) { do ; while (a) break; }",
-            "async function foo() { for await (const a of b) { do ; while (a) break; } }",
-            "for (a = 0; ; c++) { do ; while (a) break; }",
-            "for (a; b;) { do ; while (a) break; }",
-            "for (a = 0; b < foo; ) { do ; while (a) break; }",
-            "for (; ; c) { do ; while (a) break; }",
-            "for (; ; c++) { do ; while (a) break; }",
-            "for (; b;) { do ; while (a) break; }",
-            "for (; b < foo; ) { do ; while (a) break; }",
-            "for (a; ;) { do ; while (a) break; }",
-            "for (a = 0; ;) { do ; while (a) break; }",
-            "for (;;) { do ; while (a) break; }",
-            "for (a in b) { do ; while (a) break; }",
-            "for (a in f(b)) { do ; while (a) break; }",
-            "for (var a in b) { do ; while (a) break; }",
-            "for (let a in f(b)) { do ; while (a) break; }",
-            "for (a of b) { do ; while (a) break; }",
-            "for (a of f(b)) { do ; while (a) break; }",
-            "for ({ a, b } of c) { do ; while (a) break; }",
-            "for (var a of f(b)) { do ; while (a) break; }",
-            "async function foo() { for await (const a of b) { do ; while (a) break; } }",
-        ]
-        .into()
-    });
-
     fn get_basic_valid_tests() -> Vec<String> {
         LOOP_TEMPLATES
             .values()
@@ -389,7 +341,6 @@ mod tests {
                         .map(|body| get_source_code(template, body))
                 })
             })
-            .filter(|code| !NOT_PARSING_TEST_CASES.contains(&&**code))
             .collect()
     }
 
@@ -418,7 +369,6 @@ mod tests {
                     })
                 })
             })
-            .filter(|rule_test_invalid| !NOT_PARSING_TEST_CASES.contains(&&*rule_test_invalid.code))
             .collect()
     }
 
