@@ -9,11 +9,11 @@ use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchCo
 use crate::{
     ast_helpers::{get_call_expression_arguments, is_logical_expression, NodeExtJs},
     kind::{
-        ArrowFunction, BinaryExpression, CallExpression, Function, ReturnStatement, StatementBlock,
-        TernaryExpression,
+        Arguments, ArrowFunction, BinaryExpression, CallExpression, Function,
+        ParenthesizedExpression, ReturnStatement, StatementBlock, TernaryExpression,
     },
     utils::ast_utils,
-    CodePathAnalyzer,
+    CodePathAnalyzer, EnterOrExit,
 };
 
 #[derive(Default, Deserialize)]
@@ -44,8 +44,11 @@ fn get_array_method_name<'a>(
 ) -> Option<Cow<'a, str>> {
     let mut current_node = node;
 
+    println!("get_array_method_name() 1, node: {node:#?}");
     loop {
         let parent = current_node.parent().unwrap();
+
+        println!("get_array_method_name() 2, current_node: {current_node:#?}, parent: {parent:#?}");
 
         match parent.kind() {
             BinaryExpression => {
@@ -54,24 +57,64 @@ fn get_array_method_name<'a>(
                 }
                 current_node = parent;
             }
-            TernaryExpression => current_node = parent,
+            TernaryExpression | ParenthesizedExpression => current_node = parent,
             ReturnStatement => {
+                println!(
+                    "get_array_method_name() 3, func: {:#?}",
+                    ast_utils::get_upper_function(parent)
+                );
                 let func = ast_utils::get_upper_function(parent)
                     .filter(|&func| ast_utils::is_callee(func))?;
 
-                current_node = func.parent()?;
+                current_node = func.maybe_next_non_parentheses_ancestor()?;
             }
-            CallExpression => {
-                let callee = parent.field("function");
+            Arguments => {
+                let call_expression = parent.parent().unwrap();
+                println!("get_array_method_name() 4",);
+                if call_expression.kind() != CallExpression {
+                    println!("get_array_method_name() 5",);
+                    return None;
+                }
+                let callee = call_expression.field("function").skip_parentheses();
                 if ast_utils::is_array_from_method(callee, context) {
-                    let arguments = get_call_expression_arguments(parent)?.collect_vec();
+                    println!("get_array_method_name() 6",);
+                    let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
                     if arguments.len() >= 2 && arguments[1] == current_node {
+                        println!("get_array_method_name() 7",);
                         return Some("from".into());
                     }
                 }
                 if is_target_method(callee, context) {
-                    let arguments = get_call_expression_arguments(parent)?.collect_vec();
+                    println!("get_array_method_name() 8",);
+                    let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
                     if arguments.get(0).copied() == Some(current_node) {
+                        println!("get_array_method_name() 9",);
+                        return ast_utils::get_static_property_name(callee, context);
+                    }
+                }
+                return None;
+            }
+            CallExpression => {
+                let call_expression = parent;
+                println!("get_array_method_name() 4",);
+                if call_expression.kind() != CallExpression {
+                    println!("get_array_method_name() 5",);
+                    return None;
+                }
+                let callee = call_expression.field("function").skip_parentheses();
+                if ast_utils::is_array_from_method(callee, context) {
+                    println!("get_array_method_name() 6",);
+                    let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
+                    if arguments.len() >= 2 && arguments[1] == current_node {
+                        println!("get_array_method_name() 7",);
+                        return Some("from".into());
+                    }
+                }
+                if is_target_method(callee, context) {
+                    println!("get_array_method_name() 8",);
+                    let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
+                    if arguments.get(0).copied() == Some(current_node) {
+                        println!("get_array_method_name() 9",);
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
@@ -107,9 +150,10 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
         },
         listeners => [
             "program:exit" => |node, context| {
+                println!("program exit");
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
-                for (code_path, node, array_method_name) in code_path_analyzer
+                for (code_path, root_node, array_method_name) in code_path_analyzer
                     .code_paths
                     .iter()
                     .filter_map(|&code_path| {
@@ -117,13 +161,18 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
                             code_path_analyzer
                                 .code_path_arena[code_path]
                                 .root_node(&code_path_analyzer.code_path_segment_arena);
+                        println!("code path 1 node: {node:#?}");
                         if !TARGET_NODE_TYPE.is_match(node.kind()) {
+                            println!("code path 2");
                             return None;
                         }
 
+                        println!("code path 3");
                         let array_method_name = get_array_method_name(node, context)?;
+                        println!("code path 4");
 
                         if node.has_child_of_kind("async") {
+                            println!("code path 5");
                             return None;
                         }
 
@@ -132,16 +181,60 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
                 {
                     let mut has_return = false;
 
+                    code_path_analyzer
+                        .code_path_arena[code_path]
+                        .traverse_segments_in_any_order(
+                            &code_path_analyzer.code_path_segment_arena,
+                            None,
+                            |_, segment, _| {
+                                for (_, return_statement_node) in code_path_analyzer
+                                    .code_path_segment_arena[segment]
+                                    .nodes
+                                    .iter()
+                                    .filter(|(enter_or_exit, node)| {
+                                        *enter_or_exit == EnterOrExit::Enter &&
+                                            node.kind() == ReturnStatement
+                                    })
+                                {
+                                    has_return = true;
+
+                                    let mut message_id = None;
+
+                                    #[allow(clippy::collapsible_else_if)]
+                                    if array_method_name == "forEach" {
+                                        if self.check_for_each && return_statement_node.has_non_comment_named_children() {
+                                            message_id = Some("expected_no_return_value");
+                                        }
+                                    } else {
+                                        if !self.allow_implicit && !return_statement_node.has_non_comment_named_children() {
+                                            message_id = Some("expected_return_value");
+                                        }
+                                    }
+
+                                    if let Some(message_id) = message_id {
+                                        context.report(violation! {
+                                            node => *return_statement_node,
+                                            message_id => message_id,
+                                            data => {
+                                                name => ast_utils::get_function_name_with_kind(root_node, context),
+                                                array_method_name => full_method_name(&array_method_name),
+                                            },
+                                        });
+                                    }
+                                }
+                            }
+                        );
+
                     let mut message_id = None;
 
                     #[allow(clippy::collapsible_else_if)]
-                    if array_method_name == "for_each" {
-                        if self.check_for_each && node.kind() == ArrowFunction &&
-                            node.field("body").kind() != StatementBlock {
+                    if array_method_name == "forEach" {
+                        if self.check_for_each && root_node.kind() == ArrowFunction &&
+                            root_node.field("body").kind() != StatementBlock {
                             message_id = Some("expected_no_return_value");
                         }
                     } else {
-                        if node.field("body").kind() == StatementBlock &&
+                        if root_node.field("body").kind() == StatementBlock &&
                             code_path_analyzer
                                 .code_path_arena[code_path]
                                 .state
@@ -157,11 +250,11 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
                     }
 
                     if let Some(message_id) = message_id {
-                        let name = ast_utils::get_function_name_with_kind(node, context);
+                        let name = ast_utils::get_function_name_with_kind(root_node, context);
 
                         context.report(violation! {
-                            node => node,
-                            range => ast_utils::get_function_head_range(node),
+                            node => root_node,
+                            range => ast_utils::get_function_head_range(root_node),
                             message_id => message_id,
                             data => {
                                 name => name,
@@ -292,55 +385,55 @@ mod tests {
                     { code => "foo.every(() => true)", /*parserOptions: { ecmaVersion: 6 }*/ }
                 ],
                 invalid => [
-                    { code => "Array.from(x, function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.from" } }] },
-                    { code => "Array.from(x, function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.from" } }] },
-                    { code => "Int32Array.from(x, function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.from" } }] },
-                    { code => "Int32Array.from(x, function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.from" } }] },
-                    { code => "foo.every(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.filter(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.filter" } }] },
-                    { code => "foo.filter(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
-                    { code => "foo.find(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.find" } }] },
-                    { code => "foo.find(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.find" } }] },
-                    { code => "foo.findLast(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.findLast" } }] },
-                    { code => "foo.findLast(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.findLast" } }] },
-                    { code => "foo.findIndex(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.findIndex" } }] },
-                    { code => "foo.findIndex(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.findIndex" } }] },
-                    { code => "foo.findLastIndex(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.findLastIndex" } }] },
-                    { code => "foo.findLastIndex(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.findLastIndex" } }] },
-                    { code => "foo.flatMap(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.flatMap" } }] },
-                    { code => "foo.flatMap(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.flatMap" } }] },
-                    { code => "foo.map(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.map" } }] },
-                    { code => "foo.map(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.map" } }] },
-                    { code => "foo.reduce(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.reduce" } }] },
-                    { code => "foo.reduce(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.reduce" } }] },
-                    { code => "foo.reduceRight(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.reduceRight" } }] },
-                    { code => "foo.reduceRight(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.reduceRight" } }] },
-                    { code => "foo.some(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.some" } }] },
-                    { code => "foo.some(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.some" } }] },
-                    { code => "foo.sort(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.sort" } }] },
-                    { code => "foo.sort(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.sort" } }] },
-                    { code => "foo.toSorted(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.toSorted" } }] },
-                    { code => "foo.toSorted(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.toSorted" } }] },
-                    { code => "foo.bar.baz.every(function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.bar.baz.every(function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo[\"every\"](function() {})", errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo[\"every\"](function foo() {})", errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo[`every`](function() {})", /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo[`every`](function foo() {})", /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "Array.from(x, function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.from" } }] },
+                    { code => "Array.from(x, function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.from" } }] },
+                    { code => "Int32Array.from(x, function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.from" } }] },
+                    { code => "Int32Array.from(x, function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.from" } }] },
+                    { code => "foo.every(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.filter(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.filter" } }] },
+                    { code => "foo.filter(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
+                    { code => "foo.find(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.find" } }] },
+                    { code => "foo.find(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.find" } }] },
+                    { code => "foo.findLast(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.findLast" } }] },
+                    { code => "foo.findLast(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.findLast" } }] },
+                    { code => "foo.findIndex(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.findIndex" } }] },
+                    { code => "foo.findIndex(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.findIndex" } }] },
+                    { code => "foo.findLastIndex(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.findLastIndex" } }] },
+                    { code => "foo.findLastIndex(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.findLastIndex" } }] },
+                    { code => "foo.flatMap(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.flatMap" } }] },
+                    { code => "foo.flatMap(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.flatMap" } }] },
+                    { code => "foo.map(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.map" } }] },
+                    { code => "foo.map(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.map" } }] },
+                    { code => "foo.reduce(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.reduce" } }] },
+                    { code => "foo.reduce(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.reduce" } }] },
+                    { code => "foo.reduceRight(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.reduceRight" } }] },
+                    { code => "foo.reduceRight(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.reduceRight" } }] },
+                    { code => "foo.some(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.some" } }] },
+                    { code => "foo.some(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.some" } }] },
+                    { code => "foo.sort(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.sort" } }] },
+                    { code => "foo.sort(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.sort" } }] },
+                    { code => "foo.toSorted(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.toSorted" } }] },
+                    { code => "foo.toSorted(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.toSorted" } }] },
+                    { code => "foo.bar.baz.every(function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.bar.baz.every(function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo[\"every\"](function() {})", errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo[\"every\"](function foo() {})", errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo[`every`](function() {})", /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo[`every`](function foo() {})", /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
                     { code => "foo.every(() => {})", /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message => "Array.prototype.every() expects a return value from arrow function.", column => 14 }] },
                     { code => "foo.every(function() { if (a) return true; })", errors => [{ message => "Array.prototype.every() expects a value to be returned at the end of function.", column => 11 }] },
                     { code => "foo.every(function cb() { if (a) return true; })", errors => [{ message => "Array.prototype.every() expects a value to be returned at the end of function 'cb'.", column => 11 }] },
-                    { code => "foo.every(function() { switch (a) { case 0: break; default: return true; } })", errors => [{ message_id => "expectedAtEnd", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function foo() { switch (a) { case 0: break; default: return true; } })", errors => [{ message_id => "expectedAtEnd", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function() { try { bar(); } catch (err) { return true; } })", errors => [{ message_id => "expectedAtEnd", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function foo() { try { bar(); } catch (err) { return true; } })", errors => [{ message_id => "expectedAtEnd", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function() { return; })", errors => [{ message_id => "expectedReturnValue", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function foo() { return; })", errors => [{ message_id => "expectedReturnValue", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function() { if (a) return; })", errors => ["Array.prototype.every() expects a value to be returned at the end of function.", { message_id => "expectedReturnValue", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function foo() { if (a) return; })", errors => ["Array.prototype.every() expects a value to be returned at the end of function 'foo'.", { message_id => "expectedReturnValue", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function() { if (a) return; else return; })", errors => [{ message_id => "expectedReturnValue", data => { name => "function", array_method_name => "Array.prototype.every" } }, { message_id => "expectedReturnValue", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.every(function foo() { if (a) return; else return; })", errors => [{ message_id => "expectedReturnValue", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }, { message_id => "expectedReturnValue", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function() { switch (a) { case 0: break; default: return true; } })", errors => [{ message_id => "expected_at_end", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function foo() { switch (a) { case 0: break; default: return true; } })", errors => [{ message_id => "expected_at_end", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function() { try { bar(); } catch (err) { return true; } })", errors => [{ message_id => "expected_at_end", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function foo() { try { bar(); } catch (err) { return true; } })", errors => [{ message_id => "expected_at_end", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function() { return; })", errors => [{ message_id => "expected_return_value", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function foo() { return; })", errors => [{ message_id => "expected_return_value", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function() { if (a) return; })", errors => ["Array.prototype.every() expects a value to be returned at the end of function.", { message_id => "expected_return_value", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function foo() { if (a) return; })", errors => ["Array.prototype.every() expects a value to be returned at the end of function 'foo'.", { message_id => "expected_return_value", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function() { if (a) return; else return; })", errors => [{ message_id => "expected_return_value", data => { name => "function", array_method_name => "Array.prototype.every" } }, { message_id => "expected_return_value", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.every(function foo() { if (a) return; else return; })", errors => [{ message_id => "expected_return_value", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }, { message_id => "expected_return_value", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
                     { code => "foo.every(cb || function() {})", errors => ["Array.prototype.every() expects a return value from function."] },
                     { code => "foo.every(cb || function foo() {})", errors => ["Array.prototype.every() expects a return value from function 'foo'."] },
                     { code => "foo.every(a ? function() {} : function() {})", errors => ["Array.prototype.every() expects a return value from function.", "Array.prototype.every() expects a return value from function."] },
@@ -351,38 +444,38 @@ mod tests {
                     { code => "foo.every(() => {})", options => { allow_implicit => true }, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message => "Array.prototype.every() expects a return value from arrow function." }] },
 
                     // options => { allow_implicit => true }
-                    { code => "Array.from(x, function() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.from" } }] },
-                    { code => "foo.every(function() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.filter(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
-                    { code => "foo.find(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.find" } }] },
-                    { code => "foo.map(function() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.map" } }] },
-                    { code => "foo.reduce(function() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.reduce" } }] },
-                    { code => "foo.reduceRight(function() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.reduceRight" } }] },
-                    { code => "foo.bar.baz.every(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
+                    { code => "Array.from(x, function() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.from" } }] },
+                    { code => "foo.every(function() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.filter(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
+                    { code => "foo.find(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.find" } }] },
+                    { code => "foo.map(function() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.map" } }] },
+                    { code => "foo.reduce(function() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.reduce" } }] },
+                    { code => "foo.reduceRight(function() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.reduceRight" } }] },
+                    { code => "foo.bar.baz.every(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.every" } }] },
                     { code => "foo.every(cb || function() {})", options => allow_implicit_options, errors => ["Array.prototype.every() expects a return value from function."] },
-                    { code => "[\"foo\",\"bar\"].sort(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.sort" } }] },
-                    { code => "[\"foo\",\"bar\"].toSorted(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.toSorted" } }] },
-                    { code => "foo.forEach(x => x)", options => allow_implicit_check_for_each, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedNoReturnValue", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(function(x) { if (a == b) {return x;}})", options => allow_implicit_check_for_each, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(function bar(x) { return x;})", options => allow_implicit_check_for_each, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "[\"foo\",\"bar\"].sort(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.sort" } }] },
+                    { code => "[\"foo\",\"bar\"].toSorted(function foo() {})", options => allow_implicit_options, errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.toSorted" } }] },
+                    { code => "foo.forEach(x => x)", options => allow_implicit_check_for_each, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_no_return_value", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(function(x) { if (a == b) {return x;}})", options => allow_implicit_check_for_each, errors => [{ message_id => "expected_no_return_value", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(function bar(x) { return x;})", options => allow_implicit_check_for_each, errors => [{ message_id => "expected_no_return_value", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
 
                     // // options => { checkForEach: true }
-                    { code => "foo.forEach(x => x)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedNoReturnValue", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(val => y += val)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedNoReturnValue", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "[\"foo\",\"bar\"].forEach(x => ++x)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedNoReturnValue", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.bar().forEach(x => x === y)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedNoReturnValue", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(function() {return function() { if (a == b) { return a; }}}())", options => check_for_each_options, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(function(x) { if (a == b) {return x;}})", options => check_for_each_options, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(function(x) { if (a == b) {return undefined;}})", options => check_for_each_options, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach(function bar(x) { return x;})", options => check_for_each_options, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(x => x)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_no_return_value", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(val => y += val)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_no_return_value", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "[\"foo\",\"bar\"].forEach(x => ++x)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_no_return_value", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.bar().forEach(x => x === y)", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_no_return_value", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(function() {return function() { if (a == b) { return a; }}}())", options => check_for_each_options, errors => [{ message_id => "expected_no_return_value", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(function(x) { if (a == b) {return x;}})", options => check_for_each_options, errors => [{ message_id => "expected_no_return_value", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(function(x) { if (a == b) {return undefined;}})", options => check_for_each_options, errors => [{ message_id => "expected_no_return_value", data => { name => "function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach(function bar(x) { return x;})", options => check_for_each_options, errors => [{ message_id => "expected_no_return_value", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
                     { code => "foo.forEach(function bar(x) { return x;})", options => check_for_each_options, errors => ["Array.prototype.forEach() expects no useless return value from function 'bar'."] },
-                    { code => "foo.bar().forEach(function bar(x) { return x;})", options => check_for_each_options, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "[\"foo\",\"bar\"].forEach(function bar(x) { return x;})", options => check_for_each_options, errors => [{ message_id => "expectedNoReturnValue", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "foo.forEach((x) => { return x;})", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expectedNoReturnValue", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
-                    { code => "Array.from(x, function() {})", options => check_for_each_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.from" } }] },
-                    { code => "foo.every(function() {})", options => check_for_each_options, errors => [{ message_id => "expectedInside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
-                    { code => "foo.filter(function foo() {})", options => check_for_each_options, errors => [{ message_id => "expectedInside", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
-                    { code => "foo.filter(function foo() { return; })", options => check_for_each_options, errors => [{ message_id => "expectedReturnValue", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
+                    { code => "foo.bar().forEach(function bar(x) { return x;})", options => check_for_each_options, errors => [{ message_id => "expected_no_return_value", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "[\"foo\",\"bar\"].forEach(function bar(x) { return x;})", options => check_for_each_options, errors => [{ message_id => "expected_no_return_value", data => { name => "function 'bar'", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "foo.forEach((x) => { return x;})", options => check_for_each_options, /*parserOptions: { ecmaVersion: 6 },*/ errors => [{ message_id => "expected_no_return_value", data => { name => "arrow function", array_method_name => "Array.prototype.forEach" } }] },
+                    { code => "Array.from(x, function() {})", options => check_for_each_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.from" } }] },
+                    { code => "foo.every(function() {})", options => check_for_each_options, errors => [{ message_id => "expected_inside", data => { name => "function", array_method_name => "Array.prototype.every" } }] },
+                    { code => "foo.filter(function foo() {})", options => check_for_each_options, errors => [{ message_id => "expected_inside", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
+                    { code => "foo.filter(function foo() { return; })", options => check_for_each_options, errors => [{ message_id => "expected_return_value", data => { name => "function 'foo'", array_method_name => "Array.prototype.filter" } }] },
                     { code => "foo.every(cb || function() {})", options => check_for_each_options, errors => ["Array.prototype.every() expects a return value from function."] },
 
                     // full location tests
@@ -390,7 +483,7 @@ mod tests {
                         code => "foo.filter(bar => { baz(); } )",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
                             type => ArrowFunction,
                             line => 1,
@@ -403,7 +496,7 @@ mod tests {
                         code => "foo.filter(\n() => {} )",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
                             type => ArrowFunction,
                             line => 2,
@@ -416,7 +509,7 @@ mod tests {
                         code => "foo.filter(bar || ((baz) => {}) )",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
                             type => ArrowFunction,
                             line => 1,
@@ -429,9 +522,9 @@ mod tests {
                         code => "foo.filter(bar => { return; })",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedReturnValue",
+                            message_id => "expected_return_value",
                             data => { name => "arrow function", array_method_name => "Array.prototype.filter" },
-                            type => "ReturnStatement",
+                            type => ReturnStatement,
                             line => 1,
                             column => 21,
                             end_line => 1,
@@ -442,7 +535,7 @@ mod tests {
                         code => "Array.from(foo, bar => { bar })",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "arrow function", array_method_name => "Array.from" },
                             type => ArrowFunction,
                             line => 1,
@@ -456,7 +549,7 @@ mod tests {
                         options => check_for_each_options,
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedNoReturnValue",
+                            message_id => "expected_no_return_value",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
                             type => ArrowFunction,
                             line => 1,
@@ -470,21 +563,21 @@ mod tests {
                         options => check_for_each_options,
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedNoReturnValue",
+                            message_id => "expected_no_return_value",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
                             type => ArrowFunction,
                             line => 1,
                             column => 41,
                             end_line => 1,
                             end_column => 43
-                        }]
+                        }],
                     },
                     {
                         code => "foo.forEach((() => {\n return bar => bar; })())",
                         options => check_for_each_options,
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedNoReturnValue",
+                            message_id => "expected_no_return_value",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
                             type => ArrowFunction,
                             line => 2,
@@ -498,9 +591,9 @@ mod tests {
                         options => check_for_each_options,
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "expectedNoReturnValue",
+                            message_id => "expected_no_return_value",
                             data => { name => "arrow function", array_method_name => "Array.prototype.forEach" },
-                            type => "ReturnStatement",
+                            type => ReturnStatement,
                             line => 1,
                             column => 52,
                             end_line => 1,
@@ -510,7 +603,7 @@ mod tests {
                     {
                         code => "foo.filter(function(){})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function", array_method_name => "Array.prototype.filter" },
                             type => Function,
                             line => 1,
@@ -522,7 +615,7 @@ mod tests {
                     {
                         code => "foo.filter(function (){})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function", array_method_name => "Array.prototype.filter" },
                             type => Function,
                             line => 1,
@@ -534,7 +627,7 @@ mod tests {
                     {
                         code => "foo.filter(function\n(){})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function", array_method_name => "Array.prototype.filter" },
                             type => Function,
                             line => 1,
@@ -546,7 +639,7 @@ mod tests {
                     {
                         code => "foo.filter(function bar(){})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
                             type => Function,
                             line => 1,
@@ -558,7 +651,7 @@ mod tests {
                     {
                         code => "foo.filter(function bar  (){})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
                             type => Function,
                             line => 1,
@@ -570,7 +663,7 @@ mod tests {
                     {
                         code => "foo.filter(function\n bar() {})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
                             type => Function,
                             line => 1,
@@ -582,7 +675,7 @@ mod tests {
                     {
                         code => "Array.from(foo, function bar(){})",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function 'bar'", array_method_name => "Array.from" },
                             type => Function,
                             line => 1,
@@ -594,7 +687,7 @@ mod tests {
                     {
                         code => "Array.from(foo, bar ? function (){} : baz)",
                         errors => [{
-                            message_id => "expectedInside",
+                            message_id => "expected_inside",
                             data => { name => "function", array_method_name => "Array.from" },
                             type => Function,
                             line => 1,
@@ -606,9 +699,9 @@ mod tests {
                     {
                         code => "foo.filter(function bar() { return \n })",
                         errors => [{
-                            message_id => "expectedReturnValue",
+                            message_id => "expected_return_value",
                             data => { name => "function 'bar'", array_method_name => "Array.prototype.filter" },
-                            type => "ReturnStatement",
+                            type => ReturnStatement,
                             line => 1,
                             column => 29,
                             end_line => 1,
@@ -619,9 +712,9 @@ mod tests {
                         code => "foo.forEach(function () { \nif (baz) return bar\nelse return\n })",
                         options => check_for_each_options,
                         errors => [{
-                            message_id => "expectedNoReturnValue",
+                            message_id => "expected_no_return_value",
                             data => { name => "function", array_method_name => "Array.prototype.forEach" },
-                            type => "ReturnStatement",
+                            type => ReturnStatement,
                             line => 2,
                             column => 10,
                             end_line => 2,
@@ -633,27 +726,27 @@ mod tests {
                     {
                         code => "foo?.filter(() => { console.log('hello') })",
                         // parserOptions: { ecmaVersion: 2020 },
-                        errors => [{ message_id => "expectedInside", data => { name => "arrow function", array_method_name => "Array.prototype.filter" } }]
+                        errors => [{ message_id => "expected_inside", data => { name => "arrow function", array_method_name => "Array.prototype.filter" } }]
                     },
                     {
                         code => "(foo?.filter)(() => { console.log('hello') })",
                         // parserOptions: { ecmaVersion: 2020 },
-                        errors => [{ message_id => "expectedInside", data => { name => "arrow function", array_method_name => "Array.prototype.filter" } }]
+                        errors => [{ message_id => "expected_inside", data => { name => "arrow function", array_method_name => "Array.prototype.filter" } }]
                     },
                     {
                         code => "Array?.from([], () => { console.log('hello') })",
                         // parserOptions: { ecmaVersion: 2020 },
-                        errors => [{ message_id => "expectedInside", data => { name => "arrow function", array_method_name => "Array.from" } }]
+                        errors => [{ message_id => "expected_inside", data => { name => "arrow function", array_method_name => "Array.from" } }]
                     },
                     {
                         code => "(Array?.from)([], () => { console.log('hello') })",
                         // parserOptions: { ecmaVersion: 2020 },
-                        errors => [{ message_id => "expectedInside", data => { name => "arrow function", array_method_name => "Array.from" } }]
+                        errors => [{ message_id => "expected_inside", data => { name => "arrow function", array_method_name => "Array.from" } }]
                     },
                     {
                         code => "foo?.filter((function() { return () => { console.log('hello') } })?.())",
                         // parserOptions: { ecmaVersion: 2020 },
-                        errors => [{ message_id => "expectedInside", data => { name => "arrow function", array_method_name => "Array.prototype.filter" } }]
+                        errors => [{ message_id => "expected_inside", data => { name => "arrow function", array_method_name => "Array.prototype.filter" } }]
                     }
                 ]
             },

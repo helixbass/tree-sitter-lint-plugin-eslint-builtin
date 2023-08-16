@@ -110,8 +110,10 @@ pub fn is_null_or_undefined(node: Node, context: &QueryMatchContext) -> bool {
 }
 
 pub fn is_callee(node: Node) -> bool {
-    node.parent()
-        .matches(|parent| parent.kind() == CallExpression && parent.field("function") == node)
+    node.maybe_next_non_parentheses_ancestor()
+        .matches(|parent| {
+            parent.kind() == CallExpression && parent.field("function").skip_parentheses() == node
+        })
 }
 
 pub fn get_static_string_value<'a>(
