@@ -2,12 +2,14 @@ use std::{collections::HashSet, sync::Arc};
 
 use once_cell::sync::Lazy;
 use squalid::EverythingExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+use tree_sitter_lint::{
+    range_between_start_and_end, rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext,
+    Rule,
+};
 
 use crate::{
     ast_helpers::{
-        call_expression_has_single_matching_argument, get_call_expression_arguments,
-        range_between_start_and_end, NodeExtJs,
+        call_expression_has_single_matching_argument, get_call_expression_arguments, NodeExtJs,
     },
     kind::{
         ArrowFunction, CallExpression, Function, Identifier, Kind, SpreadElement, This,

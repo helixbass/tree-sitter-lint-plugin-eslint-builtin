@@ -57,6 +57,7 @@ mod no_useless_catch;
 mod no_useless_return;
 mod require_yield;
 mod sort_keys;
+mod yield_star_spacing;
 
 pub use array_callback_return::array_callback_return_rule;
 pub use complexity::complexity_rule;
@@ -117,3 +118,4 @@ pub use no_useless_catch::no_useless_catch_rule;
 pub use no_useless_return::no_useless_return_rule;
 pub use require_yield::require_yield_rule;
 pub use sort_keys::sort_keys_rule;
+pub use yield_star_spacing::yield_star_spacing_rule;

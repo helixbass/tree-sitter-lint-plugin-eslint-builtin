@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use squalid::{regex, EverythingExt, OptionExt};
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
-
-use crate::{
-    ast_helpers::{range_between_start_and_end, NodeExtJs},
-    kind::StatementBlock,
+use tree_sitter_lint::{
+    range_between_start_and_end, rule, tree_sitter::Node, violation, NodeExt, Rule,
 };
+
+use crate::{ast_helpers::NodeExtJs, kind::StatementBlock};
 
 pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
     rule! {

@@ -2,15 +2,11 @@ use std::sync::Arc;
 
 use squalid::OptionExt;
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation, NodeExt,
-    QueryMatchContext, Rule,
+    range_between_ends, rule, tree_sitter::Node, tree_sitter_grep::return_if_none, violation,
+    NodeExt, QueryMatchContext, Rule,
 };
 
-use crate::{
-    ast_helpers::{range_between_ends, NodeExtJs},
-    kind::LabeledStatement,
-    utils::ast_utils,
-};
+use crate::{ast_helpers::NodeExtJs, kind::LabeledStatement, utils::ast_utils};
 
 #[derive(Debug)]
 struct ScopeInfo<'a> {

@@ -4,7 +4,7 @@ use itertools::Either;
 use squalid::{CowStrExt, OptionExt};
 use tree_sitter_lint::{
     regex,
-    tree_sitter::{Node, Range, TreeCursor},
+    tree_sitter::{Node, TreeCursor},
     NodeExt, QueryMatchContext, SkipOptions, SkipOptionsBuilder, SourceTextProvider,
 };
 
@@ -611,33 +611,6 @@ pub fn get_comment_contents<'a>(
     } else {
         assert!(text.starts_with("/*"));
         text.sliced(2..text.len() - 2)
-    }
-}
-
-pub fn range_between_starts(a: Range, b: Range) -> Range {
-    Range {
-        start_byte: a.start_byte,
-        end_byte: b.start_byte,
-        start_point: a.start_point,
-        end_point: b.start_point,
-    }
-}
-
-pub fn range_between_start_and_end(a: Range, b: Range) -> Range {
-    Range {
-        start_byte: a.start_byte,
-        end_byte: b.end_byte,
-        start_point: a.start_point,
-        end_point: b.end_point,
-    }
-}
-
-pub fn range_between_ends(a: Range, b: Range) -> Range {
-    Range {
-        start_byte: a.end_byte,
-        end_byte: b.end_byte,
-        start_point: a.end_point,
-        end_point: b.end_point,
     }
 }
 

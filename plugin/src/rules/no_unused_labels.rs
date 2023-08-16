@@ -2,11 +2,12 @@ use std::{borrow::Cow, sync::Arc};
 
 use squalid::return_if_none;
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, SkipOptionsBuilder,
+    range_between_starts, rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule,
+    SkipOptionsBuilder,
 };
 
 use crate::{
-    ast_helpers::{range_between_starts, NodeExtJs},
+    ast_helpers::NodeExtJs,
     kind::{self, ExpressionStatement, LabeledStatement, Program, StatementBlock},
     utils::ast_utils,
 };

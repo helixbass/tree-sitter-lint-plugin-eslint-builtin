@@ -33,7 +33,7 @@ use rules::{
     no_unneeded_ternary_rule, no_unreachable_loop_rule, no_unreachable_rule,
     no_unsafe_finally_rule, no_unsafe_negation_rule, no_unsafe_optional_chaining_rule,
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
-    require_yield_rule, sort_keys_rule,
+    require_yield_rule, sort_keys_rule, yield_star_spacing_rule,
 };
 
 pub fn instantiate() -> Plugin {
@@ -99,6 +99,7 @@ pub fn instantiate() -> Plugin {
             no_unsafe_finally_rule(),
             no_unsafe_negation_rule(),
             no_unsafe_optional_chaining_rule(),
+            yield_star_spacing_rule(),
         ],
         event_emitter_factories: vec![],
     }
