@@ -112,8 +112,8 @@ pub fn no_labels_rule() -> Arc<dyn Rule> {
                         },
                     });
                 }
-            }
-        ]
+            },
+        ],
     }
 }
 

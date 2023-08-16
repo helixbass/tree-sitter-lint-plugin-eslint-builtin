@@ -23,7 +23,7 @@ pub fn default_case_last_rule() -> Arc<dyn Rule> {
                     message_id => "not_last",
                 });
             },
-        ]
+        ],
     }
 }
 

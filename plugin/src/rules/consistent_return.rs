@@ -54,14 +54,14 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
             r#"
               (return_statement) @c
             "# => |node, context| {
-                let has_return_value = node.maybe_first_non_comment_named_child()
-                    .matches(|argument| {
-                        !(self.treat_undefined_as_unspecified && (
-                            argument.kind() == Undefined ||
-                            argument.kind() == UnaryExpression &&
-                                argument.field("operator").kind() == "void"
-                        ))
-                    });
+                let has_return_value =
+                    node.maybe_first_non_comment_named_child()
+                        .matches(|argument| {
+                            !(self.treat_undefined_as_unspecified
+                                && (argument.kind() == Undefined
+                                    || argument.kind() == UnaryExpression
+                                        && argument.field("operator").kind() == "void"))
+                        });
 
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
@@ -78,26 +78,24 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                                 } else {
                                     "unexpected_return_value"
                                 },
-                                data: [
-                                    (
-                                        "name".to_owned(),
-                                        code_path_analyzer.code_path_arena[code_path]
-                                            .root_node(&code_path_analyzer.code_path_segment_arena)
-                                            .thrush(|root_node| {
-                                                if root_node.kind() == Program {
-                                                    "Program".to_owned()
-                                                } else {
-                                                    upper_case_first(
-                                                        &ast_utils::get_function_name_with_kind(
-                                                            root_node,
-                                                            context
-                                                        )
-                                                    )
-                                                }
-                                            })
-                                    )
-                                ].into(),
-                            }
+                                data: [(
+                                    "name".to_owned(),
+                                    code_path_analyzer.code_path_arena[code_path]
+                                        .root_node(&code_path_analyzer.code_path_segment_arena)
+                                        .thrush(|root_node| {
+                                            if root_node.kind() == Program {
+                                                "Program".to_owned()
+                                            } else {
+                                                upper_case_first(
+                                                    &ast_utils::get_function_name_with_kind(
+                                                        root_node, context,
+                                                    ),
+                                                )
+                                            }
+                                        }),
+                                )]
+                                .into(),
+                            },
                         );
                     }
                     Some(func_info) if func_info.has_return_value != has_return_value => {
@@ -107,32 +105,29 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                             data => func_info.data.clone(),
                         });
                     }
-                    _ => ()
+                    _ => (),
                 }
             },
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
-                for &code_path in code_path_analyzer
-                    .code_paths
-                    .iter()
-                    .filter(|&&code_path| {
-                        self.func_infos.get(&code_path).matches(|func_info| {
-                            func_info.has_return_value
-                        }) &&
-                        code_path_analyzer.code_path_arena[code_path]
+                for &code_path in code_path_analyzer.code_paths.iter().filter(|&&code_path| {
+                    self.func_infos
+                        .get(&code_path)
+                        .matches(|func_info| func_info.has_return_value)
+                        && code_path_analyzer.code_path_arena[code_path]
                             .state
                             .head_segments(&code_path_analyzer.fork_context_arena)
-                            .reachable(&code_path_analyzer.code_path_segment_arena) && {
-                                let root_node = code_path_analyzer.code_path_arena[code_path].root_node(
-                                    &code_path_analyzer.code_path_segment_arena
-                                );
-                                !ast_utils::is_es5_constructor(root_node, context) &&
-                                !is_class_constructor(root_node, context)
-                            }
-                    })
-                {
-                    let root_node = code_path_analyzer.code_path_arena[code_path].root_node(&code_path_analyzer.code_path_segment_arena);
+                            .reachable(&code_path_analyzer.code_path_segment_arena)
+                        && {
+                            let root_node = code_path_analyzer.code_path_arena[code_path]
+                                .root_node(&code_path_analyzer.code_path_segment_arena);
+                            !ast_utils::is_es5_constructor(root_node, context)
+                                && !is_class_constructor(root_node, context)
+                        }
+                }) {
+                    let root_node = code_path_analyzer.code_path_arena[code_path]
+                        .root_node(&code_path_analyzer.code_path_segment_arena);
 
                     let mut name: Option<String> = Default::default();
 
@@ -149,7 +144,8 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                         root_node.child_by_field_name("name").unwrap_or_else(|| {
                             context.get_first_token(root_node, Option::<fn(Node) -> bool>::None)
                         })
-                    }.range();
+                    }
+                    .range();
 
                     let name = name.unwrap_or_else(|| {
                         ast_utils::get_function_name_with_kind(root_node, context)
@@ -164,8 +160,8 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
                         },
                     });
                 }
-            }
-        ]
+            },
+        ],
     }
 }
 

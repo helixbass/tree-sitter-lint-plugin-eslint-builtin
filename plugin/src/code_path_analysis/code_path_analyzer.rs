@@ -1151,18 +1151,22 @@ mod tests {
                   (program) @c
                 "# => |node, context| {
                     let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
-                    let dot_arrows = code_path_analyzer.code_paths.iter().map(|&code_path| {
-                        make_dot_arrows(
-                            &code_path_analyzer.code_path_segment_arena,
-                            &code_path_analyzer.code_path_arena[code_path],
-                            None,
-                        )
-                    }).collect_vec();
+                    let dot_arrows = code_path_analyzer
+                        .code_paths
+                        .iter()
+                        .map(|&code_path| {
+                            make_dot_arrows(
+                                &code_path_analyzer.code_path_segment_arena,
+                                &code_path_analyzer.code_path_arena[code_path],
+                                None,
+                            )
+                        })
+                        .collect_vec();
                     ACTUAL.with(|actual| {
                         *actual.borrow_mut() = dot_arrows;
                     });
                 },
-            ]
+            ],
         };
 
         let (violations, _) = tree_sitter_lint::run_for_slice(

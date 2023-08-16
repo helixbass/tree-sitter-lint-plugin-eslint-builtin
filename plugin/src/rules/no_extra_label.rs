@@ -122,7 +122,7 @@ pub fn no_extra_label_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 report_if_unnecessary(node, context, &self.scope_infos);
             },
-        ]
+        ],
     }
 }
 

@@ -48,7 +48,7 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
                 enum Direction {
                     Decreasing,
-                    Increasing
+                    Increasing,
                 }
 
                 impl Direction {
@@ -79,14 +79,15 @@ pub fn for_direction_rule() -> Arc<dyn Rule> {
                     "+=" => reverse_if_negated(Direction::Increasing),
                     "-=" => reverse_if_negated(Direction::Decreasing),
                     _ => unreachable!(),
-                } == wrong_direction {
+                } == wrong_direction
+                {
                     context.report(violation! {
                         node => captures["for_statement"],
                         message => "The update clause in this loop moves the variable in the wrong direction."
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

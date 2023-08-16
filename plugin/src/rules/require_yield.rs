@@ -33,7 +33,8 @@ pub fn require_yield_rule() -> Arc<dyn Rule> {
               generator_function_declaration:exit,
               method_definition:exit
             "# => |node, context| {
-                if node.kind() == MethodDefinition && !is_generator_method_definition(node, context) {
+                if node.kind() == MethodDefinition && !is_generator_method_definition(node, context)
+                {
                     return;
                 }
                 let count_yield = self.stack.pop().unwrap();
@@ -51,7 +52,7 @@ pub fn require_yield_rule() -> Arc<dyn Rule> {
                     *last_count += 1;
                 }
             },
-        ]
+        ],
     }
 }
 

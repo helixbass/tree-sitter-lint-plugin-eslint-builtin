@@ -18,7 +18,7 @@ pub fn no_debugger_rule() -> Arc<dyn Rule> {
                     message_id => "unexpected",
                 });
             },
-        ]
+        ],
     }
 }
 

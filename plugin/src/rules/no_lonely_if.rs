@@ -97,7 +97,7 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
                     }
                 });
             },
-        ]
+        ],
     }
 }
 

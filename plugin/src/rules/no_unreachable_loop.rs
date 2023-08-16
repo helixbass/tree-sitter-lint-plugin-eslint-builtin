@@ -136,11 +136,7 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
                 if !code_path_analyzer
                     .get_segments_that_include_node_enter(node)
                     .into_iter()
-                    .any(|segment| {
-                        code_path_analyzer
-                            .code_path_segment_arena[segment]
-                            .reachable
-                    })
+                    .any(|segment| code_path_analyzer.code_path_segment_arena[segment].reachable)
                 {
                     return;
                 }
@@ -150,25 +146,20 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
-                for &code_path in &code_path_analyzer
-                    .code_paths {
-                    let loops_by_target_segments = look_for_loops(
-                        code_path,
-                        code_path_analyzer,
-                        &self.target_loop_kinds,
-                    );
+                for &code_path in &code_path_analyzer.code_paths {
+                    let loops_by_target_segments =
+                        look_for_loops(code_path, code_path_analyzer, &self.target_loop_kinds);
 
-                    for (_, to_segment, node) in code_path_analyzer
-                        .code_path_arena[code_path]
+                    for (_, to_segment, node) in code_path_analyzer.code_path_arena[code_path]
                         .state
                         .looped_segments
                         .iter()
                         .filter(|(from_segment, _, _)| {
-                            code_path_analyzer
-                                .code_path_segment_arena[*from_segment]
-                                .reachable
-                        }) {
-                        let loop_ = continue_if_none!(loops_by_target_segments.get(to_segment).copied());
+                            code_path_analyzer.code_path_segment_arena[*from_segment].reachable
+                        })
+                    {
+                        let loop_ =
+                            continue_if_none!(loops_by_target_segments.get(to_segment).copied());
 
                         if loop_ == *node || node.kind() == ContinueStatement {
                             self.loops_to_report.remove(&loop_);
@@ -183,7 +174,7 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

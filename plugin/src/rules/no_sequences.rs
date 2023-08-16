@@ -74,19 +74,17 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
             r#"
               (sequence_expression) @c
             "# => |node, context| {
-                let parent = node.next_ancestor_not_of_types(&[
-                    ExpressionStatement,
-                    ParenthesizedExpression,
-                ]);
-                if parent.kind() == ForStatement && (
-                    node == parent.field("initializer").skip_nodes_of_types(&[
-                        ExpressionStatement,
-                        ParenthesizedExpression,
-                    ]) ||
-                    parent.child_by_field_name("increment").matches(|increment| {
-                        node == increment.skip_parentheses()
-                    })
-                ) {
+                let parent = node
+                    .next_ancestor_not_of_types(&[ExpressionStatement, ParenthesizedExpression]);
+                if parent.kind() == ForStatement
+                    && (node
+                        == parent
+                            .field("initializer")
+                            .skip_nodes_of_types(&[ExpressionStatement, ParenthesizedExpression])
+                        || parent
+                            .child_by_field_name("increment")
+                            .matches(|increment| node == increment.skip_parentheses()))
+                {
                     return;
                 }
 
@@ -114,7 +112,7 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
                     message_id => "unexpected_comma_expression",
                 });
             },
-        ]
+        ],
     }
 }
 

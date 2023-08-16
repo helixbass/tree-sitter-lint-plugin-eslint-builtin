@@ -36,12 +36,11 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
                 }
                 if self.allow_object_patterns_as_parameters && {
                     let parent = node.parent().unwrap();
-                    parent.kind() == FormalParameters ||
-                        parent.kind() == AssignmentPattern &&
-                            parent.parent().unwrap().kind() == FormalParameters &&
-                            parent.field("right").thrush(|right| {
-                                right.kind() == Object &&
-                                !right.has_non_comment_named_children()
+                    parent.kind() == FormalParameters
+                        || parent.kind() == AssignmentPattern
+                            && parent.parent().unwrap().kind() == FormalParameters
+                            && parent.field("right").thrush(|right| {
+                                right.kind() == Object && !right.has_non_comment_named_children()
                             })
                 } {
                     return;
@@ -68,7 +67,7 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
                     },
                 });
             },
-        ]
+        ],
     }
 }
 

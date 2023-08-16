@@ -18,7 +18,9 @@ pub fn no_octal_escape_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 if let Ok(Some(captures)) = fancy_regex!(
                     r#"(?m)^(?:[^\\]|\\.)*?\\([0-3][0-7]{1,2}|[4-7][0-7]|0(?=[89])|[1-7])"#
-                ).captures(&node.text(context)) {
+                )
+                .captures(&node.text(context))
+                {
                     context.report(violation! {
                         node => node,
                         message_id => "octal_escape_sequence",
@@ -26,7 +28,7 @@ pub fn no_octal_escape_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

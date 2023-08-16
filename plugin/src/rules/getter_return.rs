@@ -123,11 +123,8 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
                     .iter()
                     .filter(|&&code_path| {
                         is_getter(
-                            code_path_analyzer
-                                .code_path_arena[code_path]
-                                .root_node(
-                                    &code_path_analyzer.code_path_segment_arena
-                                ),
+                            code_path_analyzer.code_path_arena[code_path]
+                                .root_node(&code_path_analyzer.code_path_segment_arena),
                             context,
                         )
                     })
@@ -148,8 +145,7 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
 
                 *self.code_paths_to_check.get_mut(&code_path).unwrap() = true;
 
-                if !self.allow_implicit &&
-                    !node.has_non_comment_named_children() {
+                if !self.allow_implicit && !node.has_non_comment_named_children() {
                     context.report(violation! {
                         node => node,
                         message_id => "expected",
@@ -167,21 +163,16 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
-                for &code_path in code_path_analyzer
-                    .code_paths
-                    .iter()
-                    .filter(|&&code_path| {
-                        if !self.code_paths_to_check.contains_key(&code_path) {
-                            return false;
-                        }
-                        code_path_analyzer.code_path_arena[code_path]
-                            .state
-                            .head_segments(&code_path_analyzer.fork_context_arena)
-                            .reachable(&code_path_analyzer.code_path_segment_arena)
-                    })
-                {
-                    let node = code_path_analyzer
-                        .code_path_arena[code_path]
+                for &code_path in code_path_analyzer.code_paths.iter().filter(|&&code_path| {
+                    if !self.code_paths_to_check.contains_key(&code_path) {
+                        return false;
+                    }
+                    code_path_analyzer.code_path_arena[code_path]
+                        .state
+                        .head_segments(&code_path_analyzer.fork_context_arena)
+                        .reachable(&code_path_analyzer.code_path_segment_arena)
+                }) {
+                    let node = code_path_analyzer.code_path_arena[code_path]
                         .root_node(&code_path_analyzer.code_path_segment_arena);
                     context.report(violation! {
                         node => node,
@@ -202,8 +193,8 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
                         }
                     });
                 }
-            }
-        ]
+            },
+        ],
     }
 }
 

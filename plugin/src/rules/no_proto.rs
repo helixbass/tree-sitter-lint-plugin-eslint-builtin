@@ -23,7 +23,7 @@ pub fn no_proto_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

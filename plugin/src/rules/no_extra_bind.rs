@@ -150,7 +150,7 @@ pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
                     scope_info.this_found = true;
                 }
             },
-        ]
+        ],
     }
 }
 

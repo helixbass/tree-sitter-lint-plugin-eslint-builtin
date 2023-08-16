@@ -118,10 +118,13 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
         name => "array-callback-return",
         languages => [Javascript],
         messages => [
-            expected_at_end => "{{array_method_name}}() expects a value to be returned at the end of {{name}}.",
+            expected_at_end =>
+                "{{array_method_name}}() expects a value to be returned at the end of {{name}}.",
             expected_inside => "{{array_method_name}}() expects a return value from {{name}}.",
-            expected_return_value => "{{array_method_name}}() expects a return value from {{name}}.",
-            expected_no_return_value => "{{array_method_name}}() expects no useless return value from {{name}}.",
+            expected_return_value =>
+                "{{array_method_name}}() expects a return value from {{name}}.",
+            expected_no_return_value =>
+                "{{array_method_name}}() expects no useless return value from {{name}}.",
         ],
         options_type => Options,
         state => {
@@ -137,10 +140,8 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
                     .code_paths
                     .iter()
                     .filter_map(|&code_path| {
-                        let node =
-                            code_path_analyzer
-                                .code_path_arena[code_path]
-                                .root_node(&code_path_analyzer.code_path_segment_arena);
+                        let node = code_path_analyzer.code_path_arena[code_path]
+                            .root_node(&code_path_analyzer.code_path_segment_arena);
                         if !TARGET_NODE_TYPE.is_match(node.kind()) {
                             return None;
                         }
@@ -204,14 +205,15 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
 
                     #[allow(clippy::collapsible_else_if)]
                     if array_method_name == "forEach" {
-                        if self.check_for_each && root_node.kind() == ArrowFunction &&
-                            root_node.field("body").kind() != StatementBlock {
+                        if self.check_for_each
+                            && root_node.kind() == ArrowFunction
+                            && root_node.field("body").kind() != StatementBlock
+                        {
                             message_id = Some("expected_no_return_value");
                         }
                     } else {
-                        if root_node.field("body").kind() == StatementBlock &&
-                            code_path_analyzer
-                                .code_path_arena[code_path]
+                        if root_node.field("body").kind() == StatementBlock
+                            && code_path_analyzer.code_path_arena[code_path]
                                 .state
                                 .head_segments(&code_path_analyzer.fork_context_arena)
                                 .reachable(&code_path_analyzer.code_path_segment_arena)
@@ -239,7 +241,7 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
                     }
                 }
             },
-        ]
+        ],
     }
 }
 

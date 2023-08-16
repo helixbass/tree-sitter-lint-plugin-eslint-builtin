@@ -64,7 +64,8 @@ pub fn no_dupe_keys_rule() -> Arc<dyn Rule> {
                 for property in node.named_children(&mut cursor).filter(|property| {
                     [Pair, MethodDefinition, ShorthandPropertyIdentifier].contains(&property.kind())
                 }) {
-                    let name = continue_if_none!(ast_utils::get_static_property_name(property, context));
+                    let name =
+                        continue_if_none!(ast_utils::get_static_property_name(property, context));
 
                     let kind = get_object_property_kind(property, context);
 
@@ -82,7 +83,7 @@ pub fn no_dupe_keys_rule() -> Arc<dyn Rule> {
                     info.define_property(name, kind);
                 }
             },
-        ]
+        ],
     }
 }
 

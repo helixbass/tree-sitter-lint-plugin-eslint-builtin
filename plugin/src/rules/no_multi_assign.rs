@@ -48,7 +48,7 @@ pub fn no_multi_assign_rule() -> Arc<dyn Rule> {
                     message_id => "unexpected_chain",
                 });
             },
-        ]
+        ],
     }
 }
 

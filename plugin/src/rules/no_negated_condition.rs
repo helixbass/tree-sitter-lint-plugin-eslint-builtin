@@ -26,7 +26,8 @@ pub fn no_negated_condition_rule() -> Arc<dyn Rule> {
             unexpected_negated => "Unexpected negated condition.",
         ],
         listeners => [
-            format!(r#"
+            format!(
+                r#"
               (if_statement
                 condition: (parenthesized_expression
                   {NEGATED_EXPRESSION}
@@ -36,9 +37,15 @@ pub fn no_negated_condition_rule() -> Arc<dyn Rule> {
               (ternary_expression
                 condition: {NEGATED_EXPRESSION}
               ) @c
-            "#) => |node, context| {
-                if node.kind() == IfStatement &&
-                    node.field("alternative").first_non_comment_named_child().kind() == IfStatement {
+            "#
+            ) => |node, context| {
+                if node.kind() == IfStatement
+                    && node
+                        .field("alternative")
+                        .first_non_comment_named_child()
+                        .kind()
+                        == IfStatement
+                {
                     return;
                 }
                 context.report(violation! {
@@ -46,7 +53,7 @@ pub fn no_negated_condition_rule() -> Arc<dyn Rule> {
                     message_id => "unexpected_negated",
                 });
             },
-        ]
+        ],
     }
 }
 

@@ -29,7 +29,7 @@ pub fn no_throw_literal_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

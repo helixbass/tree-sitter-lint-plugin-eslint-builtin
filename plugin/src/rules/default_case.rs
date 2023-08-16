@@ -48,19 +48,22 @@ pub fn default_case_rule() -> Arc<dyn Rule> {
                     return;
                 }
 
-                if context.get_comments_after(*cases.last().unwrap())
+                if context
+                    .get_comments_after(*cases.last().unwrap())
                     .last()
                     .filter(|comment| {
-                        self.comment_pattern.is_match(get_comment_contents(*comment, context).trim())
+                        self.comment_pattern
+                            .is_match(get_comment_contents(*comment, context).trim())
                     })
-                    .is_none() {
+                    .is_none()
+                {
                     context.report(violation! {
                         node => node,
                         message_id => "missing_default_case",
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

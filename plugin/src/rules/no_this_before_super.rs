@@ -83,32 +83,27 @@ pub fn no_this_before_super_rule() -> Arc<dyn Rule> {
 
                 let mut nodes_to_report: HashSet<Node<'a>> = Default::default();
 
-                for &code_path in code_path_analyzer
-                    .code_paths
-                    .iter()
-                    .filter(|&&code_path| {
-                        code_path_analyzer
-                            .code_path_arena[code_path]
-                            .root_node(&code_path_analyzer.code_path_segment_arena)
-                            .thrush(|root_node| {
-                                if !(root_node.kind() == MethodDefinition &&
-                                    get_method_definition_kind(root_node, context) == MethodDefinitionKind::Constructor) {
-                                    return false;
-                                }
+                for &code_path in code_path_analyzer.code_paths.iter().filter(|&&code_path| {
+                    code_path_analyzer.code_path_arena[code_path]
+                        .root_node(&code_path_analyzer.code_path_segment_arena)
+                        .thrush(|root_node| {
+                            if !(root_node.kind() == MethodDefinition
+                                && get_method_definition_kind(root_node, context)
+                                    == MethodDefinitionKind::Constructor)
+                            {
+                                return false;
+                            }
 
-                                let class_node = root_node.parent().unwrap().parent().unwrap();
+                            let class_node = root_node.parent().unwrap().parent().unwrap();
 
-                                class_node.maybe_first_child_of_kind("class_heritage").matches(|class_heritage| {
+                            class_node
+                                .maybe_first_child_of_kind("class_heritage")
+                                .matches(|class_heritage| {
                                     !ast_utils::is_null_or_undefined(class_heritage)
                                 })
-                            })
-                    })
-                {
-                    look_for_this_before_super(
-                        code_path,
-                        code_path_analyzer,
-                        &mut nodes_to_report,
-                    );
+                        })
+                }) {
+                    look_for_this_before_super(code_path, code_path_analyzer, &mut nodes_to_report);
                 }
 
                 for node in nodes_to_report {
@@ -125,7 +120,7 @@ pub fn no_this_before_super_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

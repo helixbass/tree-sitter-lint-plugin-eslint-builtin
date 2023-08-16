@@ -163,14 +163,9 @@ pub fn no_self_assign_rule() -> Arc<dyn Rule> {
                 ]
               ) @c
             "# => |node, context| {
-                each_self_assignment(
-                    node.field("left"),
-                    node.field("right"),
-                    self.props,
-                    context,
-                )
+                each_self_assignment(node.field("left"), node.field("right"), self.props, context)
             },
-        ]
+        ],
     }
 }
 

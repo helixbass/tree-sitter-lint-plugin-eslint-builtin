@@ -37,7 +37,7 @@ pub fn no_script_url_rule() -> Arc<dyn Rule> {
                     check(node, context);
                 }
             },
-        ]
+        ],
     }
 }
 

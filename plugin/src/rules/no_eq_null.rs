@@ -31,7 +31,7 @@ pub fn no_eq_null_rule() -> Arc<dyn Rule> {
                     message_id => "unexpected",
                 });
             },
-        ]
+        ],
     }
 }
 

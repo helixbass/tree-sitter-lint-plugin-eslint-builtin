@@ -23,19 +23,21 @@ pub fn no_constructor_return_rule() -> Arc<dyn Rule> {
 
                 let code_path = code_path_analyzer.get_innermost_code_path(node);
                 let code_path = &code_path_analyzer.code_path_arena[code_path];
-                let code_path_root_node = code_path.root_node(&code_path_analyzer.code_path_segment_arena);
-                if code_path_root_node.kind() == MethodDefinition &&
-                    get_method_definition_kind(code_path_root_node, context) == MethodDefinitionKind::Constructor && (
-                        node.parent().unwrap().parent().unwrap() == code_path_root_node ||
-                        node.has_non_comment_named_children()
-                    ) {
+                let code_path_root_node =
+                    code_path.root_node(&code_path_analyzer.code_path_segment_arena);
+                if code_path_root_node.kind() == MethodDefinition
+                    && get_method_definition_kind(code_path_root_node, context)
+                        == MethodDefinitionKind::Constructor
+                    && (node.parent().unwrap().parent().unwrap() == code_path_root_node
+                        || node.has_non_comment_named_children())
+                {
                     context.report(violation! {
                         node => node,
                         message_id => "unexpected",
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

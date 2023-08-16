@@ -58,8 +58,10 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
                 let mut state_map: StateMap = Default::default();
 
                 for node in captures.get_all("member") {
-                    let name = continue_if_none!(ast_utils::get_static_property_name(node, context));
-                    let kind = (node.kind() == MethodDefinition).then(|| get_method_definition_kind(node, context));
+                    let name =
+                        continue_if_none!(ast_utils::get_static_property_name(node, context));
+                    let kind = (node.kind() == MethodDefinition)
+                        .then(|| get_method_definition_kind(node, context));
 
                     if kind == Some(MethodDefinitionKind::Constructor) {
                         continue;
@@ -68,7 +70,7 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
                     let state = get_state(
                         &mut state_map,
                         name.clone().into_owned(),
-                        is_class_member_static(node, context)
+                        is_class_member_static(node, context),
                     );
                     let is_duplicate;
 
@@ -98,7 +100,7 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
                     }
                 }
             },
-        ]
+        ],
     }
 }
 

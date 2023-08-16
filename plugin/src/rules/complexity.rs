@@ -115,56 +115,66 @@ pub fn complexity_rule() -> Arc<dyn Rule> {
 
                 if !matches!(
                     code_path_instance.origin,
-                    CodePathOrigin::Function |
-                    CodePathOrigin::ClassFieldInitializer |
-                    CodePathOrigin::ClassStaticBlock
+                    CodePathOrigin::Function
+                        | CodePathOrigin::ClassFieldInitializer
+                        | CodePathOrigin::ClassStaticBlock
                 ) {
                     return;
                 }
 
-                self.complexities.entry(code_path).or_insert_with(|| {
-                    (
-                        1,
-                        code_path_instance.root_node(&code_path_analyzer.code_path_segment_arena),
-                        code_path_instance.origin,
-                    )
-                }).0 += 1;
+                self.complexities
+                    .entry(code_path)
+                    .or_insert_with(|| {
+                        (
+                            1,
+                            code_path_instance
+                                .root_node(&code_path_analyzer.code_path_segment_arena),
+                            code_path_instance.origin,
+                        )
+                    })
+                    .0 += 1;
             },
             "program:exit" => |node, context| {
                 if self.threshold == 0 {
                     let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
-                    for &code_path in code_path_analyzer.code_paths[1..].into_iter().filter(|code_path| {
-                        matches!(
-                            code_path_analyzer.code_path_arena[**code_path].origin,
-                            CodePathOrigin::Function |
-                            CodePathOrigin::ClassFieldInitializer |
-                            CodePathOrigin::ClassStaticBlock
-                        )
-                    }) {
+                    for &code_path in
+                        code_path_analyzer.code_paths[1..]
+                            .into_iter()
+                            .filter(|code_path| {
+                                matches!(
+                                    code_path_analyzer.code_path_arena[**code_path].origin,
+                                    CodePathOrigin::Function
+                                        | CodePathOrigin::ClassFieldInitializer
+                                        | CodePathOrigin::ClassStaticBlock
+                                )
+                            })
+                    {
                         let code_path_instance = &code_path_analyzer.code_path_arena[code_path];
                         report(
-                            code_path_instance.root_node(&code_path_analyzer.code_path_segment_arena),
+                            code_path_instance
+                                .root_node(&code_path_analyzer.code_path_segment_arena),
                             context,
                             code_path_instance.origin,
-                            self.complexities.get(&code_path).map_or(
-                                1,
-                                |(complexity, _, _)| *complexity
-                            ),
-                            self.threshold
+                            self.complexities
+                                .get(&code_path)
+                                .map_or(1, |(complexity, _, _)| *complexity),
+                            self.threshold,
                         );
                     }
 
                     return;
                 }
 
-                for (complexity, node, origin) in self.complexities.values().filter(|(complexity, _, _)| {
-                    *complexity > self.threshold
-                }) {
+                for (complexity, node, origin) in self
+                    .complexities
+                    .values()
+                    .filter(|(complexity, _, _)| *complexity > self.threshold)
+                {
                     report(*node, context, *origin, *complexity, self.threshold);
                 }
-            }
-        ]
+            },
+        ],
     }
 }
 

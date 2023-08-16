@@ -149,8 +149,8 @@ pub fn no_cond_assign_rule() -> Arc<dyn Rule> {
                     node => skip_nodes_of_types(node.child_by_field_name("condition").unwrap(), &[ParenthesizedExpression, ExpressionStatement]),
                     message_id => "missing",
                 });
-            }
-        ]
+            },
+        ],
     }
 }
 

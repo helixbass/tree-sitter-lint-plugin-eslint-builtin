@@ -28,9 +28,9 @@ pub fn no_array_constructor_rule() -> Arc<dyn Rule> {
                             message_id => "prefer_literal",
                         });
                     }
-                }
+                },
             },
-        ]
+        ],
     }
 }
 

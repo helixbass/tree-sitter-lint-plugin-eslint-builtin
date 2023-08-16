@@ -24,7 +24,7 @@ pub fn no_nested_ternary_rule() -> Arc<dyn Rule> {
                     message_id => "no_nested_ternary",
                 });
             },
-        ]
+        ],
     }
 }
 

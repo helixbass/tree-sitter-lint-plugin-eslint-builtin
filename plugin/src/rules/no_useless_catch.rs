@@ -26,7 +26,12 @@ pub fn no_useless_catch_rule() -> Arc<dyn Rule> {
             "# => {
                 capture_name => "catch_clause",
                 callback => |node, context| {
-                    if node.parent().unwrap().child_by_field_name("finalizer").is_some() {
+                    if node
+                        .parent()
+                        .unwrap()
+                        .child_by_field_name("finalizer")
+                        .is_some()
+                    {
                         context.report(violation! {
                             node => node,
                             message_id => "unnecessary_catch_clause",
@@ -38,8 +43,8 @@ pub fn no_useless_catch_rule() -> Arc<dyn Rule> {
                         });
                     }
                 },
-            }
-        ]
+            },
+        ],
     }
 }
 

@@ -93,8 +93,10 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
         name => "no-unneeded-ternary",
         languages => [Javascript],
         messages => [
-            unnecessary_conditional_expression => "Unnecessary use of boolean literals in conditional expression.",
-            unnecessary_conditional_assignment => "Unnecessary use of conditional expression for default assignment.",
+            unnecessary_conditional_expression =>
+                "Unnecessary use of boolean literals in conditional expression.",
+            unnecessary_conditional_assignment =>
+                "Unnecessary use of conditional expression for default assignment.",
         ],
         fixable => true,
         options_type => Options,
@@ -106,8 +108,12 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
             r#"(
               (ternary_expression) @c
             )"# => |node, context| {
-                let alternate = skip_parenthesized_expressions(node.child_by_field_name("alternative").unwrap());
-                let consequent = skip_parenthesized_expressions(node.child_by_field_name("consequence").unwrap());
+                let alternate = skip_parenthesized_expressions(
+                    node.child_by_field_name("alternative").unwrap(),
+                );
+                let consequent = skip_parenthesized_expressions(
+                    node.child_by_field_name("consequence").unwrap(),
+                );
                 if is_boolean_literal(alternate) && is_boolean_literal(consequent) {
                     context.report(violation! {
                         node => node,
@@ -171,7 +177,7 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

@@ -61,7 +61,7 @@ fn dump_dot_file(source_text: &str) {
             "# => |node, context| {
                 context.retrieve::<CodePathAnalyzer<'a>>();
             },
-        ]
+        ],
     };
 
     tree_sitter_lint::run_for_slice(

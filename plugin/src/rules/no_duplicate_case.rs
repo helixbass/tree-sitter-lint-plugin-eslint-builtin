@@ -28,9 +28,10 @@ pub fn no_duplicate_case_rule() -> Arc<dyn Rule> {
                 for switch_case in captures.get_all("switch_case") {
                     let test = switch_case.child_by_field_name("value").unwrap();
 
-                    if previous_tests.iter().any(|&previous_test| {
-                        equal(previous_test, test, context)
-                    }) {
+                    if previous_tests
+                        .iter()
+                        .any(|&previous_test| equal(previous_test, test, context))
+                    {
                         context.report(violation! {
                             node => switch_case,
                             message_id => "unexpected",
@@ -40,7 +41,7 @@ pub fn no_duplicate_case_rule() -> Arc<dyn Rule> {
                     }
                 }
             },
-        ]
+        ],
     }
 }
 

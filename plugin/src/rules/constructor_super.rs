@@ -237,13 +237,23 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
               ) @c
             "# => |node, context| {
                 let enclosing_method_definition = ast_utils::get_upper_function(node);
-                if !enclosing_method_definition.matches(|node| is_constructor_function(node, context)) {
+                if !enclosing_method_definition
+                    .matches(|node| is_constructor_function(node, context))
+                {
                     return;
                 }
                 let enclosing_method_definition = enclosing_method_definition.unwrap();
-                let class_node = enclosing_method_definition.parent().unwrap().parent().unwrap();
+                let class_node = enclosing_method_definition
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap();
                 if let Some(class_heritage) = class_node.maybe_first_child_of_kind(ClassHeritage) {
-                    if !is_possible_constructor(class_heritage.first_non_comment_named_child().skip_parentheses()) {
+                    if !is_possible_constructor(
+                        class_heritage
+                            .first_non_comment_named_child()
+                            .skip_parentheses(),
+                    ) {
                         context.report(violation! {
                             node => node,
                             message_id => "bad_super",
@@ -259,15 +269,11 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
             "program:exit" => |node, context| {
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
-                for &code_path in code_path_analyzer
-                    .code_paths
-                    .iter()
-                    .filter(|&&code_path| {
-                        code_path_analyzer.code_path_arena[code_path]
-                            .root_node(&code_path_analyzer.code_path_segment_arena)
-                            .thrush(|root_node| is_constructor_function(root_node, context))
-                    })
-                {
+                for &code_path in code_path_analyzer.code_paths.iter().filter(|&&code_path| {
+                    code_path_analyzer.code_path_arena[code_path]
+                        .root_node(&code_path_analyzer.code_path_segment_arena)
+                        .thrush(|root_node| is_constructor_function(root_node, context))
+                }) {
                     let root_node = code_path_analyzer.code_path_arena[code_path]
                         .root_node(&code_path_analyzer.code_path_segment_arena);
 
@@ -275,11 +281,12 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                     let has_extends = class_node.has_child_of_kind(ClassHeritage);
 
                     if has_extends {
-                        let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> = Default::default();
-                        let mut seen_segments_found: HashMap<Id<CodePathSegment<'a>>, Found> = Default::default();
+                        let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> =
+                            Default::default();
+                        let mut seen_segments_found: HashMap<Id<CodePathSegment<'a>>, Found> =
+                            Default::default();
 
-                        let no_supers: Found = code_path_analyzer
-                            .code_path_arena[code_path]
+                        let no_supers: Found = code_path_analyzer.code_path_arena[code_path]
                             .returned_segments()
                             .into_iter()
                             .map(|&returned_segment| {
@@ -304,14 +311,15 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                     message_id => "missing_some",
                                 });
                             }
-                            _ => ()
+                            _ => (),
                         }
 
-                        let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> = Default::default();
-                        let mut segments_where_seen: HashMap<Id<CodePathSegment<'a>>, Node<'a>> = Default::default();
+                        let mut seen_segments: HashSet<Id<CodePathSegment<'a>>> =
+                            Default::default();
+                        let mut segments_where_seen: HashMap<Id<CodePathSegment<'a>>, Node<'a>> =
+                            Default::default();
 
-                        code_path_analyzer
-                            .code_path_arena[code_path]
+                        code_path_analyzer.code_path_arena[code_path]
                             .returned_segments()
                             .into_iter()
                             .for_each(|&returned_segment| {
@@ -325,45 +333,48 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                 )
                             });
 
-                        for (from_segment, to_segment, _) in &code_path_analyzer
-                            .code_path_arena[code_path]
+                        for (from_segment, to_segment, _) in &code_path_analyzer.code_path_arena
+                            [code_path]
                             .state
-                            .looped_segments {
-                            let is_real_loop = code_path_analyzer
-                                .code_path_segment_arena[*to_segment]
-                                .prev_segments.len() >= 2;
+                            .looped_segments
+                        {
+                            let is_real_loop = code_path_analyzer.code_path_segment_arena
+                                [*to_segment]
+                                .prev_segments
+                                .len()
+                                >= 2;
 
-                            code_path_analyzer.code_path_arena[code_path]
-                                .traverse_segments(
-                                    &code_path_analyzer.code_path_segment_arena,
-                                    Some(TraverseSegmentsOptions {
-                                        first: Some(*to_segment),
-                                        last: Some(*from_segment),
-                                    }),
-                                    |_, segment, _| {
-                                        if is_real_loop {
-                                            for (_, node) in code_path_analyzer
-                                                .code_path_segment_arena[segment]
-                                                .nodes
-                                                .iter()
-                                                .filter(|(enter_or_exit, node)| {
-                                                    *enter_or_exit == EnterOrExit::Exit &&
-                                                        node.kind() == CallExpression && node.field("function").kind() == Super
-                                                })
-                                            {
-                                                context.report(violation! {
-                                                    node => *node,
-                                                    message_id => "duplicate",
-                                                });
-                                            }
+                            code_path_analyzer.code_path_arena[code_path].traverse_segments(
+                                &code_path_analyzer.code_path_segment_arena,
+                                Some(TraverseSegmentsOptions {
+                                    first: Some(*to_segment),
+                                    last: Some(*from_segment),
+                                }),
+                                |_, segment, _| {
+                                    if is_real_loop {
+                                        for (_, node) in code_path_analyzer.code_path_segment_arena
+                                            [segment]
+                                            .nodes
+                                            .iter()
+                                            .filter(|(enter_or_exit, node)| {
+                                                *enter_or_exit == EnterOrExit::Exit
+                                                    && node.kind() == CallExpression
+                                                    && node.field("function").kind() == Super
+                                            })
+                                        {
+                                            context.report(violation! {
+                                                node => *node,
+                                                message_id => "duplicate",
+                                            });
                                         }
                                     }
-                                );
+                                },
+                            );
                         }
                     }
                 }
-            }
-        ]
+            },
+        ],
     }
 }
 

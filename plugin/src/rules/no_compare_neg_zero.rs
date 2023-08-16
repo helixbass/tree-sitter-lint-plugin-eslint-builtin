@@ -30,16 +30,19 @@ pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
             unexpected => "Do not use the '{{operator}}' operator to compare against -0.",
         ],
         listeners => [
-            format!(r#"[
-              (binary_expression
-                left: {NEGATIVE_ZERO}
-                operator: {OPERATOR}
-              )
-              (binary_expression
-                operator: {OPERATOR}
-                right: {NEGATIVE_ZERO}
-              )
-            ] @binary_expression"#) => {
+            format!(
+                r#"[
+                  (binary_expression
+                    left: {NEGATIVE_ZERO}
+                    operator: {OPERATOR}
+                  )
+                  (binary_expression
+                    operator: {OPERATOR}
+                    right: {NEGATIVE_ZERO}
+                  )
+                ] @binary_expression
+              "#
+            ) => {
                 capture_name => "binary_expression",
                 callback => |node, context| {
                     context.report(violation! {
@@ -50,8 +53,8 @@ pub fn no_compare_neg_zero_rule() -> Arc<dyn Rule> {
                         }
                     });
                 },
-            }
-        ]
+            },
+        ],
     }
 }
 

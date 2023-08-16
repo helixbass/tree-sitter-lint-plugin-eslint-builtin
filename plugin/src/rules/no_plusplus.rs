@@ -51,8 +51,7 @@ pub fn no_plusplus_rule() -> Arc<dyn Rule> {
             r#"
               (update_expression) @c
             "# => |node, context| {
-                if self.allow_for_loop_afterthoughts &&
-                    is_for_loop_afterthought(node) {
+                if self.allow_for_loop_afterthoughts && is_for_loop_afterthought(node) {
                     return;
                 }
 
@@ -64,7 +63,7 @@ pub fn no_plusplus_rule() -> Arc<dyn Rule> {
                     }
                 });
             },
-        ]
+        ],
     }
 }
 

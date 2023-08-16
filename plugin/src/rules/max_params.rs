@@ -67,7 +67,9 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
                     let mut cursor = parameters.walk();
                     parameters.named_children(&mut cursor).count()
                 });
-                if let Some(num_params) = num_params.filter(|&num_params| num_params > self.num_params) {
+                if let Some(num_params) =
+                    num_params.filter(|&num_params| num_params > self.num_params)
+                {
                     context.report(violation! {
                         range => ast_utils::get_function_head_range(node),
                         node => node,
@@ -80,7 +82,7 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
                     });
                 }
             },
-        ]
+        ],
     }
 }
 

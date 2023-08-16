@@ -114,7 +114,7 @@ pub fn no_unused_labels_rule() -> Arc<dyn Rule> {
                     }
                 }
             },
-        ]
+        ],
     }
 }
 

@@ -24,8 +24,8 @@ pub fn no_new_wrappers_rule() -> Arc<dyn Rule> {
                         fn_ => captures["constructor"].text(context),
                     }
                 });
-            }
-        ]
+            },
+        ],
     }
 }
 

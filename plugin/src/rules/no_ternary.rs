@@ -18,7 +18,7 @@ pub fn no_ternary_rule() -> Arc<dyn Rule> {
                     message_id => "no_ternary_operator",
                 });
             },
-        ]
+        ],
     }
 }
 

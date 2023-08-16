@@ -20,7 +20,7 @@ pub fn no_new_rule() -> Arc<dyn Rule> {
                     message_id => "no_new_statement",
                 });
             },
-        ]
+        ],
     }
 }
 

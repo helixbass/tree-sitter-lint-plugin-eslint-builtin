@@ -104,25 +104,27 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
                 if node.is_last_non_comment_named_child() {
                     return;
                 }
-                if node.child_by_field_name("body").is_none() && (
-                    self.allow_empty_case ||
-                        !has_blank_lines_between(
+                if node.child_by_field_name("body").is_none()
+                    && (self.allow_empty_case
+                        || !has_blank_lines_between(
                             node,
-                            context.get_token_after(node, Option::<fn(Node) -> bool>::None)
-                        )
-                ) {
+                            context.get_token_after(node, Option::<fn(Node) -> bool>::None),
+                        ))
+                {
                     return;
                 }
 
                 let mut cursor = node.walk();
-                if node.children_by_field_name("body", &mut cursor)
+                if node
+                    .children_by_field_name("body", &mut cursor)
                     .last()
                     .matches(|last_statement| {
                         matches!(
                             last_statement.kind(),
                             BreakStatement | ReturnStatement | ThrowStatement,
                         )
-                    }) {
+                    })
+                {
                     return;
                 }
 
@@ -138,37 +140,30 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
                 type NodeId = usize;
                 let mut reachable_nodes: HashSet<NodeId> = Default::default();
                 for &code_path in &code_path_analyzer.code_paths {
-                    code_path_analyzer.code_path_arena[code_path]
-                        .traverse_all_segments(
-                            &code_path_analyzer.code_path_segment_arena,
-                            None,
-                            |_, segment, _| {
-                                code_path_analyzer.code_path_segment_arena[segment]
-                                    .nodes
-                                    .iter()
-                                    .filter(|(enter_or_exit, node)| {
-                                        matches!(
-                                            enter_or_exit,
-                                            EnterOrExit::Exit,
-                                        ) && matches!(
-                                            node.kind(),
-                                            SwitchCase | SwitchDefault
-                                        )
-                                    })
-                                    .for_each(|(_, node)| {
-                                        if code_path_analyzer.code_path_segment_arena[segment]
-                                            .reachable {
-                                            reachable_nodes.insert(node.id());
-                                        }
-                                    });
-                            }
-                        );
+                    code_path_analyzer.code_path_arena[code_path].traverse_all_segments(
+                        &code_path_analyzer.code_path_segment_arena,
+                        None,
+                        |_, segment, _| {
+                            code_path_analyzer.code_path_segment_arena[segment]
+                                .nodes
+                                .iter()
+                                .filter(|(enter_or_exit, node)| {
+                                    matches!(enter_or_exit, EnterOrExit::Exit,)
+                                        && matches!(node.kind(), SwitchCase | SwitchDefault)
+                                })
+                                .for_each(|(_, node)| {
+                                    if code_path_analyzer.code_path_segment_arena[segment].reachable
+                                    {
+                                        reachable_nodes.insert(node.id());
+                                    }
+                                });
+                        },
+                    );
                 }
                 for candidate_switch_case_node in reachable_nodes
                     .into_iter()
-                    .filter_map(|node_id| {
-                        self.potential_fallthrough_cases.get(&node_id).copied()
-                    }) {
+                    .filter_map(|node_id| self.potential_fallthrough_cases.get(&node_id).copied())
+                {
                     let next_case_node = candidate_switch_case_node
                         .next_named_sibling_of_kinds(&[SwitchCase, SwitchDefault]);
                     if has_fallthrough_comment(
@@ -188,8 +183,8 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
                         node => next_case_node,
                     });
                 }
-            }
-        ]
+            },
+        ],
     }
 }
 

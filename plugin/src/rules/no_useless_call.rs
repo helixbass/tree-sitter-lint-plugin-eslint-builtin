@@ -68,9 +68,8 @@ pub fn no_useless_call_rule() -> Arc<dyn Rule> {
 
                     let callee = node.field("function").skip_parentheses();
                     let applied = callee.field("object").skip_parentheses();
-                    let expected_this = (applied.kind() == MemberExpression).then(|| {
-                        applied.field("object").skip_parentheses()
-                    });
+                    let expected_this = (applied.kind() == MemberExpression)
+                        .then(|| applied.field("object").skip_parentheses());
                     let this_arg = get_call_expression_arguments(node).unwrap().next().unwrap();
 
                     if is_valid_this_arg(expected_this, this_arg, context) {
@@ -82,9 +81,9 @@ pub fn no_useless_call_rule() -> Arc<dyn Rule> {
                             }
                         });
                     }
-                }
+                },
             },
-        ]
+        ],
     }
 }
 

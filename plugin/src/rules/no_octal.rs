@@ -18,7 +18,7 @@ pub fn no_octal_rule() -> Arc<dyn Rule> {
                     message_id => "no_octal",
                 });
             },
-        ]
+        ],
     }
 }
 

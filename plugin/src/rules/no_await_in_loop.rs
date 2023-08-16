@@ -68,7 +68,7 @@ pub fn no_await_in_loop_rule() -> Arc<dyn Rule> {
             ] @c"# => |node, context| {
                 validate(node, context);
             },
-        ]
+        ],
     }
 }
 

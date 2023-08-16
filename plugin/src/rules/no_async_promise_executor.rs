@@ -40,7 +40,7 @@ pub fn no_async_promise_executor_rule() -> Arc<dyn Rule> {
                     message => "Promise executor functions should not be async.",
                 })
             },
-        ]
+        ],
     }
 }
 

@@ -51,15 +51,14 @@ pub fn no_return_assign_rule() -> Arc<dyn Rule> {
                         node => parent,
                         message_id => "return_assignment",
                     });
-                } else if parent.kind() == ArrowFunction &&
-                    parent.field("body") == current_child {
+                } else if parent.kind() == ArrowFunction && parent.field("body") == current_child {
                     context.report(violation! {
                         node => parent,
                         message_id => "arrow_assignment",
                     });
                 }
             },
-        ]
+        ],
     }
 }
 
