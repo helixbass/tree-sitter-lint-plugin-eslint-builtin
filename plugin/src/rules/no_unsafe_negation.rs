@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -22,12 +22,52 @@ pub fn no_unsafe_negation_rule() -> Arc<dyn Rule> {
             enforce_for_ordering_relations: bool = options.enforce_for_ordering_relations,
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
+            r#"
+              (binary_expression
+                left: (unary_expression
+                  operator: "!"
+                )
+                operator: [
+                  "in"
+                  "instanceof"
+                  "<"
+                  ">"
+                  ">="
+                  "<="
+                ]
+              ) @c
+            "# => |node, context| {
+                let operator = node.field("operator").kind();
+                if !self.enforce_for_ordering_relations && ["<", ">", "<=", ">="].contains(&operator) {
+                    return;
+                }
+
                 context.report(violation! {
                     node => node,
+                    range => node.field("left").range(),
                     message_id => "unexpected",
+                    data => {
+                        operator => operator,
+                    },
+                    // suggest: [
+                    //     {
+                    //         messageId: "suggestNegatedExpression",
+                    //         data: { operator },
+                    //         fix(fixer) {
+                    //             const negationToken = sourceCode.getFirstToken(node.left);
+                    //             const fixRange = [negationToken.range[1], node.range[1]];
+                    //             const text = sourceCode.text.slice(fixRange[0], fixRange[1]);
+
+                    //             return fixer.replaceTextRange(fixRange, `(${text})`);
+                    //         },
+                    //     },
+                    //     {
+                    //         messageId: "suggestParenthesisedNegation",
+                    //         fix(fixer) {
+                    //             return fixer.replaceTextRange(node.left, `(${sourceCode.getText(node.left)})`);
+                    //         },
+                    //     },
+                    // ]
                 });
             },
         ],
