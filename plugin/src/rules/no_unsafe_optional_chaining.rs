@@ -1,6 +1,55 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use serde::Deserialize;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+
+use crate::{
+    ast_helpers::{
+        get_last_expression_of_sequence_expression, is_outermost_chain_expression, NodeExtJs,
+    },
+    kind::{
+        AwaitExpression, BinaryExpression, CallExpression, ClassHeritage, MemberExpression, Object,
+        ParenthesizedExpression, SequenceExpression, SubscriptExpression, TernaryExpression,
+    },
+};
+
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct Options {
+    disallow_arithmetic_operators: bool,
+}
+
+fn check_undefined_short_circuit(node: Node, report_func: &impl Fn(Node)) {
+    match node.kind() {
+        BinaryExpression => match node.field("operator").kind() {
+            "||" | "??" => check_undefined_short_circuit(node.field("right"), report_func),
+            "&&" => {
+                check_undefined_short_circuit(node.field("left"), report_func);
+                check_undefined_short_circuit(node.field("right"), report_func);
+            }
+            _ => (),
+        },
+        SequenceExpression => {
+            check_undefined_short_circuit(
+                get_last_expression_of_sequence_expression(node),
+                report_func,
+            );
+        }
+        TernaryExpression => {
+            check_undefined_short_circuit(node.field("consequence"), report_func);
+            check_undefined_short_circuit(node.field("alternative"), report_func);
+        }
+        AwaitExpression | ParenthesizedExpression | ClassHeritage => {
+            check_undefined_short_circuit(node.first_non_comment_named_child(), report_func);
+        }
+        CallExpression | MemberExpression | SubscriptExpression => {
+            if is_outermost_chain_expression(node) {
+                report_func(node);
+            }
+        }
+        _ => (),
+    }
+}
 
 pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,15 +59,150 @@ pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
             unsafe_optional_chain => "Unsafe usage of optional chaining. If it short-circuits with 'undefined' the evaluation will throw TypeError.",
             unsafe_arithmetic => "Unsafe arithmetic operation on optional chaining. It can result in NaN.",
         ],
-        listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+        options_type => Options,
+        state => {
+            [per-run]
+            // disallow_arithmetic_operators: bool = options.disallow_arithmetic_operators,
+            disallow_arithmetic_operators: bool = {
+                options.disallow_arithmetic_operators
             },
+        },
+        listeners => [
+            r#"
+              (assignment_expression
+                left: [
+                  (object_pattern)
+                  (array_pattern)
+                ]
+                right: (_) @c
+              )
+              (assignment_pattern
+                left: [
+                  (object_pattern)
+                  (array_pattern)
+                ]
+                right: (_) @c
+              )
+              (class_declaration
+                (class_heritage) @c
+              )
+              (class
+                (class_heritage) @c
+              )
+              (call_expression
+                function: (_) @c
+                !optional_chain
+              )
+              (new_expression
+                constructor: (_) @c
+              )
+              (variable_declarator
+                name: [
+                  (object_pattern)
+                  (array_pattern)
+                ]
+                value: (_) @c
+              )
+              (member_expression
+                object: (_) @c
+                !optional_chain
+              )
+              (subscript_expression
+                object: (_) @c
+                !optional_chain
+              )
+              (for_in_statement
+                operator: "of"
+                right: (_) @c
+              )
+              (binary_expression
+                operator: [
+                  "in"
+                  "instanceof"
+                ]
+                right: (_) @c
+              )
+              (with_statement
+                object: (_) @c
+              )
+            "# => |node, context| {
+                check_undefined_short_circuit(
+                    node,
+                    &|node| {
+                        context.report(violation! {
+                            message_id => "unsafe_optional_chain",
+                            node => node,
+                        });
+                    }
+                );
+            },
+            r#"
+              (spread_element) @c
+            "# => |node, context| {
+                if node.parent().unwrap().kind() == Object {
+                    return;
+                }
+
+                check_undefined_short_circuit(
+                    node.first_non_comment_named_child(),
+                    &|node| {
+                        context.report(violation! {
+                            message_id => "unsafe_optional_chain",
+                            node => node,
+                        });
+                    }
+                );
+            },
+            r#"
+              (binary_expression
+                left: (_) @c
+                operator: [
+                  "+"
+                  "-"
+                  "/"
+                  "*"
+                  "%"
+                  "**"
+                ]
+                right: (_) @c
+              )
+              (unary_expression
+                operator: [
+                  "+"
+                  "-"
+                  "/"
+                  "*"
+                  "%"
+                  "**"
+                ]
+                argument: (_) @c
+              )
+              (augmented_assignment_expression
+                operator: [
+                  "+="
+                  "-="
+                  "/="
+                  "*="
+                  "%="
+                  "**="
+                ]
+                right: (_) @c
+              )
+            "# => |node, context| {
+                if !self.disallow_arithmetic_operators {
+                    return;
+                }
+
+                check_undefined_short_circuit(
+                    node,
+                    &|node| {
+                        context.report(violation! {
+                            message_id => "unsafe_arithmetic",
+                            node => node,
+                        });
+                    }
+                );
+            }
         ],
     }
 }
@@ -189,7 +373,7 @@ mod tests {
                     ].into_iter().map(|code| {
                         RuleTestValidBuilder::default()
                             .code(code)
-                            .options(json!({"disallowArithmeticOperators": true}))
+                            .options(json!({"disallow_arithmetic_operators": true}))
                             .build()
                             .unwrap()
                     }).collect_vec(),
@@ -199,9 +383,9 @@ mod tests {
                     },
                     {
                         code => "obj?.foo - bar;",
-                        options => [{
+                        options => {
                             disallow_arithmetic_operators => false
-                        }]
+                        }
                     }
                 ],
                 invalid => [
@@ -215,7 +399,6 @@ mod tests {
                         "(obj?.foo)[1];",
                         "(obj?.foo)`template`",
                         "new (obj?.foo)();",
-                        "new (obj?.foo?.())()",
                         "new (obj?.foo?.() || obj?.bar)()",
 
                         "async function foo() {
@@ -241,17 +424,13 @@ mod tests {
 
                         // destructuring
                         "const {foo} = obj?.bar;",
-                        "const {foo} = obj?.bar();",
-                        "const {foo: bar} = obj?.bar();",
                         "const [foo] = obj?.bar;",
                         "const [foo] = obj?.bar || obj?.foo;",
                         "([foo] = obj?.bar);",
-                        "const [foo] = obj?.bar?.();",
                         "[{ foo } = obj?.bar] = [];",
                         "({bar: [ foo ] = obj?.prop} = {});",
                         "[[ foo ] = obj?.bar] = [];",
                         "async function foo() { const {foo} = await obj?.bar; }",
-                        "async function foo() { const {foo} = await obj?.bar(); }",
                         "async function foo() { const [foo] = await obj?.bar || await obj?.foo; }",
                         "async function foo() { ([foo] = await obj?.bar); }",
 
@@ -299,6 +478,25 @@ mod tests {
                                 RuleTestExpectedErrorBuilder::default()
                                     .message_id("unsafe_optional_chain")
                                     .type_(MemberExpression)
+                                    .build()
+                                    .unwrap()
+                            ])
+                            .build()
+                            .unwrap()
+                    }).collect_vec(),
+                    ...[
+                        "new (obj?.foo?.())()",
+                        "const {foo} = obj?.bar();",
+                        "const {foo: bar} = obj?.bar();",
+                        "const [foo] = obj?.bar?.();",
+                        "async function foo() { const {foo} = await obj?.bar(); }",
+                    ].into_iter().map(|code| {
+                        RuleTestInvalidBuilder::default()
+                            .code(code)
+                            .errors(vec![
+                                RuleTestExpectedErrorBuilder::default()
+                                    .message_id("unsafe_optional_chain")
+                                    .type_(CallExpression)
                                     .build()
                                     .unwrap()
                             ])
@@ -403,7 +601,7 @@ mod tests {
                     ].into_iter().map(|code| {
                         RuleTestInvalidBuilder::default()
                             .code(code)
-                            .options(json!({"disallowArithmeticOperators": true}))
+                            .options(json!({"disallow_arithmetic_operators": true}))
                             .errors(vec![
                                 RuleTestExpectedErrorBuilder::default()
                                     .message_id("unsafe_arithmetic")
