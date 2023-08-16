@@ -44,11 +44,8 @@ fn get_array_method_name<'a>(
 ) -> Option<Cow<'a, str>> {
     let mut current_node = node;
 
-    println!("get_array_method_name() 1, node: {node:#?}");
     loop {
         let parent = current_node.parent().unwrap();
-
-        println!("get_array_method_name() 2, current_node: {current_node:#?}, parent: {parent:#?}");
 
         match parent.kind() {
             BinaryExpression => {
@@ -59,10 +56,6 @@ fn get_array_method_name<'a>(
             }
             TernaryExpression | ParenthesizedExpression => current_node = parent,
             ReturnStatement => {
-                println!(
-                    "get_array_method_name() 3, func: {:#?}",
-                    ast_utils::get_upper_function(parent)
-                );
                 let func = ast_utils::get_upper_function(parent)
                     .filter(|&func| ast_utils::is_callee(func))?;
 
@@ -70,25 +63,19 @@ fn get_array_method_name<'a>(
             }
             Arguments => {
                 let call_expression = parent.parent().unwrap();
-                println!("get_array_method_name() 4",);
                 if call_expression.kind() != CallExpression {
-                    println!("get_array_method_name() 5",);
                     return None;
                 }
                 let callee = call_expression.field("function").skip_parentheses();
                 if ast_utils::is_array_from_method(callee, context) {
-                    println!("get_array_method_name() 6",);
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
                     if arguments.len() >= 2 && arguments[1] == current_node {
-                        println!("get_array_method_name() 7",);
                         return Some("from".into());
                     }
                 }
                 if is_target_method(callee, context) {
-                    println!("get_array_method_name() 8",);
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
                     if arguments.get(0).copied() == Some(current_node) {
-                        println!("get_array_method_name() 9",);
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
@@ -96,25 +83,19 @@ fn get_array_method_name<'a>(
             }
             CallExpression => {
                 let call_expression = parent;
-                println!("get_array_method_name() 4",);
                 if call_expression.kind() != CallExpression {
-                    println!("get_array_method_name() 5",);
                     return None;
                 }
                 let callee = call_expression.field("function").skip_parentheses();
                 if ast_utils::is_array_from_method(callee, context) {
-                    println!("get_array_method_name() 6",);
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
                     if arguments.len() >= 2 && arguments[1] == current_node {
-                        println!("get_array_method_name() 7",);
                         return Some("from".into());
                     }
                 }
                 if is_target_method(callee, context) {
-                    println!("get_array_method_name() 8",);
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
                     if arguments.get(0).copied() == Some(current_node) {
-                        println!("get_array_method_name() 9",);
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
@@ -150,7 +131,6 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
         },
         listeners => [
             "program:exit" => |node, context| {
-                println!("program exit");
                 let code_path_analyzer = context.retrieve::<CodePathAnalyzer<'a>>();
 
                 for (code_path, root_node, array_method_name) in code_path_analyzer
@@ -161,18 +141,13 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
                             code_path_analyzer
                                 .code_path_arena[code_path]
                                 .root_node(&code_path_analyzer.code_path_segment_arena);
-                        println!("code path 1 node: {node:#?}");
                         if !TARGET_NODE_TYPE.is_match(node.kind()) {
-                            println!("code path 2");
                             return None;
                         }
 
-                        println!("code path 3");
                         let array_method_name = get_array_method_name(node, context)?;
-                        println!("code path 4");
 
                         if node.has_child_of_kind("async") {
-                            println!("code path 5");
                             return None;
                         }
 
