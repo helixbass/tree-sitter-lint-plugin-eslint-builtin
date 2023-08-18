@@ -7,9 +7,8 @@ use tree_sitter_lint::{
     better_any::{tid, Tid},
     tree_sitter::{Node, Tree},
     tree_sitter_grep::RopeOrSlice,
-    EventEmitter, EventTypeIndex, FileRunContext, FromFileRunContext,
-    FromFileRunContextInstanceProvider, FromFileRunContextInstanceProviderFactory, NodeExt,
-    SourceTextProvider,
+    FileRunContext, FromFileRunContext, FromFileRunContextInstanceProvider,
+    FromFileRunContextInstanceProviderFactory, NodeExt, SourceTextProvider,
 };
 
 use crate::{
@@ -147,7 +146,6 @@ pub struct CodePathAnalyzer<'a> {
     pub fork_context_arena: Arena<ForkContext<'a>>,
     pub code_path_segment_arena: Arena<CodePathSegment<'a>>,
     file_contents: RopeOrSlice<'a>,
-    processing_emitted_event_index: Option<usize>,
 }
 
 impl<'a> CodePathAnalyzer<'a> {
@@ -161,7 +159,6 @@ impl<'a> CodePathAnalyzer<'a> {
             fork_context_arena: Default::default(),
             code_path_segment_arena: Default::default(),
             file_contents,
-            processing_emitted_event_index: Default::default(),
         }
     }
 
@@ -888,20 +885,6 @@ impl<'a> CodePathAnalyzer<'a> {
         }
     }
 
-    // pub fn get_on_code_path_end_payload(&self) -> (Id<CodePath>, Node<'a>) {
-    //     match &self.current_events[self.processing_emitted_event_index.unwrap()] {
-    //         Event::OnCodePathEnd(code_path, node) => (*code_path, *node),
-    //         _ => panic!("not processing on code path end"),
-    //     }
-    // }
-
-    // pub fn get_on_code_path_start_payload(&self) -> Node<'a> {
-    //     match &self.current_events[self.processing_emitted_event_index.unwrap()] {
-    //         Event::OnCodePathStart(node) => *node,
-    //         _ => panic!("not processing on code path start"),
-    //     }
-    // }
-
     pub fn get_innermost_code_path(&self, node: Node<'a>) -> Id<CodePath<'a>> {
         self.code_paths
             .iter()
@@ -964,12 +947,10 @@ impl<'a> CodePathAnalyzer<'a> {
         }
         segments
     }
-}
 
-impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
-    fn enter_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
+    fn enter_node(&mut self, node: Node<'a>) {
         if !node.is_named() || node.kind() == Comment {
-            return None;
+            return;
         }
 
         self.current_node = Some(node);
@@ -981,13 +962,11 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
         self.process_code_path_to_enter(node);
 
         self.current_node = None;
-
-        None
     }
 
-    fn leave_node(&mut self, node: Node<'a>) -> Option<Vec<EventTypeIndex>> {
+    fn leave_node(&mut self, node: Node<'a>) {
         if !node.is_named() || node.kind() == Comment {
-            return None;
+            return;
         }
 
         self.current_node = Some(node);
@@ -997,12 +976,6 @@ impl<'a> EventEmitter<'a> for CodePathAnalyzer<'a> {
         self.postprocess(node);
 
         self.current_node = None;
-
-        None
-    }
-
-    fn processing_emitted_event_index(&mut self, index: usize) {
-        self.processing_emitted_event_index = Some(index);
     }
 }
 
@@ -1026,10 +999,7 @@ impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
     }
 }
 
-fn walk_tree<'a, TEventEmitter: EventEmitter<'a>>(
-    tree: &'a Tree,
-    event_emitter: &mut TEventEmitter,
-) {
+fn walk_tree<'a>(tree: &'a Tree, code_path_analyzer: &mut CodePathAnalyzer<'a>) {
     let mut node_stack: Vec<Node<'a>> = Default::default();
     let mut cursor = tree.walk();
     'outer: loop {
@@ -1038,10 +1008,10 @@ fn walk_tree<'a, TEventEmitter: EventEmitter<'a>>(
             .last()
             .matches(|&last| node.end_byte() > last.end_byte())
         {
-            event_emitter.leave_node(node_stack.pop().unwrap());
+            code_path_analyzer.leave_node(node_stack.pop().unwrap());
         }
         node_stack.push(node);
-        event_emitter.enter_node(node);
+        code_path_analyzer.enter_node(node);
 
         #[allow(clippy::collapsible_if)]
         if !cursor.goto_first_child() {
@@ -1056,7 +1026,7 @@ fn walk_tree<'a, TEventEmitter: EventEmitter<'a>>(
         }
     }
     while let Some(node) = node_stack.pop() {
-        event_emitter.leave_node(node);
+        code_path_analyzer.leave_node(node);
     }
 }
 

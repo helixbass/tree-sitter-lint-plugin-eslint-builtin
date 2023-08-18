@@ -102,6 +102,5 @@ pub fn instantiate() -> Plugin {
             yield_star_spacing_rule(),
             array_bracket_newline_rule(),
         ],
-        event_emitter_factories: vec![],
     }
 }
