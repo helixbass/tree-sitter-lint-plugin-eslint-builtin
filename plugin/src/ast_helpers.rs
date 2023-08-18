@@ -691,3 +691,19 @@ impl<'a> Iterator for CommaSeparated<'a> {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum CommentType {
+    Block,
+    Line,
+}
+
+pub fn get_comment_type(comment: Node, context: &QueryMatchContext) -> CommentType {
+    assert_kind!(comment, Comment);
+    let text = comment.text(context);
+    if text.starts_with("//") {
+        CommentType::Line
+    } else {
+        CommentType::Block
+    }
+}

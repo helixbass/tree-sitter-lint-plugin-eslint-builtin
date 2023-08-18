@@ -1,7 +1,19 @@
 use std::sync::Arc;
 
+use itertools::Itertools;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{
+    range_between_end_and_start, rule, tree_sitter::Node, violation, QueryMatchContext, Rule,
+    SkipOptionsBuilder,
+};
+
+use crate::{
+    ast_helpers::{
+        get_comma_separated_optional_non_comment_named_children, get_comment_type, CommentType,
+    },
+    kind::Comment,
+    utils::ast_utils,
+};
 
 #[derive(Default, Deserialize)]
 struct OptionsObject {
@@ -87,6 +99,100 @@ impl Default for Options {
     }
 }
 
+fn report_no_beginning_linebreak<'a>(
+    node: Node<'a>,
+    token: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    context.report(violation! {
+        node => node,
+        range => token.range(),
+        message_id => "unexpected_opening_linebreak",
+        fix => |fixer| {
+            let next_token = context.get_token_after(
+                token,
+                Some(SkipOptionsBuilder::<fn(Node) -> bool>::default()
+                    .include_comments(true)
+                    .build().unwrap()
+                )
+            );
+
+            if ast_utils::is_comment_token(next_token) {
+                return;
+            }
+
+            fixer.remove_range(
+                range_between_end_and_start(
+                    token.range(),
+                    next_token.range(),
+                )
+            );
+        }
+    });
+}
+
+fn report_no_ending_linebreak<'a>(
+    node: Node<'a>,
+    token: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    context.report(violation! {
+        node => node,
+        range => token.range(),
+        message_id => "unexpected_closing_linebreak",
+        fix => |fixer| {
+            let previous_token = context.get_token_before(
+                token,
+                Some(SkipOptionsBuilder::<fn(Node) -> bool>::default()
+                    .include_comments(true)
+                    .build().unwrap()
+                )
+            );
+
+            if ast_utils::is_comment_token(previous_token) {
+                return;
+            }
+
+            fixer.remove_range(
+                range_between_end_and_start(
+                    previous_token.range(),
+                    token.range()
+                )
+            );
+        }
+    });
+}
+
+fn report_required_beginning_linebreak<'a>(
+    node: Node<'a>,
+    token: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    context.report(violation! {
+        node => node,
+        range => token.range(),
+        message_id => "missing_opening_linebreak",
+        fix => |fixer| {
+            fixer.insert_text_after(token, "\n");
+        }
+    });
+}
+
+fn report_required_ending_linebreak<'a>(
+    node: Node<'a>,
+    token: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    context.report(violation! {
+        node => node,
+        range => token.range(),
+        message_id => "missing_closing_linebreak",
+        fix => |fixer| {
+            fixer.insert_text_before(token, "\n");
+        }
+    });
+}
+
 pub fn array_bracket_newline_rule() -> Arc<dyn Rule> {
     rule! {
         name => "array-bracket-newline",
@@ -106,13 +212,60 @@ pub fn array_bracket_newline_rule() -> Arc<dyn Rule> {
             min_items: usize = options.min_items(),
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (array) @c
+              (array_pattern) @c
+            "# => |node, context| {
+                let elements = get_comma_separated_optional_non_comment_named_children(node).collect_vec();
+                let open_bracket = context.get_first_token(node, Option::<fn(Node) -> bool>::None);
+                let close_bracket = context.get_last_token(node, Option::<fn(Node) -> bool>::None);
+                let first_inc_comment = context.get_token_after(
+                    open_bracket,
+                    Some(SkipOptionsBuilder::<fn(Node) -> bool>::default()
+                        .include_comments(true)
+                        .build()
+                        .unwrap())
+                );
+                let last_inc_comment = context.get_token_before(
+                    close_bracket,
+                    Some(SkipOptionsBuilder::<fn(Node) -> bool>::default()
+                        .include_comments(true)
+                        .build()
+                        .unwrap())
+                );
+                let first = context.get_token_after(open_bracket, Option::<fn(Node) -> bool>::None);
+                let last = context.get_token_before(close_bracket, Option::<fn(Node) -> bool>::None);
+
+                let needs_linebreaks = elements.len() >= self.min_items ||
+                    self.multiline && !elements.is_empty() &&
+                        first_inc_comment.range().start_point.row !=
+                        last_inc_comment.range().end_point.row ||
+                    elements.is_empty() &&
+                        first_inc_comment.kind() == Comment &&
+                        get_comment_type(first_inc_comment, context) == CommentType::Block &&
+                        first_inc_comment.range().start_point.row !=
+                        last_inc_comment.range().end_point.row &&
+                        first_inc_comment == last_inc_comment ||
+                    self.consistent &&
+                        open_bracket.range().end_point.row !=
+                            first.range().start_point.row;
+
+                if needs_linebreaks {
+                    if ast_utils::is_token_on_same_line(open_bracket, first) {
+                        report_required_beginning_linebreak(node, open_bracket, context);
+                    }
+                    if ast_utils::is_token_on_same_line(last, close_bracket) {
+                        report_required_ending_linebreak(node, close_bracket, context);
+                    }
+                } else {
+                    if !ast_utils::is_token_on_same_line(open_bracket, first) {
+                        println!("open_bracket: {open_bracket:#?}, first: {first:#?}");
+                        report_no_beginning_linebreak(node, open_bracket, context);
+                    }
+                    if !ast_utils::is_token_on_same_line(last, close_bracket) {
+                        report_no_ending_linebreak(node, close_bracket, context);
+                    }
+                }
             },
         ],
     }

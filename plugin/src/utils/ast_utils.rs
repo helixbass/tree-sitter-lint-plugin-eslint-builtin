@@ -19,10 +19,10 @@ use crate::{
     },
     kind::{
         self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
-        AwaitExpression, BinaryExpression, CallExpression, ClassStaticBlock, ComputedPropertyName,
-        Decorator, False, FieldDefinition, Function, FunctionDeclaration, GeneratorFunction,
-        GeneratorFunctionDeclaration, Identifier, Kind, MemberExpression, MethodDefinition,
-        NewExpression, Null, Number, Pair, PairPattern, ParenthesizedExpression,
+        AwaitExpression, BinaryExpression, CallExpression, ClassStaticBlock, Comment,
+        ComputedPropertyName, Decorator, False, FieldDefinition, Function, FunctionDeclaration,
+        GeneratorFunction, GeneratorFunctionDeclaration, Identifier, Kind, MemberExpression,
+        MethodDefinition, NewExpression, Null, Number, Pair, PairPattern, ParenthesizedExpression,
         PrivatePropertyIdentifier, Program, PropertyIdentifier, SequenceExpression,
         ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, StatementBlock,
         SubscriptExpression, Super, SwitchCase, SwitchDefault, TemplateString,
@@ -329,6 +329,10 @@ pub fn is_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
     context.get_node_text(node) == ")"
 }
 
+pub fn is_comment_token(node: Node) -> bool {
+    node.kind() == Comment
+}
+
 fn get_opening_paren_of_params(node: Node) -> Node {
     if node.kind() == ArrowFunction {
         if let Some(parameter) = node.child_by_field_name("parameter") {
@@ -364,6 +368,10 @@ pub fn equal_tokens<'a>(
 
 pub fn is_coalesce_expression(node: Node) -> bool {
     node.kind() == BinaryExpression && node.field("operator").kind() == "??"
+}
+
+pub fn is_token_on_same_line(left: Node, right: Node) -> bool {
+    left.range().end_point.row == right.range().start_point.row
 }
 
 pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
