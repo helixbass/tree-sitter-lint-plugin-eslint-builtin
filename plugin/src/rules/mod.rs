@@ -1,3 +1,4 @@
+mod array_bracket_newline;
 mod array_callback_return;
 mod complexity;
 mod consistent_return;
@@ -59,6 +60,7 @@ mod require_yield;
 mod sort_keys;
 mod yield_star_spacing;
 
+pub use array_bracket_newline::array_bracket_newline_rule;
 pub use array_callback_return::array_callback_return_rule;
 pub use complexity::complexity_rule;
 pub use consistent_return::consistent_return_rule;
