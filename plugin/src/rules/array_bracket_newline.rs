@@ -204,6 +204,7 @@ pub fn array_bracket_newline_rule() -> Arc<dyn Rule> {
             missing_closing_linebreak => "A linebreak is required before ']'.",
         ],
         fixable => true,
+        allow_self_conflicting_fixes => true,
         options_type => Options,
         state => {
             [per-run]
@@ -259,7 +260,6 @@ pub fn array_bracket_newline_rule() -> Arc<dyn Rule> {
                     }
                 } else {
                     if !ast_utils::is_token_on_same_line(open_bracket, first) {
-                        println!("open_bracket: {open_bracket:#?}, first: {first:#?}");
                         report_no_beginning_linebreak(node, open_bracket, context);
                     }
                     if !ast_utils::is_token_on_same_line(last, close_bracket) {
@@ -703,8 +703,8 @@ mod tests {
                     // default : { multiline : true}
                     {
                         code => "var foo = [
-                            [1,2]
-                        ]",
+                [1,2]
+            ]",
                         output => "var foo = [[1,2]]",
                         errors => [
                             {
@@ -966,7 +966,7 @@ mod tests {
                     // "never"
                     {
                         code => "var foo = [[
-                            1,2],3];",
+                1,2],3];",
                         output => "var foo = [[1,2],3];",
                         options => "never",
                         errors => [
@@ -1139,7 +1139,7 @@ mod tests {
                     // "consistent"
                     {
                         code => "var a = [[1,2]
-                        ]",
+            ]",
                         output => "var a = [[1,2]]",
                         options => "consistent",
                         errors => [
