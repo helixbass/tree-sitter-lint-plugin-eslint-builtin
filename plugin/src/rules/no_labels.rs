@@ -5,7 +5,6 @@ use squalid::OptionExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::{
-    ast_helpers::NodeExtJs,
     kind::{BreakStatement, LabeledStatement, SwitchStatement},
     utils::ast_utils,
 };

@@ -6,7 +6,7 @@ use tree_sitter_lint::{
     QueryMatchContext, Rule,
 };
 
-use crate::{ast_helpers::NodeExtJs, kind::Identifier, utils::ast_utils};
+use crate::{kind::Identifier, utils::ast_utils};
 
 // https://stackoverflow.com/a/73604693/732366
 #[derive(Clone, Deserialize)]
@@ -213,7 +213,7 @@ pub fn no_restricted_properties_rule() -> Arc<dyn Rule> {
                 let object_name = node.field("value").text(context);
 
                 let node_name = node.field("name");
-                node_name.non_comment_named_children().for_each(|property| {
+                node_name.non_comment_named_children(context).for_each(|property| {
                     check_property_access(
                         node_name,
                         Some(&object_name),
@@ -242,7 +242,7 @@ pub fn no_restricted_properties_rule() -> Arc<dyn Rule> {
                 let object_name = node.field("right").text(context);
 
                 let node_left = node.field("left");
-                node_left.non_comment_named_children().for_each(|property| {
+                node_left.non_comment_named_children(context).for_each(|property| {
                     check_property_access(
                         node_left,
                         Some(&object_name),

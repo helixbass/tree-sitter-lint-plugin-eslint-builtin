@@ -81,8 +81,8 @@ fn each_self_assignment<'a>(
 
     if left.kind() == RestPattern && right.kind() == SpreadElement {
         each_self_assignment(
-            left.first_non_comment_named_child(),
-            right.first_non_comment_named_child(),
+            left.first_non_comment_named_child(context),
+            right.first_non_comment_named_child(context),
             props,
             context,
         );

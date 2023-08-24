@@ -4,10 +4,7 @@ use serde::Deserialize;
 use squalid::EverythingExt;
 use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{
-    ast_helpers::NodeExtJs,
-    kind::{AssignmentPattern, FormalParameters, Object},
-};
+use crate::kind::{AssignmentPattern, FormalParameters, Object};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -31,7 +28,7 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
             r#"
               (object_pattern) @c
             "# => |node, context| {
-                if node.has_non_comment_named_children() {
+                if node.has_non_comment_named_children(context) {
                     return;
                 }
                 if self.allow_object_patterns_as_parameters && {
@@ -40,7 +37,7 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
                         || parent.kind() == AssignmentPattern
                             && parent.parent().unwrap().kind() == FormalParameters
                             && parent.field("right").thrush(|right| {
-                                right.kind() == Object && !right.has_non_comment_named_children()
+                                right.kind() == Object && !right.has_non_comment_named_children(context)
                             })
                 } {
                     return;
@@ -56,7 +53,7 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
             r#"
               (array_pattern) @c
             "# => |node, context| {
-                if node.has_non_comment_named_children() {
+                if node.has_non_comment_named_children(context) {
                     return;
                 }
                 context.report(violation! {

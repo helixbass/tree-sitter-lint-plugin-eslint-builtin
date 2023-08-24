@@ -5,7 +5,7 @@ use tree_sitter_lint::{
     range_between_end_and_start, rule, tree_sitter::Node, violation, QueryMatchContext, Rule,
 };
 
-use crate::ast_helpers::NodeExtJs;
+use tree_sitter_lint::NodeExt;
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use squalid::fancy_regex;
-use tree_sitter_lint::{rule, violation, Rule};
-
-use crate::ast_helpers::NodeExtJs;
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 pub fn no_octal_escape_rule() -> Arc<dyn Rule> {
     rule! {

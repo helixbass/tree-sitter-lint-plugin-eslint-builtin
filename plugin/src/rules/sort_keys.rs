@@ -3,11 +3,11 @@ use std::{borrow::Cow, cmp::Ordering, sync::Arc};
 use serde::Deserialize;
 use squalid::{continue_if_none, regex, EverythingExt};
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, violation, QueryMatchContext, Rule, SkipOptionsBuilder,
+    rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule, SkipOptionsBuilder,
 };
 
 use crate::{
-    ast_helpers::{get_object_property_computed_property_name, get_object_property_key, NodeExtJs},
+    ast_helpers::{get_object_property_computed_property_name, get_object_property_key},
     kind::{Identifier, SpreadElement},
     utils::ast_utils,
 };
@@ -112,7 +112,7 @@ impl<'de> Deserialize<'de> for Options {
 fn get_property_name<'a>(node: Node, context: &QueryMatchContext<'a, '_>) -> Option<Cow<'a, str>> {
     ast_utils::get_static_property_name(node, context).or_else(|| {
         get_object_property_computed_property_name(node)?
-            .first_non_comment_named_child()
+            .first_non_comment_named_child(context)
             .when(|child| child.kind() == Identifier)
             .map(|child| child.text(context))
     })
@@ -163,7 +163,7 @@ pub fn sort_keys_rule() -> Arc<dyn Rule> {
             r#"
               (object) @c
             "# => |node, context| {
-                let properties = node.non_comment_named_children().collect::<Vec<_>>();
+                let properties = node.non_comment_named_children(context).collect::<Vec<_>>();
                 if properties.len() < self.min_keys {
                     return;
                 }

@@ -3,16 +3,12 @@ use std::sync::Arc;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use squalid::break_if_none;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
-use crate::{
-    ast_helpers::NodeExtJs,
-    kind::{
-        ArrowFunction, BreakStatement, Class, ClassDeclaration, ContinueStatement, DoStatement,
-        FinallyClause, ForInStatement, ForStatement, Function, FunctionDeclaration,
-        GeneratorFunction, GeneratorFunctionDeclaration, MethodDefinition, Program,
-        SwitchStatement, WhileStatement,
-    },
+use crate::kind::{
+    ArrowFunction, BreakStatement, Class, ClassDeclaration, ContinueStatement, DoStatement,
+    FinallyClause, ForInStatement, ForStatement, Function, FunctionDeclaration, GeneratorFunction,
+    GeneratorFunctionDeclaration, MethodDefinition, Program, SwitchStatement, WhileStatement,
 };
 
 static SENTINEL_NODE_TYPE_RETURN_THROW: Lazy<Regex> = Lazy::new(|| {

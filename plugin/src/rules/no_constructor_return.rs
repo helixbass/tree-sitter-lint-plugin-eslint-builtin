@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
     kind::MethodDefinition,
     CodePathAnalyzer,
 };
@@ -29,7 +29,7 @@ pub fn no_constructor_return_rule() -> Arc<dyn Rule> {
                     && get_method_definition_kind(code_path_root_node, context)
                         == MethodDefinitionKind::Constructor
                     && (node.parent().unwrap().parent().unwrap() == code_path_root_node
-                        || node.has_non_comment_named_children())
+                        || node.has_non_comment_named_children(context))
                 {
                     context.report(violation! {
                         node => node,

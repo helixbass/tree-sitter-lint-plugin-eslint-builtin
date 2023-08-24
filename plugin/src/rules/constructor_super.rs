@@ -104,6 +104,7 @@ fn check_for_no_super<'a>(
     code_path_analyzer: &CodePathAnalyzer<'a>,
     seen_segments: &mut HashSet<Id<CodePathSegment<'a>>>,
     seen_segments_found: &mut HashMap<Id<CodePathSegment<'a>>, Found>,
+    context: &QueryMatchContext,
 ) -> Found {
     seen_segments.insert(segment);
     if code_path_analyzer.code_path_segment_arena[segment]
@@ -111,7 +112,7 @@ fn check_for_no_super<'a>(
         .iter()
         .filter(|(enter_or_exit, _)| *enter_or_exit == EnterOrExit::Exit)
         .any(|(_, node)| {
-            node.kind() == ReturnStatement && node.has_non_comment_named_children()
+            node.kind() == ReturnStatement && node.has_non_comment_named_children(context)
                 || node.kind() == CallExpression && node.field("function").kind() == Super
         })
     {
@@ -135,6 +136,7 @@ fn check_for_no_super<'a>(
                                 code_path_analyzer,
                                 seen_segments,
                                 seen_segments_found,
+                                context,
                             ))
                         }
                     })
@@ -164,7 +166,7 @@ fn check_for_duplicate_super<'a>(
                 return None;
             }
 
-            (node.kind() == ReturnStatement && node.has_non_comment_named_children()
+            (node.kind() == ReturnStatement && node.has_non_comment_named_children(context)
                 || node.kind() == CallExpression && node.field("function").kind() == Super)
                 .then_some(*node)
         })
@@ -251,7 +253,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                 if let Some(class_heritage) = class_node.maybe_first_child_of_kind(ClassHeritage) {
                     if !is_possible_constructor(
                         class_heritage
-                            .first_non_comment_named_child()
+                            .first_non_comment_named_child(context)
                             .skip_parentheses(),
                     ) {
                         context.report(violation! {
@@ -295,6 +297,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
                                     code_path_analyzer,
                                     &mut seen_segments,
                                     &mut seen_segments_found,
+                                    context,
                                 )
                             })
                             .into();

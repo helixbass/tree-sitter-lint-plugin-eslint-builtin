@@ -500,7 +500,7 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
     {
         function_type = FunctionType::Method;
         let mut children = field_definition
-            .non_comment_children_and_field_names()
+            .non_comment_children_and_field_names(context)
             .skip_while(|(child, _)| child.kind() == Decorator);
         let (child, field_name) = children.next().unwrap();
         let property_name = if field_name == Some("property") {
@@ -519,7 +519,7 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
         }
     } else if node.kind() == MethodDefinition {
         let mut children = node
-            .non_comment_children_and_field_names()
+            .non_comment_children_and_field_names(context)
             .skip_while(|(child, _)| child.kind() == Decorator);
         let (mut child, mut field_name) = children.next().unwrap();
         while !field_name.matches(|field_name| field_name == "name") {

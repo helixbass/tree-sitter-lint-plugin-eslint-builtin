@@ -8,7 +8,7 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
     kind::{ArrowFunction, MethodDefinition, Pair, Program, UnaryExpression, Undefined},
     string_utils::upper_case_first,
     utils::ast_utils,
@@ -55,7 +55,7 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
               (return_statement) @c
             "# => |node, context| {
                 let has_return_value =
-                    node.maybe_first_non_comment_named_child()
+                    node.maybe_first_non_comment_named_child(context)
                         .matches(|argument| {
                             !(self.treat_undefined_as_unspecified
                                 && (argument.kind() == Undefined

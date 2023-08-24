@@ -13,6 +13,7 @@ use crate::{
     },
     utils::ast_utils,
 };
+use tree_sitter_lint::QueryMatchContext;
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -40,14 +41,14 @@ static PARENTHESIZED: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     .into()
 });
 
-fn requires_extra_parens(node: Node, parent: Node) -> bool {
+fn requires_extra_parens(node: Node, parent: Node, context: &QueryMatchContext) -> bool {
     PARENTHESIZED
         .get(parent.kind())
         .copied()
         .matches(|field_name| {
             node == parent
                 .field(field_name)
-                .skip_nodes_of_types(&[ExpressionStatement, ParenthesizedExpression])
+                .skip_nodes_of_types(&[ExpressionStatement, ParenthesizedExpression], context)
         })
 }
 
@@ -80,7 +81,7 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
                     && (node
                         == parent
                             .field("initializer")
-                            .skip_nodes_of_types(&[ExpressionStatement, ParenthesizedExpression])
+                            .skip_nodes_of_types(&[ExpressionStatement, ParenthesizedExpression], context)
                         || parent
                             .child_by_field_name("increment")
                             .matches(|increment| node == increment.skip_parentheses()))
@@ -90,7 +91,7 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
 
                 if self.allow_in_parentheses {
                     #[allow(clippy::collapsible_else_if)]
-                    if requires_extra_parens(node, parent) {
+                    if requires_extra_parens(node, parent, context) {
                         if is_parenthesised_twice(node) {
                             return;
                         }

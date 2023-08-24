@@ -3,9 +3,8 @@ use std::{borrow::Cow, iter};
 use itertools::Either;
 use squalid::{CowStrExt, OptionExt};
 use tree_sitter_lint::{
-    regex,
-    tree_sitter::{Node, TreeCursor},
-    NodeExt, QueryMatchContext, SkipOptions, SkipOptionsBuilder, SourceTextProvider,
+    regex, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt, NonCommentChildren,
+    QueryMatchContext, SourceTextProvider,
 };
 
 use crate::{
@@ -281,48 +280,13 @@ pub fn get_first_non_comment_child(node: Node) -> Node {
 }
 
 pub trait NodeExtJs<'a> {
-    fn non_comment_children(&self) -> NonCommentChildren<'a>;
-    fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a>;
-    fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str>;
-    fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a>;
     fn maybe_next_non_parentheses_ancestor(&self) -> Option<Node<'a>>;
     fn next_non_parentheses_ancestor(&self) -> Node<'a>;
     fn skip_parentheses(&self) -> Node<'a>;
-    fn is_only_non_comment_named_sibling(&self) -> bool;
-    fn has_trailing_comments(&self, context: &QueryMatchContext<'a, '_>) -> bool;
-    fn maybe_first_non_comment_named_child(&self) -> Option<Node<'a>>;
-    fn first_non_comment_named_child(&self) -> Node<'a>;
-    fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a>;
-    fn skip_nodes_of_type(&self, kind: Kind) -> Node<'a>;
-    fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a>;
-    fn next_ancestor_not_of_type(&self, kind: Kind) -> Node<'a>;
-    fn has_child_of_kind(&self, kind: Kind) -> bool;
-    fn maybe_first_child_of_kind(&self, kind: Kind) -> Option<Node<'a>>;
-    fn has_non_comment_named_children(&self) -> bool;
     fn is_first_call_expression_argument(&self, call_expression: Node) -> bool;
-    fn when_kind(&self, kind: Kind) -> Option<Node<'a>>;
-    fn is_first_non_comment_named_child(&self) -> bool;
-    fn is_last_non_comment_named_child(&self) -> bool;
-    fn num_non_comment_named_children(&self) -> usize;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
-    fn non_comment_children(&self) -> NonCommentChildren<'a> {
-        NonCommentChildren::new(*self)
-    }
-
-    fn non_comment_children_and_field_names(&self) -> NonCommentChildrenAndFieldNames<'a> {
-        NonCommentChildrenAndFieldNames::new(*self)
-    }
-
-    fn text<'b>(&self, source_text_provider: &impl SourceTextProvider<'b>) -> Cow<'b, str> {
-        source_text_provider.node_text(*self)
-    }
-
-    fn non_comment_named_children(&self) -> NonCommentNamedChildren<'a> {
-        NonCommentNamedChildren::new(*self)
-    }
-
     fn maybe_next_non_parentheses_ancestor(&self) -> Option<Node<'a>> {
         let mut node = self.parent()?;
         while node.kind() == ParenthesizedExpression {
@@ -339,75 +303,6 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
         skip_parenthesized_expressions(*self)
     }
 
-    fn is_only_non_comment_named_sibling(&self) -> bool {
-        assert!(self.is_named());
-        let parent = return_default_if_none!(self.parent());
-        parent.non_comment_named_children().count() == 1
-    }
-
-    fn has_trailing_comments(&self, context: &QueryMatchContext<'a, '_>) -> bool {
-        context
-            .get_last_token(
-                *self,
-                Option::<SkipOptions<fn(Node) -> bool>>::Some(
-                    SkipOptionsBuilder::default()
-                        .include_comments(true)
-                        .build()
-                        .unwrap(),
-                ),
-            )
-            .kind()
-            == Comment
-    }
-
-    fn maybe_first_non_comment_named_child(&self) -> Option<Node<'a>> {
-        self.non_comment_named_children().next()
-    }
-
-    fn first_non_comment_named_child(&self) -> Node<'a> {
-        self.non_comment_named_children().next().unwrap()
-    }
-
-    fn skip_nodes_of_types(&self, kinds: &[Kind]) -> Node<'a> {
-        skip_nodes_of_types(*self, kinds)
-    }
-
-    fn skip_nodes_of_type(&self, kind: Kind) -> Node<'a> {
-        skip_nodes_of_type(*self, kind)
-    }
-
-    fn next_ancestor_not_of_types(&self, kinds: &[Kind]) -> Node<'a> {
-        let mut node = self.parent().unwrap();
-        while kinds.contains(&node.kind()) {
-            node = node.parent().unwrap();
-        }
-        node
-    }
-
-    fn next_ancestor_not_of_type(&self, kind: Kind) -> Node<'a> {
-        let mut node = self.parent().unwrap();
-        while node.kind() == kind {
-            node = node.parent().unwrap();
-        }
-        node
-    }
-
-    fn has_child_of_kind(&self, kind: Kind) -> bool {
-        self.maybe_first_child_of_kind(kind).is_some()
-    }
-
-    fn maybe_first_child_of_kind(&self, kind: Kind) -> Option<Node<'a>> {
-        let mut cursor = self.walk();
-        let ret = self
-            .children(&mut cursor)
-            .find(|child| child.kind() == kind);
-        ret
-    }
-
-    fn has_non_comment_named_children(&self) -> bool {
-        self.non_comment_named_children().count() > 0
-    }
-
     fn is_first_call_expression_argument(&self, call_expression: Node) -> bool {
         assert_kind!(call_expression, CallExpression);
 
@@ -416,119 +311,10 @@ impl<'a> NodeExtJs<'a> for Node<'a> {
             .when_kind(Arguments)
             .matches(|arguments| {
                 arguments
-                    .non_comment_named_children()
+                    .non_comment_named_children(SupportedLanguage::Javascript)
                     .next()
                     .matches(|first| first == *self)
             })
-    }
-
-    fn when_kind(&self, kind: Kind) -> Option<Node<'a>> {
-        (self.kind() == kind).then_some(*self)
-    }
-
-    fn is_first_non_comment_named_child(&self) -> bool {
-        self.parent()
-            .matches(|parent| parent.maybe_first_non_comment_named_child() == Some(*self))
-    }
-
-    fn is_last_non_comment_named_child(&self) -> bool {
-        let mut current_node = *self;
-        while let Some(next_sibling) = current_node.next_named_sibling() {
-            if next_sibling.kind() != Comment {
-                return false;
-            }
-            current_node = next_sibling;
-        }
-        true
-    }
-
-    fn num_non_comment_named_children(&self) -> usize {
-        self.non_comment_named_children().count()
-    }
-}
-
-pub struct NonCommentChildren<'a> {
-    cursor: TreeCursor<'a>,
-    is_done: bool,
-}
-
-impl<'a> NonCommentChildren<'a> {
-    pub fn new(node: Node<'a>) -> Self {
-        let mut cursor = node.walk();
-        let is_done = !cursor.goto_first_child();
-        Self { cursor, is_done }
-    }
-}
-
-impl<'a> Iterator for NonCommentChildren<'a> {
-    type Item = Node<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while !self.is_done {
-            let node = self.cursor.node();
-            self.is_done = !self.cursor.goto_next_sibling();
-            if node.kind() != Comment {
-                return Some(node);
-            }
-        }
-        None
-    }
-}
-
-pub struct NonCommentChildrenAndFieldNames<'a> {
-    cursor: TreeCursor<'a>,
-    is_done: bool,
-}
-
-impl<'a> NonCommentChildrenAndFieldNames<'a> {
-    pub fn new(node: Node<'a>) -> Self {
-        let mut cursor = node.walk();
-        let is_done = !cursor.goto_first_child();
-        Self { cursor, is_done }
-    }
-}
-
-impl<'a> Iterator for NonCommentChildrenAndFieldNames<'a> {
-    type Item = (Node<'a>, Option<&'static str>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while !self.is_done {
-            let node = self.cursor.node();
-            let field_name = self.cursor.field_name();
-            self.is_done = !self.cursor.goto_next_sibling();
-            if node.kind() != Comment {
-                return Some((node, field_name));
-            }
-        }
-        None
-    }
-}
-
-pub struct NonCommentNamedChildren<'a> {
-    cursor: TreeCursor<'a>,
-    is_done: bool,
-}
-
-impl<'a> NonCommentNamedChildren<'a> {
-    pub fn new(node: Node<'a>) -> Self {
-        let mut cursor = node.walk();
-        let is_done = !cursor.goto_first_child();
-        Self { cursor, is_done }
-    }
-}
-
-impl<'a> Iterator for NonCommentNamedChildren<'a> {
-    type Item = Node<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while !self.is_done {
-            let node = self.cursor.node();
-            self.is_done = !self.cursor.goto_next_sibling();
-            if node.is_named() && node.kind() != Comment {
-                return Some(node);
-            }
-        }
-        None
     }
 }
 
@@ -545,7 +331,9 @@ pub fn get_call_expression_arguments(node: Node) -> Option<impl Iterator<Item = 
     };
     match arguments.kind() {
         TemplateString => None,
-        Arguments => Some(Either::Right(arguments.non_comment_named_children())),
+        Arguments => Some(Either::Right(
+            arguments.non_comment_named_children(SupportedLanguage::Javascript),
+        )),
         _ => unreachable!(),
     }
 }
@@ -648,7 +436,7 @@ pub fn is_generator_method_definition(node: Node, context: &QueryMatchContext) -
 pub fn get_comma_separated_optional_non_comment_named_children(
     node: Node,
 ) -> impl Iterator<Item = Option<Node>> {
-    CommaSeparated::new(node.non_comment_children())
+    CommaSeparated::new(node.non_comment_children(SupportedLanguage::Javascript))
 }
 
 struct CommaSeparated<'a> {

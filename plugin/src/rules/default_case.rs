@@ -3,12 +3,9 @@ use std::{borrow::Cow, sync::Arc};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter_grep::SupportedLanguage, violation, NodeExt, Rule};
 
-use crate::{
-    ast_helpers::{get_comment_contents, NodeExtJs},
-    kind::SwitchDefault,
-};
+use crate::{ast_helpers::get_comment_contents, kind::SwitchDefault};
 
 static DEFAULT_COMMENT_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?i)^no default$"#).unwrap());
@@ -39,7 +36,7 @@ pub fn default_case_rule() -> Arc<dyn Rule> {
               (switch_statement) @c
             "# => |node, context| {
                 let body = node.field("body");
-                let cases = body.non_comment_named_children().collect::<Vec<_>>();
+                let cases = body.non_comment_named_children(SupportedLanguage::Javascript).collect::<Vec<_>>();
                 if cases.is_empty() {
                     return;
                 }

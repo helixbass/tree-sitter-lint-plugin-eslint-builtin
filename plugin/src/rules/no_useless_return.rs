@@ -3,10 +3,9 @@ use std::{collections::HashSet, sync::Arc};
 use id_arena::Id;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tree_sitter_lint::{compare_nodes, rule, tree_sitter::Node, violation, Rule};
+use tree_sitter_lint::{compare_nodes, rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::{
-    ast_helpers::NodeExtJs,
     kind::{
         CatchClause, ClassDeclaration, ContinueStatement, DebuggerStatement, DoStatement,
         EmptyStatement, ExportStatement, ExpressionStatement, FinallyClause, ForInStatement,
@@ -17,6 +16,7 @@ use crate::{
     utils::{ast_utils, fix_tracker::FixTracker},
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
+use tree_sitter_lint::tree_sitter_grep::SupportedLanguage;
 
 static STATEMENT_SENTINEL: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&format!(r#"^(?:{ClassDeclaration}|{ContinueStatement}|{DebuggerStatement}|{DoStatement}|{EmptyStatement}|{ExpressionStatement}|{ForInStatement}|{ForStatement}|{IfStatement}|{ImportStatement}|{LabeledStatement}|{SwitchStatement}|{ThrowStatement}|{TryStatement}|{VariableDeclaration}|{LexicalDeclaration}|{WhileStatement}|{WithStatement}|{ExportStatement})$"#)).unwrap()
@@ -69,7 +69,7 @@ fn look_for_trailing_return<'a>(
             return;
         }
         if node.kind() == ReturnStatement {
-            if node.has_non_comment_named_children() {
+            if node.has_non_comment_named_children(SupportedLanguage::Javascript) {
                 return;
             }
             if ast_utils::is_in_loop(*node) || is_in_finally(*node) {

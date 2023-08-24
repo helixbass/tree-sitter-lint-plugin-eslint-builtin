@@ -1,0 +1,27 @@
+plugins:
+  rustfmt:
+    path: ../tree-sitter-lint-plugin-rustfmt
+  rust-known-imports:
+    path: ../tree-sitter-lint-plugin-rust-known-imports
+rules:
+  rustfmt/rustfmt:
+    level: error
+  rust-known-imports/no-undef:
+    level: error
+    options:
+      known_imports:
+        QueryMatchContext:
+          module: tree_sitter_lint
+          kind: type_identifier
+        TreeCursor:
+          module: tree_sitter
+          kind: type_identifier
+        SupportedLanguage:
+          module: tree_sitter_lint::tree_sitter_grep
+          kind: type_identifier
+        has_child_of_kind:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+tree-sitter-lint-dependency:
+  path: ../tree-sitter-lint

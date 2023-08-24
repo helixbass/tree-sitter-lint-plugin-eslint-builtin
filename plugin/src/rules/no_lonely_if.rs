@@ -5,7 +5,7 @@ use tree_sitter_lint::{
     range_between_start_and_end, rule, tree_sitter::Node, violation, NodeExt, Rule,
 };
 
-use crate::{ast_helpers::NodeExtJs, kind::StatementBlock};
+use crate::kind::StatementBlock;
 
 pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
     rule! {
@@ -32,7 +32,7 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
                 )
               )
             "# => |node, context| {
-                if !node.is_only_non_comment_named_sibling() {
+                if !node.is_only_non_comment_named_sibling(context) {
                     return;
                 }
                 context.report(violation! {

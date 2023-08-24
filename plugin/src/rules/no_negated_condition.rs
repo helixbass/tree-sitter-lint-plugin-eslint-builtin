@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{ast_helpers::NodeExtJs, kind::IfStatement};
+use crate::kind::IfStatement;
 
 const NEGATED_EXPRESSION: &str = r#"
   [
@@ -42,7 +42,7 @@ pub fn no_negated_condition_rule() -> Arc<dyn Rule> {
                 if node.kind() == IfStatement
                     && node
                         .field("alternative")
-                        .first_non_comment_named_child()
+                        .first_non_comment_named_child(context)
                         .kind()
                         == IfStatement
                 {

@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{
-    ast_helpers::{is_generator_method_definition, NodeExtJs},
-    kind::MethodDefinition,
-};
+use crate::{ast_helpers::is_generator_method_definition, kind::MethodDefinition};
 
 pub fn require_yield_rule() -> Arc<dyn Rule> {
     rule! {
@@ -38,7 +35,7 @@ pub fn require_yield_rule() -> Arc<dyn Rule> {
                     return;
                 }
                 let count_yield = self.stack.pop().unwrap();
-                if count_yield == 0 && node.field("body").has_non_comment_named_children() {
+                if count_yield == 0 && node.field("body").has_non_comment_named_children(context) {
                     context.report(violation! {
                         node => node,
                         message_id => "missing_yield",

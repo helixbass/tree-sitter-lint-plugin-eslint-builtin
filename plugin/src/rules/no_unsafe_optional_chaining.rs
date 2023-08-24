@@ -4,14 +4,13 @@ use serde::Deserialize;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::{
-    ast_helpers::{
-        get_last_expression_of_sequence_expression, is_outermost_chain_expression, NodeExtJs,
-    },
+    ast_helpers::{get_last_expression_of_sequence_expression, is_outermost_chain_expression},
     kind::{
         AwaitExpression, BinaryExpression, CallExpression, ClassHeritage, MemberExpression, Object,
         ParenthesizedExpression, SequenceExpression, SubscriptExpression, TernaryExpression,
     },
 };
+use tree_sitter_lint::QueryMatchContext;
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -19,28 +18,32 @@ struct Options {
     disallow_arithmetic_operators: bool,
 }
 
-fn check_undefined_short_circuit(node: Node, report_func: &impl Fn(Node)) {
+fn check_undefined_short_circuit(
+    node: Node,
+    report_func: &impl Fn(Node),
+    context: &QueryMatchContext,
+) {
     match node.kind() {
         BinaryExpression => match node.field("operator").kind() {
-            "||" | "??" => check_undefined_short_circuit(node.field("right"), report_func),
+            "||" | "??" => check_undefined_short_circuit(node.field("right"), report_func, context),
             "&&" => {
-                check_undefined_short_circuit(node.field("left"), report_func);
-                check_undefined_short_circuit(node.field("right"), report_func);
+                check_undefined_short_circuit(node.field("left"), report_func, context);
+                check_undefined_short_circuit(node.field("right"), report_func, context);
             }
             _ => (),
         },
         SequenceExpression => {
             check_undefined_short_circuit(
                 get_last_expression_of_sequence_expression(node),
-                report_func,
+                report_func, context,
             );
         }
         TernaryExpression => {
-            check_undefined_short_circuit(node.field("consequence"), report_func);
-            check_undefined_short_circuit(node.field("alternative"), report_func);
+            check_undefined_short_circuit(node.field("consequence"), report_func, context);
+            check_undefined_short_circuit(node.field("alternative"), report_func, context);
         }
         AwaitExpression | ParenthesizedExpression | ClassHeritage => {
-            check_undefined_short_circuit(node.first_non_comment_named_child(), report_func);
+            check_undefined_short_circuit(node.first_non_comment_named_child(context), report_func, context);
         }
         CallExpression | MemberExpression | SubscriptExpression => {
             if is_outermost_chain_expression(node) {
@@ -133,7 +136,8 @@ pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
                             message_id => "unsafe_optional_chain",
                             node => node,
                         });
-                    }
+                    },
+                    context
                 );
             },
             r#"
@@ -144,13 +148,14 @@ pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
                 }
 
                 check_undefined_short_circuit(
-                    node.first_non_comment_named_child(),
+                    node.first_non_comment_named_child(context),
                     &|node| {
                         context.report(violation! {
                             message_id => "unsafe_optional_chain",
                             node => node,
                         });
-                    }
+                    },
+                    context
                 );
             },
             r#"
@@ -200,7 +205,8 @@ pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
                             message_id => "unsafe_arithmetic",
                             node => node,
                         });
-                    }
+                    },
+                    context
                 );
             }
         ],

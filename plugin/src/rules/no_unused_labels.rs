@@ -49,7 +49,9 @@ fn is_fixable<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
         || ancestor.kind() == StatementBlock && ast_utils::is_function(ancestor.parent().unwrap())
     {
         if body.kind() == ExpressionStatement && {
-            let expression = body.first_non_comment_named_child().skip_parentheses();
+            let expression = body
+                .first_non_comment_named_child(context)
+                .skip_parentheses();
             expression.kind() == kind::String || ast_utils::is_static_template_literal(expression)
         } {
             return false;

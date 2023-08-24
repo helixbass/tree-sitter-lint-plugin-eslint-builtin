@@ -6,7 +6,7 @@ use squalid::OptionExt;
 use tree_sitter_lint::{
     better_any::{tid, Tid},
     tree_sitter::{Node, Tree},
-    tree_sitter_grep::RopeOrSlice,
+    tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
     FileRunContext, FromFileRunContext, FromFileRunContextInstanceProvider,
     FromFileRunContextInstanceProviderFactory, NodeExt, SourceTextProvider,
 };
@@ -283,7 +283,7 @@ impl<'a> CodePathAnalyzer<'a> {
             CallExpression => {
                 if parent.child_by_field_name("optional_chain").is_some()
                     && node.kind() == Arguments
-                    && node.has_non_comment_named_children()
+                    && node.has_non_comment_named_children(SupportedLanguage::Javascript)
                 {
                     state.make_optional_right(
                         &mut self.fork_context_arena,
@@ -409,8 +409,10 @@ impl<'a> CodePathAnalyzer<'a> {
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
                         get_boolean_value_if_simple_constant(
-                            node.skip_parentheses()
-                                .skip_nodes_of_type(ExpressionStatement),
+                            node.skip_parentheses().skip_nodes_of_type(
+                                ExpressionStatement,
+                                SupportedLanguage::Javascript,
+                            ),
                             &self.file_contents,
                         ),
                     );
@@ -560,7 +562,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchCase | SwitchDefault => {
-                if !node.is_first_non_comment_named_child() {
+                if !node.is_first_non_comment_named_child(SupportedLanguage::Javascript) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .fork_path(

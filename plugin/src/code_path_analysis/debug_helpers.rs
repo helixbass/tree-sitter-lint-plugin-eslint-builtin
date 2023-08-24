@@ -3,12 +3,9 @@ use std::{collections::HashSet, env};
 use id_arena::{Arena, Id};
 use once_cell::sync::Lazy;
 use squalid::{continue_if_none, NonEmpty, OptionExt};
-use tree_sitter_lint::{tree_sitter::Node, SourceTextProvider};
+use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
 
-use crate::{
-    ast_helpers::NodeExtJs,
-    kind::{self, Identifier, PropertyIdentifier},
-};
+use crate::kind::{self, Identifier, PropertyIdentifier};
 
 use super::{
     code_path::CodePath,

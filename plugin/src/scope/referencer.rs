@@ -8,7 +8,7 @@ use id_arena::Id;
 use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
 
 use crate::{
-    ast_helpers::{get_first_child_of_kind, NodeExtJs},
+    ast_helpers::get_first_child_of_kind,
     kind::{
         ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
         FunctionDeclaration, Identifier, ImportStatement, LexicalDeclaration, StatementBlock,
@@ -28,6 +28,7 @@ use super::{
     scope_manager::ScopeManager,
     variable::VariableType,
 };
+use tree_sitter_lint::tree_sitter_grep::SupportedLanguage;
 
 fn traverse_identifier_in_pattern<'a, 'b>(
     // options,
@@ -229,7 +230,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
 
         for (param_index, param) in node
             .field("parameters")
-            .non_comment_named_children()
+            .non_comment_named_children(SupportedLanguage::Javascript)
             .enumerate()
         {
             self.visit_pattern(

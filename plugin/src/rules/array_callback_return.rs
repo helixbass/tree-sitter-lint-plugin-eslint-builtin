@@ -178,11 +178,11 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
 
                                     #[allow(clippy::collapsible_else_if)]
                                     if array_method_name == "forEach" {
-                                        if self.check_for_each && return_statement_node.has_non_comment_named_children() {
+                                        if self.check_for_each && return_statement_node.has_non_comment_named_children(context) {
                                             message_id = Some("expected_no_return_value");
                                         }
                                     } else {
-                                        if !self.allow_implicit && !return_statement_node.has_non_comment_named_children() {
+                                        if !self.allow_implicit && !return_statement_node.has_non_comment_named_children(context) {
                                             message_id = Some("expected_return_value");
                                         }
                                     }

@@ -145,7 +145,7 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
 
                 *self.code_paths_to_check.get_mut(&code_path).unwrap() = true;
 
-                if !self.allow_implicit && !node.has_non_comment_named_children() {
+                if !self.allow_implicit && !node.has_non_comment_named_children(context) {
                     context.report(violation! {
                         node => node,
                         message_id => "expected",

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{ast_helpers::NodeExtJs, kind::Undefined, utils::ast_utils};
+use crate::{kind::Undefined, utils::ast_utils};
 
 pub fn no_throw_literal_rule() -> Arc<dyn Rule> {
     rule! {
@@ -16,7 +16,7 @@ pub fn no_throw_literal_rule() -> Arc<dyn Rule> {
             r#"
               (throw_statement) @c
             "# => |node, context| {
-                let argument = node.first_non_comment_named_child();
+                let argument = node.first_non_comment_named_child(context);
                 if !ast_utils::could_be_error(argument, context) {
                     context.report(violation! {
                         node => node,

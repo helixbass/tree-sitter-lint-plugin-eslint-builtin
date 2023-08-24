@@ -9,7 +9,7 @@ use squalid::OptionExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::{get_comment_contents, NodeExtJs},
+    ast_helpers::get_comment_contents,
     directives::directives_pattern,
     kind::{
         BreakStatement, ReturnStatement, StatementBlock, SwitchCase, SwitchDefault, ThrowStatement,
@@ -101,7 +101,7 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
             r#"
               (switch_case) @c
             "# => |node, context| {
-                if node.is_last_non_comment_named_child() {
+                if node.is_last_non_comment_named_child(context) {
                     return;
                 }
                 if node.child_by_field_name("body").is_none()

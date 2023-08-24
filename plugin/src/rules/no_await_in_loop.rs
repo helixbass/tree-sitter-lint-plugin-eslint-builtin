@@ -39,7 +39,7 @@ pub fn no_await_in_loop_rule() -> Arc<dyn Rule> {
         }
     }
 
-    fn validate(await_node: Node, context: &mut QueryMatchContext) {
+    fn validate(await_node: Node, context: &QueryMatchContext) {
         let mut node = await_node;
         let mut parent = node.parent();
 

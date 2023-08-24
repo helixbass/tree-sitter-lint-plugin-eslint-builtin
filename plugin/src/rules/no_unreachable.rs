@@ -14,7 +14,7 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
     kind::{
         BreakStatement, ClassDeclaration, ClassHeritage, ContinueStatement, DebuggerStatement,
         DoStatement, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
@@ -31,13 +31,13 @@ static TARGET_NODE_KINDS: Lazy<Regex> = Lazy::new(|| {
     )).unwrap()
 });
 
-fn is_target_node(node: Node) -> bool {
+fn is_target_node(node: Node, context: &QueryMatchContext) -> bool {
     if TARGET_NODE_KINDS.is_match(node.kind()) {
         return true;
     }
     if node.kind() == VariableDeclaration
         && node
-            .non_comment_named_children()
+            .non_comment_named_children(context)
             .any(|child| child.child_by_field_name("value").is_some())
     {
         return true;
@@ -153,7 +153,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                                         )
                                     })
                                     .for_each(|(_, node)| {
-                                        if is_target_node(*node) {
+                                        if is_target_node(*node, context) {
                                             if code_path_analyzer.code_path_segment_arena[segment]
                                                 .reachable {
                                                 reachable_nodes.insert(node.id());
@@ -203,7 +203,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
 
                 if class_definition.has_child_of_kind(ClassHeritage) &&
                     !has_super_call {
-                    for element in class_definition.field("body").non_comment_named_children() {
+                    for element in class_definition.field("body").non_comment_named_children(context) {
                         if element.kind() == FieldDefinition && !element.has_child_of_kind("static") {
                             self.ranges.add(element, context);
                             // `;` wasn't getting included

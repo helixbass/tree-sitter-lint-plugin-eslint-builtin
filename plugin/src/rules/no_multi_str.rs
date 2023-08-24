@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{ast_helpers::NodeExtJs, kind, utils::ast_utils::LINE_BREAK_PATTERN};
+use crate::{kind, utils::ast_utils::LINE_BREAK_PATTERN};
 
 pub fn no_multi_str_rule() -> Arc<dyn Rule> {
     rule! {

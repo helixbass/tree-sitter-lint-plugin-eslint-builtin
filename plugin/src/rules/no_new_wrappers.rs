@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
-
-use crate::ast_helpers::NodeExtJs;
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 pub fn no_new_wrappers_rule() -> Arc<dyn Rule> {
     rule! {

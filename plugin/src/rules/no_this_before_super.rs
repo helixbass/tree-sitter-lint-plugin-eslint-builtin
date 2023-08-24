@@ -5,7 +5,7 @@ use squalid::{EverythingExt, OptionExt};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind, NodeExtJs},
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
     kind::{CallExpression, MethodDefinition, Super, This},
     utils::ast_utils,
     CodePath, CodePathAnalyzer, CodePathSegment, EnterOrExit,
