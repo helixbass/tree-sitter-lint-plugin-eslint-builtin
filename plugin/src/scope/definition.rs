@@ -50,6 +50,10 @@ impl<'a> Definition<'a> {
     pub fn type_(&self) -> VariableType {
         unimplemented!()
     }
+
+    pub fn name(&self) -> Node<'a> {
+        unimplemented!()
+    }
 }
 
 pub struct DefinitionBase<'a> {

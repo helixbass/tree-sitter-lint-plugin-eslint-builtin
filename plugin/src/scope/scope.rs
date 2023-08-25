@@ -99,7 +99,7 @@ impl<'a> Scope<'a> {
         upper_scope: Option<Id<Scope<'a>>>,
         block: Node<'a>,
         is_method_definition: bool,
-        create_from_base: impl Fn(ScopeBase<'a>) -> Self,
+        create_from_base: impl Fn(ScopeBase<'a>, &ScopeManager<'a>) -> Self,
     ) -> Id<Self> {
         let id = {
             let mut arena = scope_manager.arena.scopes.borrow_mut();
@@ -112,37 +112,40 @@ impl<'a> Scope<'a> {
                 _ => Some(arena.get(upper_scope.unwrap()).unwrap().variable_scope()),
             };
             let id = arena.alloc_with_id(|id| {
-                create_from_base(ScopeBase {
-                    id,
-                    type_,
-                    set: Default::default(),
-                    taints: Default::default(),
-                    dynamic: matches!(type_, ScopeType::Global | ScopeType::With),
-                    block,
-                    through: Default::default(),
-                    variables: Default::default(),
-                    references: Default::default(),
-                    variable_scope: variable_scope_or_waiting_to_grab_id.unwrap_or(id),
-                    function_expression_scope: Default::default(),
-                    direct_call_to_eval_scope: Default::default(),
-                    this_found: Default::default(),
-                    __left: Default::default(),
-                    upper: upper_scope,
-                    is_strict: if scope_manager.is_strict_mode_supported() {
-                        is_strict_scope(
-                            &scope_manager.arena.scopes.borrow(),
-                            &*scope_manager,
-                            upper_scope,
-                            type_,
-                            block,
-                            is_method_definition,
-                        )
-                    } else {
-                        false
+                create_from_base(
+                    ScopeBase {
+                        id,
+                        type_,
+                        set: Default::default(),
+                        taints: Default::default(),
+                        dynamic: matches!(type_, ScopeType::Global | ScopeType::With),
+                        block,
+                        through: Default::default(),
+                        variables: Default::default(),
+                        references: Default::default(),
+                        variable_scope: variable_scope_or_waiting_to_grab_id.unwrap_or(id),
+                        function_expression_scope: Default::default(),
+                        direct_call_to_eval_scope: Default::default(),
+                        this_found: Default::default(),
+                        __left: Default::default(),
+                        upper: upper_scope,
+                        is_strict: if scope_manager.is_strict_mode_supported() {
+                            is_strict_scope(
+                                &scope_manager.arena.scopes.borrow(),
+                                &*scope_manager,
+                                upper_scope,
+                                type_,
+                                block,
+                                is_method_definition,
+                            )
+                        } else {
+                            false
+                        },
+                        child_scopes: Default::default(),
+                        // this.__declaredVariables = scopeManager.__declaredVariables
                     },
-                    child_scopes: Default::default(),
-                    // this.__declaredVariables = scopeManager.__declaredVariables
-                })
+                    scope_manager,
+                )
             });
 
             if let Some(upper_scope) = upper_scope {
@@ -174,7 +177,7 @@ impl<'a> Scope<'a> {
             upper_scope,
             block,
             is_method_definition,
-            Self::Base,
+            |base, _| Self::Base(base),
         )
     }
 
@@ -185,7 +188,7 @@ impl<'a> Scope<'a> {
             None,
             block,
             false,
-            |base| Self::Global(GlobalScope::new(base)),
+            |base, _| Self::Global(GlobalScope::new(base)),
         )
     }
 
@@ -208,34 +211,28 @@ impl<'a> Scope<'a> {
             upper_scope,
             block,
             false,
-            |mut base| {
+            |mut base, _| {
                 base.function_expression_scope = true;
                 Self::Base(base)
             },
         );
         let definitions_arena = &scope_manager.arena.definitions;
-        scope_manager
-            .arena
-            .scopes
-            .borrow_mut()
-            .get_mut(ret)
-            .unwrap()
-            .__define(
-                &mut scope_manager.__declared_variables.borrow_mut(),
-                &scope_manager.arena.variables,
+        scope_manager.arena.scopes.borrow_mut()[ret].__define(
+            &mut scope_manager.__declared_variables.borrow_mut(),
+            &scope_manager.arena.variables,
+            definitions_arena,
+            &*scope_manager,
+            block.field("name"),
+            Definition::new(
                 definitions_arena,
-                &*scope_manager,
+                VariableType::FunctionName,
                 block.field("name"),
-                Definition::new(
-                    definitions_arena,
-                    VariableType::FunctionName,
-                    block.field("name"),
-                    block,
-                    None,
-                    None,
-                    None,
-                ),
-            );
+                block,
+                None,
+                None,
+                None,
+            ),
+        );
         ret
     }
 
@@ -258,7 +255,7 @@ impl<'a> Scope<'a> {
             upper_scope,
             block,
             false,
-            |base| Self::With(WithScope::new(base)),
+            |base, _| Self::With(WithScope::new(base)),
         )
     }
 
@@ -290,7 +287,14 @@ impl<'a> Scope<'a> {
             upper_scope,
             block,
             is_method_definition,
-            |base| Self::Function(FunctionScope::new(base)),
+            |base, scope_manager| {
+                Self::Function(FunctionScope::new(
+                    &mut scope_manager.__declared_variables.borrow_mut(),
+                    &scope_manager.arena.variables,
+                    &scope_manager.arena.definitions,
+                    base,
+                ))
+            },
         )
     }
 
@@ -368,6 +372,7 @@ impl<'a> Scope<'a> {
         reference_arena: &mut Arena<Reference<'a>>,
         variable_arena: &mut Arena<Variable<'a>>,
         scope_arena: &mut Arena<Self>,
+        definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<Reference<'a>>,
     ) {
@@ -376,6 +381,7 @@ impl<'a> Scope<'a> {
             reference_arena,
             variable_arena,
             scope_arena,
+            definition_arena,
             source_text_provider,
             ref_,
         ) {
@@ -413,6 +419,7 @@ impl<'a> Scope<'a> {
                 reference_arena,
                 variable_arena,
                 scope_arena,
+                definition_arena,
                 source_text_provider,
                 ref_,
             );
@@ -508,6 +515,7 @@ impl<'a> Scope<'a> {
                         &mut scope_manager.arena.references.borrow_mut(),
                         &mut scope_manager.arena.variables.borrow_mut(),
                         arena,
+                        &scope_manager.arena.definitions.borrow(),
                         scope_manager,
                         ref_,
                     );
@@ -533,12 +541,31 @@ impl<'a> Scope<'a> {
         arena[self_].maybe_upper()
     }
 
-    fn __is_valid_resolution(&self, ref_: Id<Reference<'a>>, variable: Id<Variable<'a>>) -> bool {
-        if matches!(self, Scope::Function(_)) {
-            unimplemented!()
-        }
+    fn __is_valid_resolution(
+        &self,
+        variable_arena: &Arena<Variable<'a>>,
+        reference_arena: &Arena<Reference<'a>>,
+        definition_arena: &Arena<Definition<'a>>,
+        ref_: Id<Reference<'a>>,
+        variable: Id<Variable<'a>>,
+    ) -> bool {
+        match self {
+            Self::Function(_) => {
+                if self.block().kind() == Program {
+                    return true;
+                }
 
-        true
+                let body_start = self.block().range().start_byte;
+
+                !(variable_arena[variable].scope == self.id()
+                    && reference_arena[ref_].identifier.range().start_byte < body_start
+                    && variable_arena[variable]
+                        .defs
+                        .iter()
+                        .all(|&d| definition_arena[d].name().range().start_byte >= body_start))
+            }
+            _ => true,
+        }
     }
 
     fn __resolve(
@@ -546,6 +573,7 @@ impl<'a> Scope<'a> {
         reference_arena: &mut Arena<Reference<'a>>,
         variable_arena: &mut Arena<Variable<'a>>,
         scope_arena: &mut Arena<Self>,
+        definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<Reference<'a>>,
     ) -> bool {
@@ -555,7 +583,13 @@ impl<'a> Scope<'a> {
             return false;
         };
 
-        if !scope_arena[self_].__is_valid_resolution(ref_, variable) {
+        if !scope_arena[self_].__is_valid_resolution(
+            variable_arena,
+            reference_arena,
+            definition_arena,
+            ref_,
+            variable,
+        ) {
             return false;
         }
         variable_arena[variable].references.push(ref_);
@@ -672,6 +706,9 @@ impl<'a> Scope<'a> {
             partial.unwrap_or_default(),
             init.unwrap_or_default(),
         );
+
+        self.references_mut().push(ref_);
+        self.__left_mut().push(ref_);
     }
 
     pub fn __detect_eval(id: Id<Self>, arena: &mut Arena<Self>) {
@@ -691,97 +728,196 @@ impl<'a> Scope<'a> {
         self.set_this_found(true);
     }
 
+    fn __is_closed(&self) -> bool {
+        self.maybe__left().is_none()
+    }
+
+    pub fn resolve(
+        &self,
+        reference_arena: &Arena<Reference<'a>>,
+        ident: Node<'a>,
+    ) -> Option<Id<Reference<'a>>> {
+        assert!(self.__is_closed(), "Scope should be closed.");
+        assert!(ident.kind() == Identifier, "Target should be identifier.");
+        self.references()
+            .into_iter()
+            .find(|&&ref_| reference_arena[ref_].identifier == ident)
+            .copied()
+    }
+
     pub fn is_static(&self) -> bool {
-        unimplemented!()
+        !self.dynamic()
+    }
+
+    pub fn is_arguments_materialized(&self, variable_arena: &Arena<Variable<'a>>) -> bool {
+        match self {
+            Self::Function(_) => {
+                if self.block().kind() == ArrowFunction {
+                    return false;
+                }
+
+                if !self.is_static() {
+                    return true;
+                }
+
+                let variable = self
+                    .set()
+                    .get("arguments")
+                    .copied()
+                    .expect("Always have arguments variable.");
+                (&variable_arena[variable])
+                    .thrush(|variable| variable.tainted || !variable.references.is_empty())
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_this_materialized(&self) -> bool {
+        match self {
+            Self::Function(_) => {
+                if !self.is_static() {
+                    return true;
+                }
+                self.this_found()
+            }
+            _ => true,
+        }
+    }
+
+    pub fn is_used_name(
+        &self,
+        reference_arena: &Arena<Reference<'a>>,
+        source_text_provider: &impl SourceTextProvider<'a>,
+        name: &str,
+    ) -> bool {
+        if self.set().contains_key(name) {
+            return true;
+        }
+        self.through().into_iter().any(|&through| {
+            reference_arena[through]
+                .identifier
+                .text(source_text_provider)
+                == name
+        })
     }
 
     pub fn block(&self) -> Node {
-        unimplemented!()
+        self.base().block
     }
 
     pub fn child_scopes_mut(&mut self) -> &mut Vec<Id<Self>> {
-        unimplemented!()
+        &mut self.base_mut().child_scopes
     }
 
     pub fn variable_scope(&self) -> Id<Self> {
-        unimplemented!()
+        self.base().variable_scope
     }
 
     pub fn type_(&self) -> ScopeType {
-        unimplemented!()
+        self.base().type_
     }
 
     fn set(&self) -> &Set<'a> {
-        unimplemented!()
+        &self.base().set
     }
 
     fn set_mut(&mut self) -> &mut Set<'a> {
-        unimplemented!()
+        &mut self.base_mut().set
     }
 
     fn variables_mut(&mut self) -> &mut Vec<Id<Variable<'a>>> {
-        unimplemented!()
+        &mut self.base_mut().variables
     }
 
     pub fn set_is_strict(&mut self, is_strict: bool) {
-        unimplemented!()
+        self.base_mut().is_strict = is_strict;
     }
 
     pub fn set_direct_call_to_eval_scope(&mut self, direct_call_to_eval_scope: bool) {
-        unimplemented!()
+        self.base_mut().direct_call_to_eval_scope = direct_call_to_eval_scope;
     }
 
     pub fn dynamic(&self) -> bool {
-        unimplemented!()
+        self.base().dynamic
     }
 
     pub fn set_dynamic(&mut self, dynamic: bool) {
-        unimplemented!()
+        self.base_mut().dynamic = dynamic;
     }
 
     pub fn maybe_upper(&self) -> Option<Id<Self>> {
-        unimplemented!()
+        self.base().upper
+    }
+
+    pub fn this_found(&self) -> bool {
+        self.base().this_found
     }
 
     pub fn set_this_found(&mut self, this_found: bool) {
-        unimplemented!()
+        self.base_mut().this_found = this_found;
     }
 
-    pub fn __left(&self) -> &[Id<Reference<'a>>] {
-        unimplemented!()
+    fn maybe__left(&self) -> Option<&[Id<Reference<'a>>]> {
+        self.base().__left.as_deref()
     }
 
-    pub fn __left_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
-        unimplemented!()
+    fn __left(&self) -> &[Id<Reference<'a>>] {
+        self.maybe__left().unwrap()
+    }
+
+    fn __left_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+        self.base_mut().__left.as_mut().unwrap()
     }
 
     #[allow(non_snake_case)]
-    pub fn set__left(&mut self, __left: Option<Vec<Id<Reference<'a>>>>) {
-        unimplemented!()
+    fn set__left(&mut self, __left: Option<Vec<Id<Reference<'a>>>>) {
+        self.base_mut().__left = __left;
+    }
+
+    pub fn through(&self) -> &[Id<Reference<'a>>] {
+        &self.base().through
     }
 
     pub fn through_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
-        unimplemented!()
+        &mut self.base_mut().through
     }
 
     fn base(&self) -> &ScopeBase<'a> {
-        unimplemented!()
+        match self {
+            Scope::Base(value) => value,
+            Scope::Global(value) => &value.base,
+            Scope::Function(value) => &value.base,
+            Scope::With(value) => &value.base,
+        }
     }
 
     fn base_mut(&mut self) -> &mut ScopeBase<'a> {
-        unimplemented!()
+        match self {
+            Scope::Base(value) => value,
+            Scope::Global(value) => &mut value.base,
+            Scope::Function(value) => &mut value.base,
+            Scope::With(value) => &mut value.base,
+        }
     }
 
     pub fn is_strict(&self) -> bool {
-        unimplemented!()
+        self.base().is_strict
     }
 
     pub fn id(&self) -> Id<Self> {
-        unimplemented!()
+        self.base().id
     }
 
     pub fn taints_mut(&mut self) -> &mut HashMap<String, bool> {
-        unimplemented!()
+        &mut self.base_mut().taints
+    }
+
+    pub fn references(&self) -> &[Id<Reference<'a>>] {
+        &self.base().references
+    }
+
+    pub fn references_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+        &mut self.base_mut().references
     }
 }
 
@@ -906,16 +1042,36 @@ pub struct FunctionScope<'a> {
 }
 
 impl<'a> FunctionScope<'a> {
-    pub fn new(base: ScopeBase<'a>) -> Self {
+    pub fn new(
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        base: ScopeBase<'a>,
+    ) -> Self {
         let mut ret = Self { base };
         if ret.base.block.kind() != ArrowFunction {
-            ret.__define_arguments();
+            ret.__define_arguments(__declared_variables, variable_arena, definition_arena);
         }
         ret
     }
 
-    fn __define_arguments(&mut self) {
-        unimplemented!()
+    fn __define_arguments(
+        &mut self,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        definition_arena: &RefCell<Arena<Definition<'a>>>,
+    ) {
+        self.base.__define_generic(
+            __declared_variables,
+            variable_arena,
+            definition_arena,
+            "arguments".into(),
+            None,
+            None,
+            None,
+            None,
+        );
+        self.base.taints.insert("arguments".to_owned(), true);
     }
 }
 
