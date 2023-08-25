@@ -28,6 +28,7 @@ pub struct Reference<'a> {
 }
 
 impl<'a> Reference<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         arena: &mut Arena<Self>,
         ident: Node<'a>,
@@ -49,8 +50,16 @@ impl<'a> Reference<'a> {
             } else {
                 None
             },
-            partial,
-            init,
+            partial: if flag.intersects(ReadWriteFlags::WRITE) {
+                partial
+            } else {
+                false
+            },
+            init: if flag.intersects(ReadWriteFlags::WRITE) {
+                init
+            } else {
+                false
+            },
             __maybe_implicit_global: maybe_implicit_global,
         })
     }
@@ -61,5 +70,25 @@ impl<'a> Reference<'a> {
                 self.resolved.as_ref(),
                 Some(&resolved) if arena.get_scope(arena.get_variable(resolved).scope).is_static()
             )
+    }
+
+    pub fn is_write(&self) -> bool {
+        self.flag.intersects(ReadWriteFlags::WRITE)
+    }
+
+    pub fn is_read(&self) -> bool {
+        self.flag.intersects(ReadWriteFlags::READ)
+    }
+
+    pub fn is_read_only(&self) -> bool {
+        self.flag == ReadWriteFlags::READ
+    }
+
+    pub fn is_write_only(&self) -> bool {
+        self.flag == ReadWriteFlags::WRITE
+    }
+
+    pub fn is_read_write(&self) -> bool {
+        self.flag == ReadWriteFlags::RW
     }
 }

@@ -32,5 +32,16 @@ rules:
         HashMap:
           module: std::collections
           kind: type_identifier
+        matches:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
+        return_default_if_none:
+          module: squalid
+          kind: macro
+        then_and:
+          module: squalid
+          kind: trait_method
+          trait: BoolExt
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

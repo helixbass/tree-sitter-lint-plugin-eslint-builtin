@@ -5,8 +5,19 @@ use std::{
 };
 
 use id_arena::Id;
-use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
+use squalid::OptionExt;
+use tree_sitter_lint::{
+    tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt, SourceTextProvider,
+};
 
+use super::{
+    definition::Definition,
+    pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
+    reference::ReadWriteFlags,
+    scope::Scope,
+    scope_manager::ScopeManager,
+    variable::VariableType,
+};
 use crate::{
     ast_helpers::get_first_child_of_kind,
     kind::{
@@ -19,16 +30,6 @@ use crate::{
         visit_for_statement, visit_program, visit_statement_block, visit_update_expression, Visit,
     },
 };
-
-use super::{
-    definition::Definition,
-    pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
-    reference::ReadWriteFlags,
-    scope::Scope,
-    scope_manager::ScopeManager,
-    variable::VariableType,
-};
-use tree_sitter_lint::tree_sitter_grep::SupportedLanguage;
 
 fn traverse_identifier_in_pattern<'a, 'b>(
     // options,
@@ -144,7 +145,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
             self.maybe_current_scope(),
             Some(current_scope) if node == current_scope.block()
         ) {
-            let closed = self.current_scope().__close(&self.scope_manager);
+            let closed = self.current_scope().__close(self.scope_manager);
             self.scope_manager.__current_scope = closed;
         }
     }
@@ -325,10 +326,58 @@ impl<'a, 'b> Referencer<'a, 'b> {
         &mut self,
         variable_target_scope: Id<Scope<'a>>,
         type_: VariableType,
-        node: Node,
+        node: Node<'a>,
         index: usize,
     ) {
-        unimplemented!()
+        let decl = node.non_comment_named_children(SupportedLanguage::Javascript).nth(index).unwrap();
+        let init = decl.child_by_field_name("value");
+
+        self.visit_pattern(
+            decl.field("name"),
+            Some(VisitPatternOptions { process_right_hand_nodes: true }),
+            |this, pattern, info| {
+                let definitions_arena = &this.scope_manager.arena.definitions;
+                this.scope_manager.arena.scopes.borrow_mut()[variable_target_scope]
+                    .__define(
+                        &mut this.scope_manager.__declared_variables.borrow_mut(),
+                        &this.scope_manager.arena.variables,
+                        definitions_arena,
+                        &*this,
+                        pattern,
+                        Definition::new(
+                            definitions_arena,
+                            type_,
+                            pattern,
+                            decl,
+                            Some(node),
+                            Some(index),
+                            Some(match node.kind() {
+                                VariableDeclaration => "var".to_owned(),
+                                LexicalDeclaration => node.field("kind").kind().to_owned(),
+                                _ => unreachable!(),
+                            })
+                        ),
+                    );
+
+                this.referencing_default_value(
+                    pattern,
+                    info.assignments,
+                    None,
+                    true,
+                );
+                if let Some(init) = init {
+                    this.current_scope_mut().__referencing(
+                        &mut this.scope_manager.arena.references.borrow_mut(),
+                        pattern,
+                        Some(ReadWriteFlags::WRITE),
+                        Some(init),
+                        None,
+                        Some(!info.top_level),
+                        Some(true),
+                    );
+                }
+            }
+        );
     }
 
     fn visit_variable_or_lexical_declaration<'tree: 'a>(&mut self, node: Node<'tree>) {
@@ -659,18 +708,55 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     }
 
     fn visit_for_in_statement(&mut self, node: Node<'tree>) {
-        let left = node.child_by_field_name("left").unwrap();
+        let left = node.field("left");
         let kind = node.child_by_field_name("kind");
-        if matches!(
-            kind,
-            Some(kind) if ["let", "const"].contains(&&*self.node_text(kind))
-        ) {
+        if kind.matches(|kind| ["let", "const"].contains(&kind.kind())) {
             self.scope_manager.__nest_for_scope(node);
         }
-        // if kind.is_some() {
-        // } else {
-        // }
-        unimplemented!()
+        if kind.is_some() {
+            self.visit(left);
+            self.visit_pattern(left, None, |this, pattern, _| {
+                this.current_scope_mut().__referencing(
+                    &mut this.scope_manager.arena.references.borrow_mut(),
+                    pattern,
+                    Some(ReadWriteFlags::WRITE),
+                    node.child_by_field_name("right"),
+                    None,
+                    Some(true),
+                    Some(true),
+                );
+            });
+        } else {
+            self.visit_pattern(
+                left,
+                Some(VisitPatternOptions {
+                    process_right_hand_nodes: true,
+                }),
+                |this, pattern, info| {
+                    let maybe_implicit_global = (!this.current_scope().is_strict())
+                        .then_some(PatternAndNode { pattern, node });
+                    this.referencing_default_value(
+                        pattern,
+                        info.assignments,
+                        maybe_implicit_global,
+                        false,
+                    );
+                    this.current_scope_mut().__referencing(
+                        &mut this.scope_manager.arena.references.borrow_mut(),
+                        pattern,
+                        Some(ReadWriteFlags::WRITE),
+                        node.child_by_field_name("right"),
+                        maybe_implicit_global,
+                        Some(true),
+                        Some(false),
+                    );
+                },
+            );
+        }
+        self.visit(node.field("right"));
+        self.visit_statement(node.field("body"));
+
+        self.close(node);
     }
 
     fn visit_arrow_function(&mut self, node: Node<'tree>) {

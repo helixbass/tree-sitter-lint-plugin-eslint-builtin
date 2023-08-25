@@ -1,7 +1,7 @@
 use std::{borrow::Cow, iter};
 
 use itertools::Either;
-use squalid::{CowStrExt, OptionExt};
+use squalid::{BoolExt, CowStrExt, OptionExt};
 use tree_sitter_lint::{
     regex, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt, NonCommentChildren,
     QueryMatchContext, SourceTextProvider,
@@ -10,9 +10,10 @@ use tree_sitter_lint::{
 use crate::{
     kind::{
         self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
-        FieldDefinition, ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression,
-        Object, Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString, UpdateExpression,
+        ExpressionStatement, FieldDefinition, ForInStatement, Kind, MemberExpression,
+        MethodDefinition, NewExpression, Object, Pair, ParenthesizedExpression, PropertyIdentifier,
+        SequenceExpression, ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
+        UpdateExpression,
     },
     return_default_if_none,
 };
@@ -513,5 +514,17 @@ pub fn is_block_comment(node: Node, context: &QueryMatchContext) -> bool {
 }
 
 pub fn is_postfix_update_expression(node: Node, context: &QueryMatchContext) -> bool {
-     node.kind() == UpdateExpression && node.first_non_comment_child(context) == node.field("argument")
+    node.kind() == UpdateExpression
+        && node.first_non_comment_child(context) == node.field("argument")
+}
+
+pub fn maybe_get_directive<'a>(
+    node: Node,
+    source_text_provider: &impl SourceTextProvider<'a>,
+) -> Option<Cow<'a, str>> {
+    (node.kind() == ExpressionStatement).then_and(|| {
+        node.first_non_comment_named_child(SupportedLanguage::Javascript)
+            .when_kind(kind::String)
+            .map(|child| child.text(source_text_provider))
+    })
 }

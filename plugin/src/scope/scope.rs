@@ -1,13 +1,11 @@
 use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use id_arena::{Arena, Id};
+use squalid::{return_default_if_none, OptionExt};
 use tree_sitter_lint::{
-    tree_sitter::Node, tree_sitter_grep::return_if_none, NodeExt, SourceTextProvider,
-};
-
-use crate::{
-    break_if_none,
-    kind::{ArrowFunction, Identifier},
+    tree_sitter::Node,
+    tree_sitter_grep::{return_if_none, SupportedLanguage},
+    NodeExt, SourceTextProvider,
 };
 
 use super::{
@@ -17,15 +15,57 @@ use super::{
     scope_manager::{NodeId, ScopeManager},
     variable::{Variable, VariableType},
 };
+use crate::{
+    ast_helpers::maybe_get_directive,
+    break_if_none,
+    kind::{ArrowFunction, Identifier, StatementBlock},
+};
 
-fn is_strict_scope(
+fn is_strict_scope<'a>(
+    arena: &Arena<Scope>,
+    source_text_provider: &impl SourceTextProvider<'a>,
     scope_upper: Option<Id<Scope>>,
     scope_type: ScopeType,
     block: Node,
     is_method_definition: bool,
-    use_directive: bool,
 ) -> bool {
-    unimplemented!()
+    if scope_upper.matches(|scope_upper| arena[scope_upper].is_strict()) {
+        return true;
+    }
+
+    if is_method_definition {
+        return true;
+    }
+
+    if matches!(scope_type, ScopeType::Class | ScopeType::Module) {
+        return true;
+    }
+
+    if matches!(scope_type, ScopeType::Block | ScopeType::Switch) {
+        return false;
+    }
+
+    let body = match scope_type {
+        ScopeType::Function => {
+            if block.kind() == ArrowFunction && block.field("body").kind() != StatementBlock {
+                return false;
+            }
+
+            return_default_if_none!(match block.kind() {
+                Program => Some(block),
+                _ => block.child_by_field_name("body"),
+            })
+        }
+        ScopeType::Global => block,
+        _ => return false,
+    };
+
+    body.non_comment_named_children(SupportedLanguage::Javascript)
+        .map(|statement| maybe_get_directive(statement, source_text_provider))
+        .take_while(|maybe_directive_text| maybe_directive_text.is_some())
+        .any(|directive_text| {
+            matches!(&*directive_text.unwrap(), "\"use strict\"" | "'use strict'")
+        })
 }
 
 fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<Scope<'a>>) {
@@ -92,11 +132,12 @@ impl<'a> Scope<'a> {
                     upper: upper_scope,
                     is_strict: if scope_manager.is_strict_mode_supported() {
                         is_strict_scope(
+                            &scope_manager.arena.scopes.borrow(),
+                            &*scope_manager,
                             upper_scope,
                             type_,
                             block,
                             is_method_definition,
-                            scope_manager.__use_directive(),
                         )
                     } else {
                         false
