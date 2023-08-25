@@ -1099,20 +1099,19 @@ mod tests {
                             column => 24
                         }]
                     },
-                    // this isn't parsing correctly per https://github.com/tree-sitter/tree-sitter-javascript/issues/266
-                    // {
-                    //     code => "class C { #x; *foo(bar) { yield #x in bar; } }",
-                    //     output => "class C { #x; *foo(bar) { yield#x in bar; } }",
-                    //     options => { words => false },
-                    //     // parserOptions: { ecmaVersion: 2022 },
-                    //     errors => [{
-                    //         message_id => "unexpected_after_word",
-                    //         data => { word => "yield" },
-                    //         type => YieldExpression,
-                    //         line => 1,
-                    //         column => 27
-                    //     }]
-                    // }
+                    {
+                        code => "class C { #x; *foo(bar) { yield #x in bar; } }",
+                        output => "class C { #x; *foo(bar) { yield#x in bar; } }",
+                        options => { words => false },
+                        // parserOptions: { ecmaVersion: 2022 },
+                        errors => [{
+                            message_id => "unexpected_after_word",
+                            data => { word => "yield" },
+                            type => YieldExpression,
+                            line => 1,
+                            column => 27
+                        }]
+                    }
                 ]
             },
         )
