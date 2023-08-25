@@ -16,15 +16,15 @@ bitflags! {
 }
 
 pub struct Reference<'a> {
-    identifier: Node<'a>,
-    from: Id<Scope<'a>>,
-    tainted: bool,
-    resolved: Option<Id<Variable<'a>>>,
+    pub identifier: Node<'a>,
+    pub from: Id<Scope<'a>>,
+    pub tainted: bool,
+    pub resolved: Option<Id<Variable<'a>>>,
     flag: ReadWriteFlags,
     write_expr: Option<Node<'a>>,
     partial: bool,
     init: bool,
-    __maybe_implicit_global: Option<PatternAndNode<'a>>,
+    pub __maybe_implicit_global: Option<PatternAndNode<'a>>,
 }
 
 impl<'a> Reference<'a> {

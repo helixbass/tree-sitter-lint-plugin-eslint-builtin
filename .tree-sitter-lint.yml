@@ -43,5 +43,16 @@ rules:
           module: squalid
           kind: trait_method
           trait: BoolExt
+        collect_vec:
+          module: itertools
+          kind: trait_method
+          trait: Itertools
+        thrush:
+          module: squalid
+          kind: trait_method
+          trait: EverythingExt
+        return_if_none:
+          module: squalid
+          kind: macro
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

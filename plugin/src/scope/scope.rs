@@ -1,7 +1,8 @@
 use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use id_arena::{Arena, Id};
-use squalid::{return_default_if_none, OptionExt};
+use itertools::Itertools;
+use squalid::{return_default_if_none, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::Node,
     tree_sitter_grep::{return_if_none, SupportedLanguage},
@@ -18,7 +19,7 @@ use super::{
 use crate::{
     ast_helpers::maybe_get_directive,
     break_if_none,
-    kind::{ArrowFunction, Identifier, StatementBlock},
+    kind::{ArrowFunction, Identifier, Program, StatementBlock},
 };
 
 fn is_strict_scope<'a>(
@@ -73,18 +74,15 @@ fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<Scope<'a>>
 
     scope_manager
         .__node_to_scope
-        .entry(
-            scope_manager
-                .arena
-                .scopes
-                .borrow()
-                .get(scope)
-                .unwrap()
-                .block()
-                .id(),
-        )
+        .entry(scope_manager.arena.scopes.borrow()[scope].block().id())
         .or_default()
         .push(scope);
+}
+
+fn should_be_statically(arena: &Arena<Definition>, def: Id<Definition>) -> bool {
+    arena[def].type_() == VariableType::ClassName
+        || arena[def].type_() == VariableType::Variable
+            && arena[def].parent().unwrap().field("kind").kind() != "var"
 }
 
 pub enum Scope<'a> {
@@ -176,7 +174,7 @@ impl<'a> Scope<'a> {
             upper_scope,
             block,
             is_method_definition,
-            |base| Self::Base(base),
+            Self::Base,
         )
     }
 
@@ -340,16 +338,252 @@ impl<'a> Scope<'a> {
         )
     }
 
-    pub fn is_strict(&self) -> bool {
-        unimplemented!()
+    fn __should_statically_close(&self, scope_manager: &ScopeManager) -> bool {
+        !self.dynamic() || scope_manager.__is_optimistic()
     }
 
-    pub fn id(&self) -> Id<Self> {
-        unimplemented!()
+    fn __should_statically_close_for_global(
+        &self,
+        reference_arena: &Arena<Reference<'a>>,
+        variable_arena: &Arena<Variable<'a>>,
+        definition_arena: &Arena<Definition<'a>>,
+        source_text_provider: &impl SourceTextProvider<'a>,
+        ref_: Id<Reference<'a>>,
+    ) -> bool {
+        let name = reference_arena[ref_].identifier.text(source_text_provider);
+
+        let Some(variable) = self.set().get(&name).copied() else {
+            return false;
+        };
+        let defs = &variable_arena[variable].defs;
+
+        !defs.is_empty()
+            && defs
+                .into_iter()
+                .all(|&def| should_be_statically(definition_arena, def))
     }
 
-    pub fn __close(&self, scope_manager: &ScopeManager) -> Option<Id<Self>> {
-        unimplemented!()
+    fn __static_close_ref(
+        self_: Id<Self>,
+        reference_arena: &mut Arena<Reference<'a>>,
+        variable_arena: &mut Arena<Variable<'a>>,
+        scope_arena: &mut Arena<Self>,
+        source_text_provider: &impl SourceTextProvider<'a>,
+        ref_: Id<Reference<'a>>,
+    ) {
+        if !Self::__resolve(
+            self_,
+            reference_arena,
+            variable_arena,
+            scope_arena,
+            source_text_provider,
+            ref_,
+        ) {
+            Self::__delegate_to_upper_scope(self_, scope_arena, ref_);
+        }
+    }
+
+    fn __dynamic_close_ref(self_: Id<Self>, arena: &mut Arena<Self>, ref_: Id<Reference<'a>>) {
+        let mut current = self_;
+
+        loop {
+            arena[current].through_mut().push(ref_);
+            current = return_if_none!(arena[current].maybe_upper());
+        }
+    }
+
+    fn __global_close_ref(
+        self_: Id<Self>,
+        reference_arena: &mut Arena<Reference<'a>>,
+        variable_arena: &mut Arena<Variable<'a>>,
+        scope_arena: &mut Arena<Self>,
+        definition_arena: &Arena<Definition<'a>>,
+        source_text_provider: &impl SourceTextProvider<'a>,
+        ref_: Id<Reference<'a>>,
+    ) {
+        if scope_arena[self_].__should_statically_close_for_global(
+            reference_arena,
+            variable_arena,
+            definition_arena,
+            source_text_provider,
+            ref_,
+        ) {
+            Self::__static_close_ref(
+                self_,
+                reference_arena,
+                variable_arena,
+                scope_arena,
+                source_text_provider,
+                ref_,
+            );
+        } else {
+            Self::__dynamic_close_ref(self_, scope_arena, ref_);
+        }
+    }
+
+    pub fn __close(self_: Id<Self>, scope_manager: &ScopeManager<'a>) -> Option<Id<Self>> {
+        let arena = &mut scope_manager.arena.scopes.borrow_mut();
+        if let Self::Global(global_scope) = &mut arena[self_] {
+            let implicit = global_scope
+                .base
+                .__left
+                .as_ref()
+                .unwrap()
+                .iter()
+                .copied()
+                .filter_map(|ref_| {
+                    (&scope_manager.arena.references.borrow()[ref_]).thrush(|ref_| {
+                        ref_.__maybe_implicit_global.filter(|_| {
+                            !global_scope
+                                .base
+                                .set
+                                .contains_key(&ref_.identifier.text(scope_manager))
+                        })
+                    })
+                })
+                .collect_vec();
+
+            for info in implicit {
+                info.pattern.thrush(|node| {
+                    if node.kind() == Identifier {
+                        global_scope.base.__define_generic(
+                            &mut scope_manager.__declared_variables.borrow_mut(),
+                            &scope_manager.arena.variables,
+                            &scope_manager.arena.definitions,
+                            node.text(scope_manager),
+                            Some(&mut global_scope.implicit.set),
+                            Some(&mut global_scope.implicit.variables),
+                            Some(node),
+                            Some(Definition::new(
+                                &scope_manager.arena.definitions,
+                                VariableType::ImplicitGlobalVariable,
+                                node,
+                                info.node,
+                                None,
+                                None,
+                                None,
+                            )),
+                        );
+                    }
+                });
+            }
+
+            global_scope.implicit.left = global_scope.base.__left.clone().unwrap();
+        }
+
+        if matches!(&arena[self_], Self::With(_))
+            && !arena[self_].__should_statically_close(scope_manager)
+        {
+            #[allow(clippy::unnecessary_to_owned)]
+            for ref_ in arena[self_].__left().to_owned() {
+                scope_manager.arena.references.borrow_mut()[ref_].tainted = true;
+                Self::__delegate_to_upper_scope(self_, arena, ref_);
+            }
+            arena[self_].set__left(None);
+
+            return arena[self_].maybe_upper();
+        }
+
+        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+        #[allow(clippy::enum_variant_names)]
+        enum CloseRef {
+            StaticCloseRef,
+            DynamicCloseRef,
+            GlobalCloseRef,
+        }
+        let close_ref = if arena[self_].__should_statically_close(scope_manager) {
+            CloseRef::StaticCloseRef
+        } else if arena[self_].type_() != ScopeType::Global {
+            CloseRef::DynamicCloseRef
+        } else {
+            CloseRef::GlobalCloseRef
+        };
+
+        #[allow(clippy::unnecessary_to_owned)]
+        for ref_ in arena[self_].__left().to_owned() {
+            match close_ref {
+                CloseRef::StaticCloseRef => {
+                    Self::__static_close_ref(
+                        self_,
+                        &mut scope_manager.arena.references.borrow_mut(),
+                        &mut scope_manager.arena.variables.borrow_mut(),
+                        arena,
+                        scope_manager,
+                        ref_,
+                    );
+                }
+                CloseRef::DynamicCloseRef => {
+                    Self::__dynamic_close_ref(self_, arena, ref_);
+                }
+                CloseRef::GlobalCloseRef => {
+                    Self::__global_close_ref(
+                        self_,
+                        &mut scope_manager.arena.references.borrow_mut(),
+                        &mut scope_manager.arena.variables.borrow_mut(),
+                        arena,
+                        &scope_manager.arena.definitions.borrow(),
+                        scope_manager,
+                        ref_,
+                    );
+                }
+            }
+        }
+        arena[self_].set__left(None);
+
+        arena[self_].maybe_upper()
+    }
+
+    fn __is_valid_resolution(&self, ref_: Id<Reference<'a>>, variable: Id<Variable<'a>>) -> bool {
+        if matches!(self, Scope::Function(_)) {
+            unimplemented!()
+        }
+
+        true
+    }
+
+    fn __resolve(
+        self_: Id<Self>,
+        reference_arena: &mut Arena<Reference<'a>>,
+        variable_arena: &mut Arena<Variable<'a>>,
+        scope_arena: &mut Arena<Self>,
+        source_text_provider: &impl SourceTextProvider<'a>,
+        ref_: Id<Reference<'a>>,
+    ) -> bool {
+        let name = reference_arena[ref_].identifier.text(source_text_provider);
+
+        let Some(variable) = scope_arena[self_].set().get(&name).copied() else {
+            return false;
+        };
+
+        if !scope_arena[self_].__is_valid_resolution(ref_, variable) {
+            return false;
+        }
+        variable_arena[variable].references.push(ref_);
+        (&mut variable_arena[variable]).thrush(|variable| {
+            variable.stack = variable.stack
+                && scope_arena[reference_arena[ref_].from].variable_scope()
+                    == scope_arena[self_].variable_scope();
+        });
+        if reference_arena[ref_].tainted {
+            variable_arena[variable].tainted = true;
+            scope_arena[self_]
+                .taints_mut()
+                .insert(variable_arena[variable].name.clone().into_owned(), true);
+        }
+        reference_arena[ref_].resolved = Some(variable);
+
+        true
+    }
+
+    fn __delegate_to_upper_scope(
+        self_: Id<Self>,
+        arena: &mut Arena<Self>,
+        ref_: Id<Reference<'a>>,
+    ) {
+        if let Some(upper) = arena[self_].maybe_upper() {
+            arena[upper].__left_mut().push(ref_);
+        }
+        arena[self_].through_mut().push(ref_);
     }
 
     fn __add_declared_variables_of_node(
@@ -358,12 +592,8 @@ impl<'a> Scope<'a> {
         variable: Id<Variable<'a>>,
         node: Option<Node>,
     ) {
-        let node = return_if_none!(node);
-
-        let variables = __declared_variables.entry(node.id()).or_default();
-        if !variables.contains(&variable) {
-            variables.push(variable);
-        }
+        self.base()
+            .__add_declared_variables_of_node(__declared_variables, variable, node)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -373,32 +603,21 @@ impl<'a> Scope<'a> {
         variable_arena: &RefCell<Arena<Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         name: Cow<'a, str>,
-        mut get_or_create_variable: impl FnMut(&mut Self, Cow<'a, str>) -> Id<Variable<'a>>,
+        set: Option<&mut Set<'a>>,
+        variables: Option<&mut Vec<Id<Variable<'a>>>>,
         node: Option<Node<'a>>,
         def: Option<Id<Definition<'a>>>,
     ) {
-        let variable = get_or_create_variable(self, name);
-
-        if let Some(def) = def {
-            variable_arena
-                .borrow_mut()
-                .get_mut(variable)
-                .unwrap()
-                .defs
-                .push(def);
-            let definition_arena = definition_arena.borrow();
-            let def = definition_arena.get(def).unwrap();
-            self.__add_declared_variables_of_node(__declared_variables, variable, Some(def.node()));
-            self.__add_declared_variables_of_node(__declared_variables, variable, def.parent());
-        }
-        if let Some(node) = node {
-            variable_arena
-                .borrow_mut()
-                .get_mut(variable)
-                .unwrap()
-                .identifiers
-                .push(node);
-        }
+        self.base_mut().__define_generic(
+            __declared_variables,
+            variable_arena,
+            definition_arena,
+            name,
+            set,
+            variables,
+            node,
+            def,
+        )
     }
 
     pub fn __define(
@@ -416,18 +635,8 @@ impl<'a> Scope<'a> {
                 variable_arena,
                 definition_arena,
                 source_text_provider.node_text(node),
-                |this, name| {
-                    let mut did_insert = false;
-                    let id = this.id();
-                    let ret = *this.set_mut().entry(name.clone()).or_insert_with(|| {
-                        did_insert = true;
-                        Variable::new(&mut variable_arena.borrow_mut(), name, id)
-                    });
-                    if did_insert {
-                        this.variables_mut().push(ret);
-                    }
-                    ret
-                },
+                None,
+                None,
                 Some(node),
                 Some(def),
             );
@@ -474,7 +683,7 @@ impl<'a> Scope<'a> {
         loop {
             let current_scope = arena.get_mut(current).unwrap();
             current_scope.set_dynamic(true);
-            current = break_if_none!(current_scope.upper());
+            current = break_if_none!(current_scope.maybe_upper());
         }
     }
 
@@ -502,7 +711,11 @@ impl<'a> Scope<'a> {
         unimplemented!()
     }
 
-    fn set_mut(&mut self) -> &mut HashMap<Cow<'a, str>, Id<Variable<'a>>> {
+    fn set(&self) -> &Set<'a> {
+        unimplemented!()
+    }
+
+    fn set_mut(&mut self) -> &mut Set<'a> {
         unimplemented!()
     }
 
@@ -518,15 +731,56 @@ impl<'a> Scope<'a> {
         unimplemented!()
     }
 
+    pub fn dynamic(&self) -> bool {
+        unimplemented!()
+    }
+
     pub fn set_dynamic(&mut self, dynamic: bool) {
         unimplemented!()
     }
 
-    pub fn upper(&self) -> Option<Id<Self>> {
+    pub fn maybe_upper(&self) -> Option<Id<Self>> {
         unimplemented!()
     }
 
     pub fn set_this_found(&mut self, this_found: bool) {
+        unimplemented!()
+    }
+
+    pub fn __left(&self) -> &[Id<Reference<'a>>] {
+        unimplemented!()
+    }
+
+    pub fn __left_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+        unimplemented!()
+    }
+
+    #[allow(non_snake_case)]
+    pub fn set__left(&mut self, __left: Option<Vec<Id<Reference<'a>>>>) {
+        unimplemented!()
+    }
+
+    pub fn through_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+        unimplemented!()
+    }
+
+    fn base(&self) -> &ScopeBase<'a> {
+        unimplemented!()
+    }
+
+    fn base_mut(&mut self) -> &mut ScopeBase<'a> {
+        unimplemented!()
+    }
+
+    pub fn is_strict(&self) -> bool {
+        unimplemented!()
+    }
+
+    pub fn id(&self) -> Id<Self> {
+        unimplemented!()
+    }
+
+    pub fn taints_mut(&mut self) -> &mut HashMap<String, bool> {
         unimplemented!()
     }
 }
@@ -547,10 +801,12 @@ pub enum ScopeType {
     ClassStaticBlock,
 }
 
+type Set<'a> = HashMap<Cow<'a, str>, Id<Variable<'a>>>;
+
 pub struct ScopeBase<'a> {
     id: Id<Scope<'a>>,
     type_: ScopeType,
-    set: HashMap<Cow<'a, str>, Id<Variable<'a>>>,
+    set: Set<'a>,
     taints: HashMap<String, bool>,
     dynamic: bool,
     block: Node<'a>,
@@ -561,10 +817,67 @@ pub struct ScopeBase<'a> {
     function_expression_scope: bool,
     direct_call_to_eval_scope: bool,
     this_found: bool,
-    __left: Vec<Id<Reference<'a>>>,
+    __left: Option<Vec<Id<Reference<'a>>>>,
     upper: Option<Id<Scope<'a>>>,
     is_strict: bool,
     child_scopes: Vec<Id<Scope<'a>>>,
+}
+
+impl<'a> ScopeBase<'a> {
+    fn __add_declared_variables_of_node(
+        &self,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable: Id<Variable<'a>>,
+        node: Option<Node>,
+    ) {
+        let node = return_if_none!(node);
+
+        let variables = __declared_variables.entry(node.id()).or_default();
+        if !variables.contains(&variable) {
+            variables.push(variable);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn __define_generic(
+        &mut self,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        name: Cow<'a, str>,
+        set: Option<&mut Set<'a>>,
+        variables: Option<&mut Vec<Id<Variable<'a>>>>,
+        node: Option<Node<'a>>,
+        def: Option<Id<Definition<'a>>>,
+    ) {
+        let mut did_insert = false;
+        let id = self.id();
+        let variable = *set
+            .unwrap_or(&mut self.set)
+            .entry(name.clone())
+            .or_insert_with(|| {
+                did_insert = true;
+                Variable::new(&mut variable_arena.borrow_mut(), name, id)
+            });
+        if did_insert {
+            variables.unwrap_or(&mut self.variables).push(variable);
+        }
+
+        if let Some(def) = def {
+            variable_arena.borrow_mut()[variable].defs.push(def);
+            let definition_arena = definition_arena.borrow();
+            let def = &definition_arena[def];
+            self.__add_declared_variables_of_node(__declared_variables, variable, Some(def.node()));
+            self.__add_declared_variables_of_node(__declared_variables, variable, def.parent());
+        }
+        if let Some(node) = node {
+            variable_arena.borrow_mut()[variable].identifiers.push(node);
+        }
+    }
+
+    fn id(&self) -> Id<Scope<'a>> {
+        self.id
+    }
 }
 
 pub struct GlobalScope<'a> {
@@ -583,7 +896,7 @@ impl<'a> GlobalScope<'a> {
 
 #[derive(Default)]
 pub struct GlobalScopeImplicit<'a> {
-    set: HashMap<&'a str, Id<Variable<'a>>>,
+    set: Set<'a>,
     variables: Vec<Id<Variable<'a>>>,
     left: Vec<Id<Reference<'a>>>,
 }

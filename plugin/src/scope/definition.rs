@@ -46,6 +46,10 @@ impl<'a> Definition<'a> {
     pub fn parent(&self) -> Option<Node<'a>> {
         unimplemented!()
     }
+
+    pub fn type_(&self) -> VariableType {
+        unimplemented!()
+    }
 }
 
 pub struct DefinitionBase<'a> {

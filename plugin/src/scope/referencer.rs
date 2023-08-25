@@ -145,7 +145,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
             self.maybe_current_scope(),
             Some(current_scope) if node == current_scope.block()
         ) {
-            let closed = self.current_scope().__close(self.scope_manager);
+            let closed = Scope::__close(self.scope_manager.__current_scope.unwrap(), self.scope_manager);
             self.scope_manager.__current_scope = closed;
         }
     }
@@ -329,42 +329,41 @@ impl<'a, 'b> Referencer<'a, 'b> {
         node: Node<'a>,
         index: usize,
     ) {
-        let decl = node.non_comment_named_children(SupportedLanguage::Javascript).nth(index).unwrap();
+        let decl = node
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .nth(index)
+            .unwrap();
         let init = decl.child_by_field_name("value");
 
         self.visit_pattern(
             decl.field("name"),
-            Some(VisitPatternOptions { process_right_hand_nodes: true }),
+            Some(VisitPatternOptions {
+                process_right_hand_nodes: true,
+            }),
             |this, pattern, info| {
                 let definitions_arena = &this.scope_manager.arena.definitions;
-                this.scope_manager.arena.scopes.borrow_mut()[variable_target_scope]
-                    .__define(
-                        &mut this.scope_manager.__declared_variables.borrow_mut(),
-                        &this.scope_manager.arena.variables,
-                        definitions_arena,
-                        &*this,
-                        pattern,
-                        Definition::new(
-                            definitions_arena,
-                            type_,
-                            pattern,
-                            decl,
-                            Some(node),
-                            Some(index),
-                            Some(match node.kind() {
-                                VariableDeclaration => "var".to_owned(),
-                                LexicalDeclaration => node.field("kind").kind().to_owned(),
-                                _ => unreachable!(),
-                            })
-                        ),
-                    );
-
-                this.referencing_default_value(
+                this.scope_manager.arena.scopes.borrow_mut()[variable_target_scope].__define(
+                    &mut this.scope_manager.__declared_variables.borrow_mut(),
+                    &this.scope_manager.arena.variables,
+                    definitions_arena,
+                    &*this,
                     pattern,
-                    info.assignments,
-                    None,
-                    true,
+                    Definition::new(
+                        definitions_arena,
+                        type_,
+                        pattern,
+                        decl,
+                        Some(node),
+                        Some(index),
+                        Some(match node.kind() {
+                            VariableDeclaration => "var".to_owned(),
+                            LexicalDeclaration => node.field("kind").kind().to_owned(),
+                            _ => unreachable!(),
+                        }),
+                    ),
                 );
+
+                this.referencing_default_value(pattern, info.assignments, None, true);
                 if let Some(init) = init {
                     this.current_scope_mut().__referencing(
                         &mut this.scope_manager.arena.references.borrow_mut(),
@@ -376,7 +375,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                         Some(true),
                     );
                 }
-            }
+            },
         );
     }
 
@@ -811,8 +810,8 @@ struct VisitPatternOptions {
 
 #[derive(Copy, Clone)]
 pub struct PatternAndNode<'a> {
-    pattern: Node<'a>,
-    node: Node<'a>,
+    pub pattern: Node<'a>,
+    pub node: Node<'a>,
 }
 
 impl<'a> SourceTextProvider<'a> for Referencer<'a, '_> {

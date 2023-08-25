@@ -39,7 +39,7 @@ impl<'a> ScopeManager<'a> {
         }
     }
 
-    pub fn __use_directive(&self) -> bool {
+    pub fn __is_optimistic(&self) -> bool {
         unimplemented!()
     }
 
