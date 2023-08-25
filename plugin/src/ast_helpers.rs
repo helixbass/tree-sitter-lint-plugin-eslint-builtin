@@ -12,7 +12,7 @@ use crate::{
         self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
         FieldDefinition, ForInStatement, Kind, MemberExpression, MethodDefinition, NewExpression,
         Object, Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
+        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString, UpdateExpression,
     },
     return_default_if_none,
 };
@@ -494,4 +494,24 @@ pub fn get_comment_type(comment: Node, context: &QueryMatchContext) -> CommentTy
     } else {
         CommentType::Block
     }
+}
+
+pub fn is_punctuation_kind(kind: Kind) -> bool {
+    !regex!(r#"^[a-zA-Z]"#).is_match(kind)
+}
+
+pub fn is_punctuation(node: Node) -> bool {
+    is_punctuation_kind(node.kind())
+}
+
+pub fn is_line_comment(node: Node, context: &QueryMatchContext) -> bool {
+    node.kind() == Comment && get_comment_type(node, context) == CommentType::Line
+}
+
+pub fn is_block_comment(node: Node, context: &QueryMatchContext) -> bool {
+    node.kind() == Comment && get_comment_type(node, context) == CommentType::Block
+}
+
+pub fn is_postfix_update_expression(node: Node, context: &QueryMatchContext) -> bool {
+     node.kind() == UpdateExpression && node.first_non_comment_child(context) == node.field("argument")
 }

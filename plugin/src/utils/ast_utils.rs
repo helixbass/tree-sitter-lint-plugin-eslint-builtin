@@ -14,8 +14,8 @@ use crate::{
     ast_helpers::{
         get_first_non_comment_child, get_last_expression_of_sequence_expression,
         get_method_definition_kind, get_number_literal_string_value, get_prev_non_comment_sibling,
-        is_chain_expression, is_logical_expression, skip_nodes_of_type, MethodDefinitionKind,
-        NodeExtJs,
+        is_chain_expression, is_logical_expression, skip_nodes_of_type,
+        MethodDefinitionKind, NodeExtJs, is_punctuation_kind, is_block_comment,
     },
     kind::{
         self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
@@ -680,6 +680,33 @@ pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
             could_be_error(node.field("consequence"), context)
                 || could_be_error(node.field("alternative"), context)
         }
+        _ => false,
+    }
+}
+
+pub fn can_tokens_be_adjacent(
+    left_value: Node,
+    right_value: Node,
+    context: &QueryMatchContext,
+) -> bool {
+    match (left_value.kind(), right_value.kind()) {
+        (left_kind, right_kind) if is_punctuation_kind(left_kind) && is_punctuation_kind(right_kind) => {
+            static PLUS_TOKENS: [&str; 2] = ["+", "++"];
+            static MINUS_TOKENS: [&str; 2] = ["-", "--"];
+
+            !(PLUS_TOKENS.contains(&left_kind) && PLUS_TOKENS.contains(&right_kind)
+                || MINUS_TOKENS.contains(&left_kind) && MINUS_TOKENS.contains(&right_kind))
+        }
+        ("/", right_kind) => ![Comment, kind::Regex].contains(&right_kind),
+        (left_kind, right_kind) if is_punctuation_kind(left_kind) || is_punctuation_kind(right_kind) => true,
+        (kind::String | TemplateString, _) | (_, kind::String | TemplateString) => true,
+        (left_kind, kind::Number)
+            if left_kind != kind::Number && right_value.text(context).starts_with('.') =>
+        {
+            true
+        }
+        (Comment, _) if is_block_comment(left_value, context) => true,
+        (_, Comment | PrivatePropertyIdentifier) => true,
         _ => false,
     }
 }

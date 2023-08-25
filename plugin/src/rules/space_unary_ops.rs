@@ -1,14 +1,27 @@
 use std::{collections::HashMap, sync::Arc};
 
+use itertools::Itertools;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::EverythingExt;
+use tree_sitter_lint::{
+    range_between_end_and_start, rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext,
+    Rule,
+};
+
+use crate::{
+    ast_helpers::is_postfix_update_expression,
+    kind::{NewExpression, UnaryExpression},
+    utils::ast_utils,
+};
+
+type Overrides = HashMap<String, bool>;
 
 #[derive(Deserialize)]
 #[serde(default)]
 struct Options {
     words: bool,
     nonwords: bool,
-    overrides: HashMap<String, bool>,
+    overrides: Overrides,
 }
 
 impl Default for Options {
@@ -17,6 +30,170 @@ impl Default for Options {
             words: true,
             nonwords: Default::default(),
             overrides: Default::default(),
+        }
+    }
+}
+
+fn is_first_bang_in_bang_bang_expression(node: Node) -> bool {
+    // TODO: looks like the ESLint version says node.argument.operator here when
+    // it means node.operator, upstream?
+    node.kind() == UnaryExpression
+        && node.field("operator").kind() == "!"
+        && node.field("argument").thrush(|argument| {
+            argument.kind() == UnaryExpression && argument.field("operator").kind() == "!"
+        })
+}
+
+fn override_exists_for_operator(operator: &str, overrides: &Overrides) -> bool {
+    overrides.contains_key(operator)
+}
+
+fn override_enforces_spaces(operator: &str, overrides: &Overrides) -> bool {
+    overrides.get(operator).copied() == Some(true)
+}
+
+fn verify_word_has_spaces(
+    node: Node,
+    first_token: Node,
+    second_token: Node,
+    word: &str,
+    context: &QueryMatchContext,
+) {
+    if second_token.range().start_byte == first_token.range().end_byte {
+        context.report(violation! {
+            node => node,
+            message_id => "word_operator",
+            data => {
+                word => word,
+            },
+            fix => |fixer| {
+                fixer.insert_text_after(first_token, " ");
+            }
+        });
+    }
+}
+
+fn verify_word_doesnt_have_spaces(
+    node: Node,
+    first_token: Node,
+    second_token: Node,
+    word: &str,
+    context: &QueryMatchContext,
+) {
+    #[allow(clippy::collapsible_if)]
+    if ast_utils::can_tokens_be_adjacent(first_token, second_token, context) {
+        if second_token.range().start_byte > first_token.range().end_byte {
+            context.report(violation! {
+                node => node,
+                message_id => "unexpected_after_word",
+                data => {
+                    word => word,
+                },
+                fix => |fixer| {
+                    fixer.remove_range(range_between_end_and_start(first_token.range(), second_token.range()));
+                }
+            });
+        }
+    }
+}
+
+fn check_unary_word_operator_for_spaces(
+    node: Node,
+    first_token: Node,
+    second_token: Node,
+    word: &str,
+    overrides: &Overrides,
+    words: bool,
+    context: &QueryMatchContext,
+) {
+    if override_exists_for_operator(word, overrides) {
+        if override_enforces_spaces(word, overrides) {
+            verify_word_has_spaces(node, first_token, second_token, word, context);
+        } else {
+            verify_word_doesnt_have_spaces(node, first_token, second_token, word, context);
+        }
+    } else if words {
+        verify_word_has_spaces(node, first_token, second_token, word, context);
+    } else {
+        verify_word_doesnt_have_spaces(node, first_token, second_token, word, context);
+    }
+}
+
+fn verify_non_words_have_spaces(
+    node: Node,
+    first_token: Node,
+    second_token: Node,
+    context: &QueryMatchContext,
+) {
+    #[allow(clippy::collapsible_else_if)]
+    if !is_postfix_update_expression(node, context) {
+        if is_first_bang_in_bang_bang_expression(node) {
+            return;
+        }
+        if first_token.range().end_byte == second_token.range().start_byte {
+            context.report(violation! {
+                node => node,
+                message_id => "operator",
+                data => {
+                    operator => first_token.kind(),
+                },
+                fix => |fixer| {
+                    fixer.insert_text_after(first_token, " ");
+                }
+            });
+        }
+    } else {
+        if first_token.range().end_byte == second_token.range().start_byte {
+            context.report(violation! {
+                node => node,
+                message_id => "before_unary_expressions",
+                data => {
+                    token => second_token.kind(),
+                },
+                fix => |fixer| {
+                    fixer.insert_text_before(second_token, " ");
+                }
+            });
+        }
+    }
+}
+
+fn verify_non_words_dont_have_spaces(
+    node: Node,
+    first_token: Node,
+    second_token: Node,
+    context: &QueryMatchContext,
+) {
+    #[allow(clippy::collapsible_else_if)]
+    if !is_postfix_update_expression(node, context) {
+        if second_token.range().start_byte > first_token.range().end_byte {
+            context.report(violation! {
+                node => node,
+                message_id => "unexpected_after",
+                data => {
+                    operator => first_token.kind(),
+                },
+                fix => |fixer| {
+                    if ast_utils::can_tokens_be_adjacent(first_token, second_token, context) {
+                        fixer.remove_range(range_between_end_and_start(first_token.range(), second_token.range()));
+                    }
+                }
+            });
+        }
+    } else {
+        if second_token.range().start_byte > first_token.range().end_byte {
+            context.report(violation! {
+                node => node,
+                message_id => "unexpected_before",
+                data => {
+                    operator => second_token.kind(),
+                },
+                fix => |fixer| {
+                    if ast_utils::can_tokens_be_adjacent(first_token, second_token, context) {
+                        fixer.remove_range(range_between_end_and_start(first_token.range(), second_token.range()));
+                    }
+                }
+            });
         }
     }
 }
@@ -39,17 +216,82 @@ pub fn space_unary_ops_rule() -> Arc<dyn Rule> {
             [per-run]
             words: bool = options.words,
             nonwords: bool = options.nonwords,
-            overrides: HashMap<String, bool> = options.overrides,
+            overrides: Overrides = options.overrides,
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (unary_expression) @c
+              (update_expression) @c
+              (new_expression) @c
+            "# => |node, context| {
+                let is_postfix_update_expression = is_postfix_update_expression(node, context);
+                let tokens = if is_postfix_update_expression {
+                    context.get_last_tokens(node, Some(2)).collect_vec()
+                } else {
+                    context.get_first_tokens(node, Some(2)).collect_vec()
+                };
+                let first_token = tokens[0];
+                let second_token = tokens[1];
+
+                if node.kind() == NewExpression ||
+                    node.kind() == UnaryExpression && first_token.kind().len() > 1 {
+                    check_unary_word_operator_for_spaces(node, first_token, second_token, first_token.kind(), &self.overrides, self.words, context);
+                    return;
+                }
+
+                let operator = if is_postfix_update_expression {
+                    tokens[1].kind()
+                } else {
+                    tokens[0].kind()
+                };
+
+                if override_exists_for_operator(operator, &self.overrides) {
+                    if override_enforces_spaces(operator, &self.overrides) {
+                        verify_non_words_have_spaces(node, first_token, second_token, context);
+                    } else {
+                        verify_non_words_dont_have_spaces(node, first_token, second_token, context);
+                    }
+                } else if self.nonwords {
+                    verify_non_words_have_spaces(node, first_token, second_token, context);
+                } else {
+                    verify_non_words_dont_have_spaces(node, first_token, second_token, context);
+                }
             },
+            "
+              (yield_expression) @c
+            " => |node, context| {
+                if node.has_child_of_kind("*") {
+                    return;
+                }
+                if !node.has_non_comment_named_children(context) {
+                    return;
+                }
+
+                let tokens = context.get_first_tokens(node, Some(3)).collect_vec();
+                check_unary_word_operator_for_spaces(
+                    node,
+                    tokens[0],
+                    tokens[1],
+                    "yield",
+                    &self.overrides,
+                    self.words,
+                    context,
+                );
+            },
+            "
+              (await_expression) @c
+            " => |node, context| {
+                let tokens = context.get_first_tokens(node, Some(3)).collect_vec();
+                check_unary_word_operator_for_spaces(
+                    node,
+                    tokens[0],
+                    tokens[1],
+                    "await",
+                    &self.overrides,
+                    self.words,
+                    context,
+                );
+            }
         ],
     }
 }
@@ -310,9 +552,9 @@ mod tests {
                         output => "delete (foo.bar)",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "delete" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -320,9 +562,9 @@ mod tests {
                         output => "delete (foo[\"bar\"]);",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "delete" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -332,7 +574,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "delete" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -340,9 +582,9 @@ mod tests {
                         output => "new (Foo)",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "new" },
-                            type => "NewExpression"
+                            type => NewExpression
                         }]
                     },
                     {
@@ -352,7 +594,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "new" },
-                            type => "NewExpression"
+                            type => NewExpression
                         }]
                     },
                     {
@@ -360,9 +602,9 @@ mod tests {
                         output => "new (Foo())",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "new" },
-                            type => "NewExpression"
+                            type => NewExpression
                         }]
                     },
                     {
@@ -372,7 +614,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "new" },
-                            type => "NewExpression"
+                            type => NewExpression
                         }]
                     },
 
@@ -381,9 +623,9 @@ mod tests {
                         output => "typeof (foo)",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -393,7 +635,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -401,9 +643,9 @@ mod tests {
                         output => "typeof [foo]",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -413,7 +655,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -421,9 +663,9 @@ mod tests {
                         output => "typeof {foo:true}",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -433,7 +675,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -441,9 +683,9 @@ mod tests {
                         output => "typeof !foo",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "typeof" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
 
@@ -452,9 +694,9 @@ mod tests {
                         output => "void (0);",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "void" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -462,9 +704,9 @@ mod tests {
                         output => "void (foo);",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "void" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -472,9 +714,9 @@ mod tests {
                         output => "void [foo];",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "void" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -482,9 +724,9 @@ mod tests {
                         output => "void {a:0};",
                         options => { words => true },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "void" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -494,7 +736,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "void" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -504,7 +746,7 @@ mod tests {
                         errors => [{
                             message_id => "unexpected_after_word",
                             data => { word => "void" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
 
@@ -513,7 +755,7 @@ mod tests {
                         output => "!foo",
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "!" }
                         }]
                     },
@@ -532,9 +774,9 @@ mod tests {
                         output => "!!foo",
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "!" },
-                            type => "UnaryExpression",
+                            type => UnaryExpression,
                             line => 1,
                             column => 2
                         }]
@@ -546,7 +788,7 @@ mod tests {
                         errors => [{
                             message_id => "operator",
                             data => { operator => "!" },
-                            type => "UnaryExpression",
+                            type => UnaryExpression,
                             line => 1,
                             column => 2
                         }]
@@ -557,9 +799,9 @@ mod tests {
                         output => "-1",
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "-" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
                     {
@@ -569,7 +811,7 @@ mod tests {
                         errors => [{
                             message_id => "operator",
                             data => { operator => "-" },
-                            type => "UnaryExpression"
+                            type => UnaryExpression
                         }]
                     },
 
@@ -578,7 +820,7 @@ mod tests {
                         output => "foo ++",
                         options => { nonwords => true },
                         errors => [{
-                            message_id => "beforeUnaryExpressions",
+                            message_id => "before_unary_expressions",
                             data => { token => "++" }
                         }]
                     },
@@ -587,7 +829,7 @@ mod tests {
                         output => "foo++",
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedBefore",
+                            message_id => "unexpected_before",
                             data => { operator => "++" }
                         }]
                     },
@@ -596,7 +838,7 @@ mod tests {
                         output => "++foo",
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "++" }
                         }]
                     },
@@ -614,7 +856,7 @@ mod tests {
                         output => "foo .bar ++",
                         options => { nonwords => true },
                         errors => [{
-                            message_id => "beforeUnaryExpressions",
+                            message_id => "before_unary_expressions",
                             data => { token => "++" }
                         }]
                     },
@@ -622,7 +864,7 @@ mod tests {
                         code => "foo.bar --",
                         output => "foo.bar--",
                         errors => [{
-                            message_id => "unexpectedBefore",
+                            message_id => "unexpected_before",
                             data => { operator => "--" }
                         }]
                     },
@@ -631,7 +873,7 @@ mod tests {
                         output => None,
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "+" }
                         }]
                     },
@@ -640,7 +882,7 @@ mod tests {
                         output => None,
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "+" }
                         }]
                     },
@@ -649,7 +891,7 @@ mod tests {
                         output => None,
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "-" }
                         }]
                     },
@@ -658,7 +900,7 @@ mod tests {
                         output => None,
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "-" }
                         }]
                     },
@@ -667,7 +909,7 @@ mod tests {
                         output => "+-foo",
                         options => { nonwords => false },
                         errors => [{
-                            message_id => "unexpectedAfter",
+                            message_id => "unexpected_after",
                             data => { operator => "+" }
                         }]
                     },
@@ -676,7 +918,7 @@ mod tests {
                         output => "function *foo() { yield (0) }",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "yield" },
                             type => YieldExpression,
                             line => 1,
@@ -701,7 +943,7 @@ mod tests {
                         output => "function *foo() { yield +0 }",
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "yield" },
                             type => YieldExpression,
                             line => 1,
@@ -713,7 +955,7 @@ mod tests {
                         output => "foo ++",
                         options => { nonwords => true, overrides => { "++" => true } },
                         errors => [{
-                            message_id => "beforeUnaryExpressions",
+                            message_id => "before_unary_expressions",
                             data => { token => "++" }
                         }]
                     },
@@ -722,7 +964,7 @@ mod tests {
                         output => "foo ++",
                         options => { nonwords => false, overrides => { "++" => true } },
                         errors => [{
-                            message_id => "beforeUnaryExpressions",
+                            message_id => "before_unary_expressions",
                             data => { token => "++" }
                         }]
                     },
@@ -767,7 +1009,7 @@ mod tests {
                         output => "new (Foo)",
                         options => { words => true, overrides => { new => true } },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "new" }
                         }]
                     },
@@ -776,7 +1018,7 @@ mod tests {
                         output => "new (Foo)",
                         options => { words => false, overrides => { new => true } },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "new" }
                         }]
                     },
@@ -786,7 +1028,7 @@ mod tests {
                         options => { words => true, overrides => { "yield" => true } },
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "yield" },
                             type => YieldExpression,
                             line => 1,
@@ -799,7 +1041,7 @@ mod tests {
                         options => { words => false, overrides => { "yield" => true } },
                         // parserOptions: { ecmaVersion: 6 },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "yield" },
                             type => YieldExpression,
                             line => 1,
@@ -811,7 +1053,7 @@ mod tests {
                         output => "async function foo() { await {foo: 'bar'} }",
                         // parserOptions: { ecmaVersion: 8 },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "await" },
                             type => AwaitExpression,
                             line => 1,
@@ -824,7 +1066,7 @@ mod tests {
                         options => { words => false, overrides => { "await" => true } },
                         // parserOptions: { ecmaVersion: 8 },
                         errors => [{
-                            message_id => "wordOperator",
+                            message_id => "word_operator",
                             data => { word => "await" },
                             type => AwaitExpression,
                             line => 1,
@@ -857,19 +1099,20 @@ mod tests {
                             column => 24
                         }]
                     },
-                    {
-                        code => "class C { #x; *foo(bar) { yield #x in bar; } }",
-                        output => "class C { #x; *foo(bar) { yield#x in bar; } }",
-                        options => { words => false },
-                        // parserOptions: { ecmaVersion: 2022 },
-                        errors => [{
-                            message_id => "unexpected_after_word",
-                            data => { word => "yield" },
-                            type => YieldExpression,
-                            line => 1,
-                            column => 27
-                        }]
-                    }
+                    // this isn't parsing correctly per https://github.com/tree-sitter/tree-sitter-javascript/issues/266
+                    // {
+                    //     code => "class C { #x; *foo(bar) { yield #x in bar; } }",
+                    //     output => "class C { #x; *foo(bar) { yield#x in bar; } }",
+                    //     options => { words => false },
+                    //     // parserOptions: { ecmaVersion: 2022 },
+                    //     errors => [{
+                    //         message_id => "unexpected_after_word",
+                    //         data => { word => "yield" },
+                    //         type => YieldExpression,
+                    //         line => 1,
+                    //         column => 27
+                    //     }]
+                    // }
                 ]
             },
         )

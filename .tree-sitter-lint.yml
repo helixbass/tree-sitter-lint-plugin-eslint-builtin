@@ -16,6 +16,9 @@ rules:
         TreeCursor:
           module: tree_sitter
           kind: type_identifier
+        Node:
+          module: tree_sitter
+          kind: type_identifier
         SupportedLanguage:
           module: tree_sitter_lint::tree_sitter_grep
           kind: type_identifier
