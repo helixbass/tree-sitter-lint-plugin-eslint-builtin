@@ -5,7 +5,10 @@ use std::{
     ops,
 };
 
+use derive_builder::Builder;
 use id_arena::Id;
+use itertools::Either;
+use squalid::{EverythingExt, NonEmpty};
 use tree_sitter_lint::{tree_sitter::Node, SourceTextProvider};
 
 use super::{
@@ -16,6 +19,41 @@ use super::{
 
 pub type NodeId = usize;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SourceType {
+    Script,
+    Module,
+    CommonJS,
+}
+
+#[derive(Builder)]
+#[builder(default, setter(strip_option))]
+pub struct ScopeManagerOptions {
+    optimistic: bool,
+    directive: bool,
+    ignore_eval: bool,
+    nodejs_scope: bool,
+    implied_strict: bool,
+    source_type: SourceType,
+    ecma_version: u32,
+    // child_visitor_keys: Option<HashMap<String, Vec<String>>>,
+    // fallback:
+}
+
+impl Default for ScopeManagerOptions {
+    fn default() -> Self {
+        Self {
+            optimistic: Default::default(),
+            directive: Default::default(),
+            nodejs_scope: Default::default(),
+            implied_strict: Default::default(),
+            source_type: SourceType::Script,
+            ecma_version: 5,
+            ignore_eval: Default::default(),
+        }
+    }
+}
+
 pub struct ScopeManager<'a> {
     pub scopes: Vec<Id<Scope<'a>>>,
     global_scope: Option<Id<Scope<'a>>>,
@@ -24,10 +62,11 @@ pub struct ScopeManager<'a> {
     pub arena: AllArenas<'a>,
     pub __declared_variables: RefCell<HashMap<NodeId, Vec<Id<Variable<'a>>>>>,
     pub source_text: &'a [u8],
+    __options: ScopeManagerOptions,
 }
 
 impl<'a> ScopeManager<'a> {
-    pub fn new(source_text: &'a [u8]) -> Self {
+    pub fn new(source_text: &'a [u8], options: ScopeManagerOptions) -> Self {
         Self {
             scopes: Default::default(),
             global_scope: Default::default(),
@@ -36,59 +75,75 @@ impl<'a> ScopeManager<'a> {
             arena: Default::default(),
             __declared_variables: Default::default(),
             source_text,
+            __options: options,
         }
     }
 
     pub fn __is_optimistic(&self) -> bool {
-        unimplemented!()
+        self.__options.optimistic
     }
 
     pub fn __ignore_eval(&self) -> bool {
-        unimplemented!()
+        self.__options.ignore_eval
     }
 
     pub fn is_global_return(&self) -> bool {
-        unimplemented!()
+        self.__options.nodejs_scope || self.__options.source_type == SourceType::CommonJS
     }
 
     pub fn is_module(&self) -> bool {
-        unimplemented!()
+        self.__options.source_type == SourceType::Module
     }
 
     pub fn is_implied_strict(&self) -> bool {
-        unimplemented!()
+        self.__options.implied_strict
     }
 
     pub fn is_strict_mode_supported(&self) -> bool {
-        unimplemented!()
+        self.__options.ecma_version >= 5
     }
 
-    pub fn maybe_current_scope(&self) -> Option<Ref<Scope<'a>>> {
-        self.__current_scope.map(|__current_scope| {
-            Ref::map(self.arena.scopes.borrow(), |scopes| {
-                scopes.get(__current_scope).unwrap()
+    pub fn __get(&self, node: Node) -> Option<&Vec<Id<Scope<'a>>>> {
+        self.__node_to_scope.get(&node.id())
+    }
+
+    pub fn get_declared_variables(&self, node: Node) -> Option<Vec<Id<Variable<'a>>>> {
+        self.__declared_variables.borrow().get(&node.id()).cloned()
+    }
+
+    pub fn acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<Scope<'a>>> {
+        let scopes = self.__get(node).non_empty()?;
+
+        if scopes.len() == 1 {
+            return Some(scopes[0]);
+        }
+
+        if inner == Some(true) {
+            Either::Left(scopes.into_iter().rev())
+        } else {
+            Either::Right(scopes.into_iter())
+        }
+        .find(|&&scope| {
+            (&self.arena.scopes.borrow()[scope]).thrush(|scope| {
+                !(scope.type_() == ScopeType::Function && scope.function_expression_scope())
             })
         })
+        .copied()
     }
 
-    pub fn maybe_current_scope_mut(&self) -> Option<RefMut<Scope<'a>>> {
-        self.__current_scope.map(|__current_scope| {
-            RefMut::map(self.arena.scopes.borrow_mut(), |scopes| {
-                scopes.get_mut(__current_scope).unwrap()
-            })
-        })
+    pub fn acquire_all(&self, node: Node) -> Option<&Vec<Id<Scope<'a>>>> {
+        self.__get(node)
     }
 
-    pub fn __current_scope(&self) -> Ref<Scope<'a>> {
-        self.maybe_current_scope().unwrap()
-    }
+    pub fn release(&self, node: Node, inner: Option<bool>) -> Option<Id<Scope<'a>>> {
+        let scopes = self.__get(node).non_empty()?;
 
-    pub fn __current_scope_mut(&self) -> RefMut<Scope<'a>> {
-        self.maybe_current_scope_mut().unwrap()
+        let scope = self.arena.scopes.borrow()[scopes[0]].maybe_upper()?;
+        self.acquire(self.arena.scopes.borrow()[scope].block(), inner)
     }
 
     fn __nest_scope(&mut self, scope: Id<Scope<'a>>) -> Id<Scope<'a>> {
-        if self.arena.scopes.borrow().get(scope).unwrap().type_() == ScopeType::Global {
+        if self.arena.scopes.borrow()[scope].type_() == ScopeType::Global {
             assert!(self.__current_scope.is_none());
             self.global_scope = Some(scope);
         }
@@ -131,13 +186,13 @@ impl<'a> ScopeManager<'a> {
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_class_field_initializer_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_class_field_initializer_scope(self, self.__current_scope, node);
+    pub fn __nest_class_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_class_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_class_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_class_scope(self, self.__current_scope, node);
+    pub fn __nest_class_field_initializer_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
+        let scope = Scope::new_class_field_initializer_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
@@ -162,7 +217,31 @@ impl<'a> ScopeManager<'a> {
     }
 
     pub fn __is_es6(&self) -> bool {
-        unimplemented!()
+        self.__options.ecma_version >= 6
+    }
+
+    pub fn maybe_current_scope(&self) -> Option<Ref<Scope<'a>>> {
+        self.__current_scope.map(|__current_scope| {
+            Ref::map(self.arena.scopes.borrow(), |scopes| {
+                scopes.get(__current_scope).unwrap()
+            })
+        })
+    }
+
+    pub fn maybe_current_scope_mut(&self) -> Option<RefMut<Scope<'a>>> {
+        self.__current_scope.map(|__current_scope| {
+            RefMut::map(self.arena.scopes.borrow_mut(), |scopes| {
+                scopes.get_mut(__current_scope).unwrap()
+            })
+        })
+    }
+
+    pub fn __current_scope(&self) -> Ref<Scope<'a>> {
+        self.maybe_current_scope().unwrap()
+    }
+
+    pub fn __current_scope_mut(&self) -> RefMut<Scope<'a>> {
+        self.maybe_current_scope_mut().unwrap()
     }
 }
 

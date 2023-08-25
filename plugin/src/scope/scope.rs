@@ -857,6 +857,7 @@ impl<'a> Scope<'a> {
         self.base_mut().this_found = this_found;
     }
 
+    #[allow(non_snake_case)]
     fn maybe__left(&self) -> Option<&[Id<Reference<'a>>]> {
         self.base().__left.as_deref()
     }
@@ -918,6 +919,10 @@ impl<'a> Scope<'a> {
 
     pub fn references_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
         &mut self.base_mut().references
+    }
+
+    pub fn function_expression_scope(&self) -> bool {
+        self.base().function_expression_scope
     }
 }
 

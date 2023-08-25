@@ -7,14 +7,19 @@ mod scope;
 mod scope_manager;
 mod variable;
 
-use tree_sitter_lint::tree_sitter::Tree;
-
-use crate::visit::Visit;
 use referencer::Referencer;
 use scope_manager::ScopeManager;
+use tree_sitter_lint::tree_sitter::Tree;
 
-pub fn analyze<'a>(tree: &'a Tree, source_text: &'a [u8]) -> ScopeManager<'a> {
-    let mut scope_manager = ScopeManager::new(source_text);
+use self::scope_manager::ScopeManagerOptions;
+use crate::visit::Visit;
+
+pub fn analyze<'a>(
+    tree: &'a Tree,
+    source_text: &'a [u8],
+    options: ScopeManagerOptions,
+) -> ScopeManager<'a> {
+    let mut scope_manager = ScopeManager::new(source_text, options);
     let mut referencer = Referencer::new(&mut scope_manager);
 
     referencer.visit_program(tree.root_node());
