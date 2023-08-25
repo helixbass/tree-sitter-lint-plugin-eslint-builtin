@@ -14,8 +14,8 @@ use crate::{
     ast_helpers::{
         get_first_non_comment_child, get_last_expression_of_sequence_expression,
         get_method_definition_kind, get_number_literal_string_value, get_prev_non_comment_sibling,
-        is_chain_expression, is_logical_expression, skip_nodes_of_type,
-        MethodDefinitionKind, NodeExtJs, is_punctuation_kind, is_block_comment,
+        is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind,
+        skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
     },
     kind::{
         self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
@@ -523,12 +523,16 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
             .skip_while(|(child, _)| child.kind() == Decorator);
         let (mut child, mut field_name) = children.next().unwrap();
         while !field_name.matches(|field_name| field_name == "name") {
-            match &*child.text(context) {
+            match child.kind() {
                 "static" => is_static = true,
                 "async" => is_async = true,
                 "get" => function_type = FunctionType::Getter,
                 "set" => function_type = FunctionType::Setter,
                 "*" => function_type = FunctionType::GeneratorMethod,
+                "static get" => {
+                    is_static = true;
+                    function_type = FunctionType::Getter
+                }
                 _ => unreachable!(),
             }
             (child, field_name) = children.next().unwrap();
@@ -690,7 +694,9 @@ pub fn can_tokens_be_adjacent(
     context: &QueryMatchContext,
 ) -> bool {
     match (left_value.kind(), right_value.kind()) {
-        (left_kind, right_kind) if is_punctuation_kind(left_kind) && is_punctuation_kind(right_kind) => {
+        (left_kind, right_kind)
+            if is_punctuation_kind(left_kind) && is_punctuation_kind(right_kind) =>
+        {
             static PLUS_TOKENS: [&str; 2] = ["+", "++"];
             static MINUS_TOKENS: [&str; 2] = ["-", "--"];
 
@@ -698,7 +704,11 @@ pub fn can_tokens_be_adjacent(
                 || MINUS_TOKENS.contains(&left_kind) && MINUS_TOKENS.contains(&right_kind))
         }
         ("/", right_kind) => ![Comment, kind::Regex].contains(&right_kind),
-        (left_kind, right_kind) if is_punctuation_kind(left_kind) || is_punctuation_kind(right_kind) => true,
+        (left_kind, right_kind)
+            if is_punctuation_kind(left_kind) || is_punctuation_kind(right_kind) =>
+        {
+            true
+        }
         (kind::String | TemplateString, _) | (_, kind::String | TemplateString) => true,
         (left_kind, kind::Number)
             if left_kind != kind::Number && right_value.text(context).starts_with('.') =>

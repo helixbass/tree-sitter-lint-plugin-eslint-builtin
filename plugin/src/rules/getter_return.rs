@@ -25,7 +25,7 @@ fn is_getter(node: Node, context: &QueryMatchContext) -> bool {
     if node.field("body").kind() != StatementBlock {
         return false;
     }
-    if node.kind() == MethodDefinition && node.has_child_of_kind("get") {
+    if node.kind() == MethodDefinition && node.has_child_of_kinds(&["get", "static get"]) {
         return true;
     }
     let parent = node.parent().unwrap();
@@ -200,13 +200,12 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::CodePathAnalyzerInstanceProviderFactory;
-
-    use super::*;
-
     use tree_sitter_lint::{
         rule_tests, serde_json::json, RuleTestExpectedErrorBuilder, RuleTester,
     };
+
+    use super::*;
+    use crate::CodePathAnalyzerInstanceProviderFactory;
 
     fn expected_error_builder() -> RuleTestExpectedErrorBuilder {
         RuleTestExpectedErrorBuilder::default()
@@ -387,18 +386,17 @@ mod tests {
                                 .unwrap()
                         ]
                     },
-                    // TODO: this isn't parsing correctly per https://github.com/tree-sitter/tree-sitter-javascript/issues/262
-                    // {
-                    //     code => "var foo = class {\n  static get\nbar(){} }",
-                    //     errors => [{
-                    //         message_id => "expected",
-                    //         data => { name => "static getter 'bar'" },
-                    //         line => 2,
-                    //         column => 3,
-                    //         end_line => 3,
-                    //         end_column => 4
-                    //     }]
-                    // },
+                    {
+                        code => "var foo = class {\n  static get\nbar(){} }",
+                        errors => [{
+                            message_id => "expected",
+                            data => { name => "static getter 'bar'" },
+                            line => 2,
+                            column => 3,
+                            end_line => 3,
+                            end_column => 4
+                        }]
+                    },
                     { code => "class foo { get bar(){ if (baz) { return true; }}}", errors => [expected_always_error] },
                     { code => "class foo { get bar(){ ~function () { return true; }()}}", errors => [expected_error] },
 
