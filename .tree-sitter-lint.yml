@@ -85,5 +85,8 @@ rules:
         trace:
           module: tracing
           kind: macro
+        run_once:
+          module: squalid
+          kind: macro
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

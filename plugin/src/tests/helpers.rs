@@ -1,3 +1,4 @@
+use squalid::run_once;
 use tree_sitter_lint::{
     tree_sitter::{Parser, Tree},
     tree_sitter_grep::SupportedLanguage,
@@ -12,5 +13,7 @@ pub fn parse(source_text: &str) -> Tree {
 }
 
 pub fn tracing_subscribe() {
-    tracing_subscriber::fmt::init();
+    run_once! {
+        tracing_subscriber::fmt::init();
+    }
 }

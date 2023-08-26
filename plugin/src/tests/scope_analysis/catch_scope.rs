@@ -9,12 +9,14 @@ use crate::{
 };
 
 #[test]
-fn test_arguments_are_correctly_materialized() {
+fn test_creates_scope() {
     tracing_subscribe();
 
     let code = "
         (function () {
-            arguments;
+            try {
+            } catch (e) {
+            }
         }());
     ";
     let ast = parse(code);
@@ -22,7 +24,7 @@ fn test_arguments_are_correctly_materialized() {
     let scope_manager = analyze(&ast, code, Default::default());
 
     let scopes = scope_manager.scopes().collect_vec();
-    assert_that(&scopes).has_length(2);
+    assert_that(&scopes).has_length(3);
     let global_scope = &scopes[0];
 
     assert_that(&global_scope.type_()).is_equal_to(ScopeType::Global);
@@ -35,8 +37,16 @@ fn test_arguments_are_correctly_materialized() {
     let variables = scope.variables().collect_vec();
     assert_that(&variables).has_length(1);
     assert_that(&variables[0].name()).is_equal_to("arguments");
+    assert_that(&scope.is_arguments_materialized()).is_false();
+    let references = scope.references().collect_vec();
+    assert_that(&references).is_empty();
+
+    let scope = &scopes[2];
+    assert_that(&scope.type_()).is_equal_to(ScopeType::Catch);
+    let variables = scope.variables().collect_vec();
+    assert_that(&variables).has_length(1);
+    assert_that(&variables[0].name()).is_equal_to("e");
     assert_that(&scope.is_arguments_materialized()).is_true();
     let references = scope.references().collect_vec();
-    assert_that(&references).has_length(1);
-    assert_that(&references[0].resolved().as_ref()).is_equal_to(Some(&variables[0]));
+    assert_that(&references).is_empty();
 }

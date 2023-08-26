@@ -774,7 +774,7 @@ impl<'a> _Scope<'a> {
                 (&variable_arena[variable])
                     .thrush(|variable| variable.tainted || !variable.references.is_empty())
             }
-            _ => false,
+            _ => true,
         }
     }
 
