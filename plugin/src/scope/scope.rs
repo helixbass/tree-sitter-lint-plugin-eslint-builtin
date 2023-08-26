@@ -1,4 +1,8 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashMap};
+use std::{
+    borrow::Cow,
+    cell::{Ref, RefCell},
+    collections::HashMap,
+};
 
 use id_arena::{Arena, Id};
 use itertools::Itertools;
@@ -14,7 +18,7 @@ use super::{
     reference::{ReadWriteFlags, Reference},
     referencer::PatternAndNode,
     scope_manager::{NodeId, ScopeManager},
-    variable::{Variable, VariableType},
+    variable::{Variable, VariableType, _Variable},
 };
 use crate::{
     ast_helpers::maybe_get_directive,
@@ -23,9 +27,9 @@ use crate::{
 };
 
 fn is_strict_scope<'a>(
-    arena: &Arena<Scope>,
+    arena: &Arena<_Scope>,
     source_text_provider: &impl SourceTextProvider<'a>,
-    scope_upper: Option<Id<Scope>>,
+    scope_upper: Option<Id<_Scope>>,
     scope_type: ScopeType,
     block: Node,
     is_method_definition: bool,
@@ -69,7 +73,7 @@ fn is_strict_scope<'a>(
         })
 }
 
-fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<Scope<'a>>) {
+fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<_Scope<'a>>) {
     scope_manager.scopes.push(scope);
 
     scope_manager
@@ -85,18 +89,18 @@ fn should_be_statically(arena: &Arena<Definition>, def: Id<Definition>) -> bool 
             && arena[def].parent().unwrap().field("kind").kind() != "var"
 }
 
-pub enum Scope<'a> {
+pub enum _Scope<'a> {
     Base(ScopeBase<'a>),
     Global(GlobalScope<'a>),
     Function(FunctionScope<'a>),
     With(WithScope<'a>),
 }
 
-impl<'a> Scope<'a> {
+impl<'a> _Scope<'a> {
     fn _new(
         scope_manager: &mut ScopeManager<'a>,
         type_: ScopeType,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
         is_method_definition: bool,
         create_from_base: impl Fn(ScopeBase<'a>, &ScopeManager<'a>) -> Self,
@@ -168,7 +172,7 @@ impl<'a> Scope<'a> {
     pub fn new_base(
         scope_manager: &mut ScopeManager<'a>,
         type_: ScopeType,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
         is_method_definition: bool,
     ) -> Id<Self> {
@@ -195,7 +199,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_module_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Module, upper_scope, block, false)
@@ -203,7 +207,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_function_expression_name_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         let ret = Self::_new(
@@ -239,7 +243,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_catch_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Catch, upper_scope, block, false)
@@ -247,7 +251,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_with_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::_new(
@@ -262,7 +266,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_block_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Block, upper_scope, block, false)
@@ -270,7 +274,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_switch_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Switch, upper_scope, block, false)
@@ -278,7 +282,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_function_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
         is_method_definition: bool,
     ) -> Id<Self> {
@@ -301,7 +305,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_for_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::For, upper_scope, block, false)
@@ -309,7 +313,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_class_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(scope_manager, ScopeType::Class, upper_scope, block, false)
@@ -317,7 +321,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_class_field_initializer_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(
@@ -331,7 +335,7 @@ impl<'a> Scope<'a> {
 
     pub fn new_class_static_block_scope(
         scope_manager: &mut ScopeManager<'a>,
-        upper_scope: Option<Id<Scope<'a>>>,
+        upper_scope: Option<Id<_Scope<'a>>>,
         block: Node<'a>,
     ) -> Id<Self> {
         Self::new_base(
@@ -350,7 +354,7 @@ impl<'a> Scope<'a> {
     fn __should_statically_close_for_global(
         &self,
         reference_arena: &Arena<Reference<'a>>,
-        variable_arena: &Arena<Variable<'a>>,
+        variable_arena: &Arena<_Variable<'a>>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<Reference<'a>>,
@@ -371,7 +375,7 @@ impl<'a> Scope<'a> {
     fn __static_close_ref(
         self_: Id<Self>,
         reference_arena: &mut Arena<Reference<'a>>,
-        variable_arena: &mut Arena<Variable<'a>>,
+        variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
@@ -402,7 +406,7 @@ impl<'a> Scope<'a> {
     fn __global_close_ref(
         self_: Id<Self>,
         reference_arena: &mut Arena<Reference<'a>>,
-        variable_arena: &mut Arena<Variable<'a>>,
+        variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
@@ -544,11 +548,11 @@ impl<'a> Scope<'a> {
 
     fn __is_valid_resolution(
         &self,
-        variable_arena: &Arena<Variable<'a>>,
+        variable_arena: &Arena<_Variable<'a>>,
         reference_arena: &Arena<Reference<'a>>,
         definition_arena: &Arena<Definition<'a>>,
         ref_: Id<Reference<'a>>,
-        variable: Id<Variable<'a>>,
+        variable: Id<_Variable<'a>>,
     ) -> bool {
         match self {
             Self::Function(_) => {
@@ -572,7 +576,7 @@ impl<'a> Scope<'a> {
     fn __resolve(
         self_: Id<Self>,
         reference_arena: &mut Arena<Reference<'a>>,
-        variable_arena: &mut Arena<Variable<'a>>,
+        variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
@@ -623,8 +627,8 @@ impl<'a> Scope<'a> {
 
     fn __add_declared_variables_of_node(
         &self,
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable: Id<Variable<'a>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable: Id<_Variable<'a>>,
         node: Option<Node>,
     ) {
         self.base()
@@ -634,12 +638,12 @@ impl<'a> Scope<'a> {
     #[allow(clippy::too_many_arguments)]
     fn __define_generic(
         &mut self,
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         name: Cow<'a, str>,
         set: Option<&mut Set<'a>>,
-        variables: Option<&mut Vec<Id<Variable<'a>>>>,
+        variables: Option<&mut Vec<Id<_Variable<'a>>>>,
         node: Option<Node<'a>>,
         def: Option<Id<Definition<'a>>>,
     ) {
@@ -657,8 +661,8 @@ impl<'a> Scope<'a> {
 
     pub fn __define(
         &mut self,
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         node: Node<'a>,
@@ -750,7 +754,7 @@ impl<'a> Scope<'a> {
         !self.dynamic()
     }
 
-    pub fn is_arguments_materialized(&self, variable_arena: &Arena<Variable<'a>>) -> bool {
+    pub fn is_arguments_materialized(&self, variable_arena: &Arena<_Variable<'a>>) -> bool {
         match self {
             Self::Function(_) => {
                 if self.block().kind() == ArrowFunction {
@@ -878,19 +882,19 @@ impl<'a> Scope<'a> {
 
     fn base(&self) -> &ScopeBase<'a> {
         match self {
-            Scope::Base(value) => value,
-            Scope::Global(value) => &value.base,
-            Scope::Function(value) => &value.base,
-            Scope::With(value) => &value.base,
+            _Scope::Base(value) => value,
+            _Scope::Global(value) => &value.base,
+            _Scope::Function(value) => &value.base,
+            _Scope::With(value) => &value.base,
         }
     }
 
     fn base_mut(&mut self) -> &mut ScopeBase<'a> {
         match self {
-            Scope::Base(value) => value,
-            Scope::Global(value) => &mut value.base,
-            Scope::Function(value) => &mut value.base,
-            Scope::With(value) => &mut value.base,
+            _Scope::Base(value) => value,
+            _Scope::Global(value) => &mut value.base,
+            _Scope::Function(value) => &mut value.base,
+            _Scope::With(value) => &mut value.base,
         }
     }
 
@@ -919,6 +923,32 @@ impl<'a> Scope<'a> {
     }
 }
 
+pub struct Scope<'a, 'b> {
+    scope: Ref<'b, _Scope<'a>>,
+    scope_manager: &'b ScopeManager<'a>,
+}
+
+impl<'a, 'b> Scope<'a, 'b> {
+    pub fn new(scope: Ref<'b, _Scope<'a>>, scope_manager: &'b ScopeManager<'a>) -> Self {
+        Self {
+            scope,
+            scope_manager,
+        }
+    }
+
+    pub fn type_(&self) -> ScopeType {
+        self.scope.type_()
+    }
+
+    pub fn variables(&self) -> impl Iterator<Item = Variable<'a, 'b>> + '_ {
+        self.scope
+            .base()
+            .variables
+            .iter()
+            .map(|variable| self.scope_manager.borrow_variable(*variable))
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ScopeType {
     Global,
@@ -935,33 +965,33 @@ pub enum ScopeType {
     ClassStaticBlock,
 }
 
-type Set<'a> = HashMap<Cow<'a, str>, Id<Variable<'a>>>;
+type Set<'a> = HashMap<Cow<'a, str>, Id<_Variable<'a>>>;
 
 pub struct ScopeBase<'a> {
-    id: Id<Scope<'a>>,
+    id: Id<_Scope<'a>>,
     type_: ScopeType,
     set: Set<'a>,
     taints: HashMap<String, bool>,
     dynamic: bool,
     block: Node<'a>,
     through: Vec<Id<Reference<'a>>>,
-    variables: Vec<Id<Variable<'a>>>,
+    variables: Vec<Id<_Variable<'a>>>,
     references: Vec<Id<Reference<'a>>>,
-    variable_scope: Id<Scope<'a>>,
+    variable_scope: Id<_Scope<'a>>,
     function_expression_scope: bool,
     direct_call_to_eval_scope: bool,
     this_found: bool,
     __left: Option<Vec<Id<Reference<'a>>>>,
-    upper: Option<Id<Scope<'a>>>,
+    upper: Option<Id<_Scope<'a>>>,
     is_strict: bool,
-    child_scopes: Vec<Id<Scope<'a>>>,
+    child_scopes: Vec<Id<_Scope<'a>>>,
 }
 
 impl<'a> ScopeBase<'a> {
     fn __add_declared_variables_of_node(
         &self,
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable: Id<Variable<'a>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable: Id<_Variable<'a>>,
         node: Option<Node>,
     ) {
         let node = return_if_none!(node);
@@ -975,12 +1005,12 @@ impl<'a> ScopeBase<'a> {
     #[allow(clippy::too_many_arguments)]
     fn __define_generic(
         &mut self,
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         name: Cow<'a, str>,
         set: Option<&mut Set<'a>>,
-        variables: Option<&mut Vec<Id<Variable<'a>>>>,
+        variables: Option<&mut Vec<Id<_Variable<'a>>>>,
         node: Option<Node<'a>>,
         def: Option<Id<Definition<'a>>>,
     ) {
@@ -991,7 +1021,7 @@ impl<'a> ScopeBase<'a> {
             .entry(name.clone())
             .or_insert_with(|| {
                 did_insert = true;
-                Variable::new(&mut variable_arena.borrow_mut(), name, id)
+                _Variable::new(&mut variable_arena.borrow_mut(), name, id)
             });
         if did_insert {
             variables.unwrap_or(&mut self.variables).push(variable);
@@ -1009,7 +1039,7 @@ impl<'a> ScopeBase<'a> {
         }
     }
 
-    fn id(&self) -> Id<Scope<'a>> {
+    fn id(&self) -> Id<_Scope<'a>> {
         self.id
     }
 }
@@ -1031,7 +1061,7 @@ impl<'a> GlobalScope<'a> {
 #[derive(Default)]
 pub struct GlobalScopeImplicit<'a> {
     set: Set<'a>,
-    variables: Vec<Id<Variable<'a>>>,
+    variables: Vec<Id<_Variable<'a>>>,
     left: Vec<Id<Reference<'a>>>,
 }
 
@@ -1041,8 +1071,8 @@ pub struct FunctionScope<'a> {
 
 impl<'a> FunctionScope<'a> {
     pub fn new(
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         base: ScopeBase<'a>,
     ) -> Self {
@@ -1055,8 +1085,8 @@ impl<'a> FunctionScope<'a> {
 
     fn __define_arguments(
         &mut self,
-        __declared_variables: &mut HashMap<NodeId, Vec<Id<Variable<'a>>>>,
-        variable_arena: &RefCell<Arena<Variable<'a>>>,
+        __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
+        variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
     ) {
         self.base.__define_generic(

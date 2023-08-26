@@ -17,8 +17,8 @@ use tree_sitter_lint::{
 use super::{
     analyze,
     arena::AllArenas,
-    scope::{Scope, ScopeType},
-    variable::Variable,
+    scope::{_Scope, ScopeType, Scope},
+    variable::{_Variable, Variable},
 };
 
 pub type NodeId = usize;
@@ -59,12 +59,12 @@ impl Default for ScopeManagerOptions {
 }
 
 pub struct ScopeManager<'a> {
-    pub scopes: Vec<Id<Scope<'a>>>,
-    global_scope: Option<Id<Scope<'a>>>,
-    pub __node_to_scope: HashMap<NodeId, Vec<Id<Scope<'a>>>>,
-    pub __current_scope: Option<Id<Scope<'a>>>,
+    pub scopes: Vec<Id<_Scope<'a>>>,
+    global_scope: Option<Id<_Scope<'a>>>,
+    pub __node_to_scope: HashMap<NodeId, Vec<Id<_Scope<'a>>>>,
+    pub __current_scope: Option<Id<_Scope<'a>>>,
     pub arena: AllArenas<'a>,
-    pub __declared_variables: RefCell<HashMap<NodeId, Vec<Id<Variable<'a>>>>>,
+    pub __declared_variables: RefCell<HashMap<NodeId, Vec<Id<_Variable<'a>>>>>,
     pub source_text: RopeOrSlice<'a>,
     __options: ScopeManagerOptions,
 }
@@ -107,15 +107,15 @@ impl<'a> ScopeManager<'a> {
         self.__options.ecma_version >= 5
     }
 
-    pub fn __get(&self, node: Node) -> Option<&Vec<Id<Scope<'a>>>> {
+    pub fn __get(&self, node: Node) -> Option<&Vec<Id<_Scope<'a>>>> {
         self.__node_to_scope.get(&node.id())
     }
 
-    pub fn get_declared_variables(&self, node: Node) -> Option<Vec<Id<Variable<'a>>>> {
+    pub fn get_declared_variables(&self, node: Node) -> Option<Vec<Id<_Variable<'a>>>> {
         self.__declared_variables.borrow().get(&node.id()).cloned()
     }
 
-    pub fn acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<Scope<'a>>> {
+    pub fn acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
         let scopes = self.__get(node).non_empty()?;
 
         if scopes.len() == 1 {
@@ -135,18 +135,18 @@ impl<'a> ScopeManager<'a> {
         .copied()
     }
 
-    pub fn acquire_all(&self, node: Node) -> Option<&Vec<Id<Scope<'a>>>> {
+    pub fn acquire_all(&self, node: Node) -> Option<&Vec<Id<_Scope<'a>>>> {
         self.__get(node)
     }
 
-    pub fn release(&self, node: Node, inner: Option<bool>) -> Option<Id<Scope<'a>>> {
+    pub fn release(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
         let scopes = self.__get(node).non_empty()?;
 
         let scope = self.arena.scopes.borrow()[scopes[0]].maybe_upper()?;
         self.acquire(self.arena.scopes.borrow()[scope].block(), inner)
     }
 
-    fn __nest_scope(&mut self, scope: Id<Scope<'a>>) -> Id<Scope<'a>> {
+    fn __nest_scope(&mut self, scope: Id<_Scope<'a>>) -> Id<_Scope<'a>> {
         if self.arena.scopes.borrow()[scope].type_() == ScopeType::Global {
             assert!(self.__current_scope.is_none());
             self.global_scope = Some(scope);
@@ -155,13 +155,13 @@ impl<'a> ScopeManager<'a> {
         scope
     }
 
-    pub fn __nest_global_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_global_scope(self, node);
+    pub fn __nest_global_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_global_scope(self, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_block_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_block_scope(self, self.__current_scope, node);
+    pub fn __nest_block_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_block_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
@@ -169,54 +169,54 @@ impl<'a> ScopeManager<'a> {
         &mut self,
         node: Node<'a>,
         is_method_definition: bool,
-    ) -> Id<Scope<'a>> {
+    ) -> Id<_Scope<'a>> {
         let scope =
-            Scope::new_function_scope(self, self.__current_scope, node, is_method_definition);
+            _Scope::new_function_scope(self, self.__current_scope, node, is_method_definition);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_for_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_for_scope(self, self.__current_scope, node);
+    pub fn __nest_for_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_for_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_catch_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_catch_scope(self, self.__current_scope, node);
+    pub fn __nest_catch_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_catch_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_with_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_with_scope(self, self.__current_scope, node);
+    pub fn __nest_with_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_with_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_class_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_class_scope(self, self.__current_scope, node);
+    pub fn __nest_class_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_class_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_class_field_initializer_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_class_field_initializer_scope(self, self.__current_scope, node);
+    pub fn __nest_class_field_initializer_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_class_field_initializer_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_class_static_block_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_class_static_block_scope(self, self.__current_scope, node);
+    pub fn __nest_class_static_block_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_class_static_block_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_switch_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_switch_scope(self, self.__current_scope, node);
+    pub fn __nest_switch_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_switch_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_module_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_module_scope(self, self.__current_scope, node);
+    pub fn __nest_module_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_module_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
-    pub fn __nest_function_expression_name_scope(&mut self, node: Node<'a>) -> Id<Scope<'a>> {
-        let scope = Scope::new_function_expression_name_scope(self, self.__current_scope, node);
+    pub fn __nest_function_expression_name_scope(&mut self, node: Node<'a>) -> Id<_Scope<'a>> {
+        let scope = _Scope::new_function_expression_name_scope(self, self.__current_scope, node);
         self.__nest_scope(scope)
     }
 
@@ -224,7 +224,7 @@ impl<'a> ScopeManager<'a> {
         self.__options.ecma_version >= 6
     }
 
-    pub fn maybe_current_scope(&self) -> Option<Ref<Scope<'a>>> {
+    pub fn maybe_current_scope(&self) -> Option<Ref<_Scope<'a>>> {
         self.__current_scope.map(|__current_scope| {
             Ref::map(self.arena.scopes.borrow(), |scopes| {
                 scopes.get(__current_scope).unwrap()
@@ -232,7 +232,7 @@ impl<'a> ScopeManager<'a> {
         })
     }
 
-    pub fn maybe_current_scope_mut(&self) -> Option<RefMut<Scope<'a>>> {
+    pub fn maybe_current_scope_mut(&self) -> Option<RefMut<_Scope<'a>>> {
         self.__current_scope.map(|__current_scope| {
             RefMut::map(self.arena.scopes.borrow_mut(), |scopes| {
                 scopes.get_mut(__current_scope).unwrap()
@@ -240,12 +240,30 @@ impl<'a> ScopeManager<'a> {
         })
     }
 
-    pub fn __current_scope(&self) -> Ref<Scope<'a>> {
+    pub fn __current_scope(&self) -> Ref<_Scope<'a>> {
         self.maybe_current_scope().unwrap()
     }
 
-    pub fn __current_scope_mut(&self) -> RefMut<Scope<'a>> {
+    pub fn __current_scope_mut(&self) -> RefMut<_Scope<'a>> {
         self.maybe_current_scope_mut().unwrap()
+    }
+
+    pub(crate) fn borrow_scope<'b>(&'b self, scope: Id<_Scope<'a>>) -> Scope<'a, 'b> {
+        Scope::new(
+            Ref::map(self.arena.scopes.borrow(), |scopes| &scopes[scope]),
+            self
+        )
+    }
+
+    pub fn scopes<'b>(&'b self) -> impl Iterator<Item = Scope<'a, 'b>> {
+        self.scopes.iter().map(|scope| self.borrow_scope(*scope))
+    }
+
+    pub(crate) fn borrow_variable<'b>(&'b self, variable: Id<_Variable<'a>>) -> Variable<'a, 'b> {
+        Variable::new(
+            Ref::map(self.arena.variables.borrow(), |variables| &variables[variable]),
+            self
+        )
     }
 }
 

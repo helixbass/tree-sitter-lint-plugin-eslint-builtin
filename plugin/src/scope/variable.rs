@@ -1,22 +1,22 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, cell::Ref};
 
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{definition::Definition, reference::Reference, scope::Scope};
+use super::{definition::Definition, reference::Reference, scope::_Scope, ScopeManager};
 
-pub struct Variable<'a> {
+pub struct _Variable<'a> {
     pub name: Cow<'a, str>,
     pub identifiers: Vec<Node<'a>>,
     pub references: Vec<Id<Reference<'a>>>,
     pub defs: Vec<Id<Definition<'a>>>,
     pub tainted: bool,
     pub stack: bool,
-    pub scope: Id<Scope<'a>>,
+    pub scope: Id<_Scope<'a>>,
 }
 
-impl<'a> Variable<'a> {
-    pub fn new(arena: &mut Arena<Self>, name: Cow<'a, str>, scope: Id<Scope<'a>>) -> Id<Self> {
+impl<'a> _Variable<'a> {
+    pub fn new(arena: &mut Arena<Self>, name: Cow<'a, str>, scope: Id<_Scope<'a>>) -> Id<Self> {
         arena.alloc(Self {
             name,
             identifiers: Default::default(),
@@ -26,6 +26,20 @@ impl<'a> Variable<'a> {
             stack: true,
             scope,
         })
+    }
+}
+
+pub struct Variable<'a, 'b> {
+    variable: Ref<'b, _Variable<'a>>,
+    scope_manager: &'b ScopeManager<'a>,
+}
+
+impl<'a, 'b> Variable<'a, 'b> {
+    pub fn new(variable: Ref<'b, _Variable<'a>>, scope_manager: &'b ScopeManager<'a>) -> Self {
+        Self {
+            variable,
+            scope_manager,
+        }
     }
 }
 

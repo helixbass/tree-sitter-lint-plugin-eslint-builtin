@@ -8,7 +8,7 @@ mod directives;
 mod kind;
 mod macros;
 mod rules;
-mod scope;
+pub mod scope;
 mod string_utils;
 #[cfg(test)]
 mod tests;
@@ -37,7 +37,7 @@ use rules::{
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, yield_star_spacing_rule,
 };
-pub use scope::ScopeManager;
+use scope::ScopeManager;
 pub use visit::Visit;
 
 pub type ProvidedTypes<'a> = (CodePathAnalyzer<'a>, ScopeManager<'a>);

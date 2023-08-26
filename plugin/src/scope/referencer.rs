@@ -14,7 +14,7 @@ use super::{
     definition::Definition,
     pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
     reference::ReadWriteFlags,
-    scope::Scope,
+    scope::_Scope,
     scope_manager::{ScopeManager, ScopeManagerOptions},
     variable::VariableType,
 };
@@ -125,15 +125,15 @@ impl<'a, 'b> Referencer<'a, 'b> {
         }
     }
 
-    fn current_scope(&self) -> Ref<Scope<'a>> {
+    fn current_scope(&self) -> Ref<_Scope<'a>> {
         self.scope_manager.__current_scope()
     }
 
-    fn maybe_current_scope(&self) -> Option<Ref<Scope<'a>>> {
+    fn maybe_current_scope(&self) -> Option<Ref<_Scope<'a>>> {
         self.scope_manager.maybe_current_scope()
     }
 
-    fn current_scope_mut(&self) -> RefMut<Scope<'a>> {
+    fn current_scope_mut(&self) -> RefMut<_Scope<'a>> {
         self.scope_manager.__current_scope_mut()
     }
 
@@ -142,7 +142,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
             self.maybe_current_scope(),
             Some(current_scope) if node == current_scope.block()
         ) {
-            let closed = Scope::__close(
+            let closed = _Scope::__close(
                 self.scope_manager.__current_scope.unwrap(),
                 self.scope_manager,
             );
@@ -324,7 +324,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
 
     fn _visit_variable_declaration(
         &mut self,
-        variable_target_scope: Id<Scope<'a>>,
+        variable_target_scope: Id<_Scope<'a>>,
         type_: VariableType,
         node: Node<'a>,
         index: usize,
@@ -631,7 +631,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             && self.node_text(callee) == "eval"
         {
             let variable_scope = self.current_scope().variable_scope();
-            Scope::__detect_eval(
+            _Scope::__detect_eval(
                 variable_scope,
                 &mut self.scope_manager.arena.scopes.borrow_mut(),
             );

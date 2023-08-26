@@ -1,3 +1,8 @@
+
+use tree_sitter_lint::{tree_sitter::Tree, tree_sitter_grep::RopeOrSlice};
+
+use crate::visit::Visit;
+
 mod arena;
 mod definition;
 mod pattern_visitor;
@@ -8,11 +13,8 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
-pub use scope_manager::ScopeManager;
-use tree_sitter_lint::{tree_sitter::Tree, tree_sitter_grep::RopeOrSlice};
-
-use self::scope_manager::ScopeManagerOptions;
-use crate::visit::Visit;
+pub use scope_manager::{ScopeManager, ScopeManagerOptions};
+pub use scope::ScopeType;
 
 pub fn analyze<'a>(
     tree: &'a Tree,

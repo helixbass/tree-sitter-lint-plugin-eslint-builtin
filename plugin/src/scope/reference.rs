@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{arena::AllArenas, referencer::PatternAndNode, scope::Scope, variable::Variable};
+use super::{arena::AllArenas, referencer::PatternAndNode, scope::_Scope, variable::_Variable};
 
 bitflags! {
     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -17,9 +17,9 @@ bitflags! {
 
 pub struct Reference<'a> {
     pub identifier: Node<'a>,
-    pub from: Id<Scope<'a>>,
+    pub from: Id<_Scope<'a>>,
     pub tainted: bool,
-    pub resolved: Option<Id<Variable<'a>>>,
+    pub resolved: Option<Id<_Variable<'a>>>,
     flag: ReadWriteFlags,
     pub write_expr: Option<Node<'a>>,
     pub partial: bool,
@@ -32,7 +32,7 @@ impl<'a> Reference<'a> {
     pub fn new(
         arena: &mut Arena<Self>,
         ident: Node<'a>,
-        scope: Id<Scope<'a>>,
+        scope: Id<_Scope<'a>>,
         flag: ReadWriteFlags,
         write_expr: Option<Node<'a>>,
         maybe_implicit_global: Option<PatternAndNode<'a>>,
