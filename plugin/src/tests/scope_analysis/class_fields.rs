@@ -125,3 +125,116 @@ fn test_class_c_hash_f_equals_g() {
 
     assert_that(&field_initializer_scope.variables().collect_vec()).is_empty();
 }
+
+#[test]
+fn test_class_c_fname() {
+    tracing_subscribe();
+
+    let code = "class C { [fname] }";
+    let ast = parse(code);
+
+    let manager = analyze(
+        &ast,
+        code,
+        ScopeManagerOptionsBuilder::default()
+            .ecma_version(13)
+            .build()
+            .unwrap(),
+    );
+
+    let scopes = manager.global_scope().child_scopes().collect_vec();
+
+    assert_that(&scopes).has_length(1);
+    let class_scope = &scopes[0];
+    assert_that(&class_scope.type_()).is_equal_to(ScopeType::Class);
+
+    let references = class_scope.references().collect_vec();
+    assert_that(&references).has_length(1);
+    assert_that(&&*references[0].identifier().text(&manager)).is_equal_to("fname");
+
+    assert_that(&class_scope.child_scopes().collect_vec()).is_empty();
+}
+
+#[test]
+fn test_class_c_fname_equals_value() {
+    tracing_subscribe();
+
+    let code = "class C { [fname] = value }";
+    let ast = parse(code);
+
+    let manager = analyze(
+        &ast,
+        code,
+        ScopeManagerOptionsBuilder::default()
+            .ecma_version(13)
+            .build()
+            .unwrap(),
+    );
+
+    let scopes = manager.global_scope().child_scopes().collect_vec();
+
+    assert_that(&scopes).has_length(1);
+    let class_scope = &scopes[0];
+    assert_that(&class_scope.type_()).is_equal_to(ScopeType::Class);
+
+    let references = class_scope.references().collect_vec();
+    assert_that(&references).has_length(1);
+    assert_that(&&*references[0].identifier().text(&manager)).is_equal_to("fname");
+
+    let child_scopes = class_scope.child_scopes().collect_vec();
+    assert_that(&child_scopes).has_length(1);
+    let field_initializer_scope = &child_scopes[0];
+    assert_that(&field_initializer_scope.type_()).is_equal_to(ScopeType::ClassFieldInitializer);
+
+    let field_initializer_scope_references = field_initializer_scope.references().collect_vec();
+    assert_that(&field_initializer_scope_references).has_length(1);
+    assert_that(&&*field_initializer_scope_references[0].identifier().text(&manager)).is_equal_to("value");
+
+    assert_that(&field_initializer_scope.variables().collect_vec()).is_empty();
+}
+
+#[test]
+fn test_class_c_f_equals_g_e_equals_this_f() {
+    tracing_subscribe();
+
+    let code = "class C { #f = g; e = this.#f }";
+    let ast = parse(code);
+
+    let manager = analyze(
+        &ast,
+        code,
+        ScopeManagerOptionsBuilder::default()
+            .ecma_version(13)
+            .build()
+            .unwrap(),
+    );
+
+    let scopes = manager.global_scope().child_scopes().collect_vec();
+
+    assert_that(&scopes).has_length(1);
+    let class_scope = &scopes[0];
+    assert_that(&class_scope.type_()).is_equal_to(ScopeType::Class);
+
+    assert_that(&class_scope.references().collect_vec()).is_empty();
+
+    let variables = class_scope.variables().collect_vec();
+    assert_that(&variables).has_length(1);
+    assert_that(&variables[0].name()).is_equal_to("C");
+
+    let child_scopes = class_scope.child_scopes().collect_vec();
+    assert_that(&child_scopes).has_length(2);
+    let first_field_initializer_scope = &child_scopes[0];
+    let second_field_initializer_scope = &child_scopes[1];
+    assert_that(&first_field_initializer_scope.type_()).is_equal_to(ScopeType::ClassFieldInitializer);
+    assert_that(&second_field_initializer_scope.type_()).is_equal_to(ScopeType::ClassFieldInitializer);
+
+    let first_field_initializer_scope_references = first_field_initializer_scope.references().collect_vec();
+    assert_that(&first_field_initializer_scope_references).has_length(1);
+    assert_that(&&*first_field_initializer_scope_references[0].identifier().text(&manager)).is_equal_to("g");
+
+    assert_that(&first_field_initializer_scope.variables().collect_vec()).is_empty();
+
+    assert_that(&second_field_initializer_scope.references().collect_vec()).is_empty();
+
+    assert_that(&second_field_initializer_scope.variables().collect_vec()).is_empty();
+}
