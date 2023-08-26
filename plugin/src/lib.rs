@@ -10,6 +10,8 @@ mod macros;
 mod rules;
 mod scope;
 mod string_utils;
+#[cfg(test)]
+mod tests;
 mod utils;
 mod visit;
 

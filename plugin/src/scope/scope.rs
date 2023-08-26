@@ -111,6 +111,18 @@ impl<'a> Scope<'a> {
                 | ScopeType::ClassStaticBlock => None,
                 _ => Some(arena.get(upper_scope.unwrap()).unwrap().variable_scope()),
             };
+            let is_strict = if scope_manager.is_strict_mode_supported() {
+                is_strict_scope(
+                    &arena,
+                    &*scope_manager,
+                    upper_scope,
+                    type_,
+                    block,
+                    is_method_definition,
+                )
+            } else {
+                false
+            };
             let id = arena.alloc_with_id(|id| {
                 create_from_base(
                     ScopeBase {
@@ -127,20 +139,9 @@ impl<'a> Scope<'a> {
                         function_expression_scope: Default::default(),
                         direct_call_to_eval_scope: Default::default(),
                         this_found: Default::default(),
-                        __left: Default::default(),
+                        __left: Some(Default::default()),
                         upper: upper_scope,
-                        is_strict: if scope_manager.is_strict_mode_supported() {
-                            is_strict_scope(
-                                &scope_manager.arena.scopes.borrow(),
-                                &*scope_manager,
-                                upper_scope,
-                                type_,
-                                block,
-                                is_method_definition,
-                            )
-                        } else {
-                            false
-                        },
+                        is_strict,
                         child_scopes: Default::default(),
                         // this.__declaredVariables = scopeManager.__declaredVariables
                     },

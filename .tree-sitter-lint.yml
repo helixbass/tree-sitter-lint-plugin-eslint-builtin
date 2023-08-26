@@ -73,5 +73,8 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        Tree:
+          module: tree_sitter_lint::tree_sitter
+          kind: type_identifier
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

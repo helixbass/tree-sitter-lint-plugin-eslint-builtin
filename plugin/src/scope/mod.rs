@@ -16,9 +16,11 @@ use crate::visit::Visit;
 
 pub fn analyze<'a>(
     tree: &'a Tree,
-    source_text: RopeOrSlice<'a>,
+    source_text: impl Into<RopeOrSlice<'a>>,
     options: ScopeManagerOptions,
 ) -> ScopeManager<'a> {
+    let source_text = source_text.into();
+
     let mut scope_manager = ScopeManager::new(source_text, options);
     let mut referencer = Referencer::new(options, &mut scope_manager);
 
