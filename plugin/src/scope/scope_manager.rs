@@ -280,6 +280,10 @@ impl<'a> ScopeManager<'a> {
             self,
         )
     }
+
+    pub fn global_scope<'b>(&'b self) -> Scope<'a, 'b> {
+        self.borrow_scope(self.global_scope.unwrap())
+    }
 }
 
 impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {

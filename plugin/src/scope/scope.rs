@@ -90,6 +90,7 @@ fn should_be_statically(arena: &Arena<Definition>, def: Id<Definition>) -> bool 
             && arena[def].parent().unwrap().field("kind").kind() != "var"
 }
 
+#[derive(Debug)]
 pub enum _Scope<'a> {
     Base(ScopeBase<'a>),
     Global(GlobalScope<'a>),
@@ -924,6 +925,7 @@ impl<'a> _Scope<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Scope<'a, 'b> {
     scope: Ref<'b, _Scope<'a>>,
     scope_manager: &'b ScopeManager<'a>,
@@ -959,7 +961,31 @@ impl<'a, 'b> Scope<'a, 'b> {
     pub fn is_arguments_materialized(&self) -> bool {
         self.scope.is_arguments_materialized(&self.scope_manager.arena.variables.borrow())
     }
+
+    pub fn child_scopes(&self) -> impl Iterator<Item = Scope<'a, 'b>> + '_ {
+        self.scope
+            .base()
+            .child_scopes
+            .iter()
+            .map(|scope| self.scope_manager.borrow_scope(*scope))
+    }
+
+    pub fn block(&self) -> Node<'a> {
+        self.scope.base().block
+    }
+
+    pub fn variable_scope(&self) -> Self {
+        self.scope_manager.borrow_scope(self.scope.base().variable_scope)
+    }
 }
+
+impl<'a, 'b> PartialEq for Scope<'a, 'b> {
+    fn eq(&self, other: &Self) -> bool {
+        self.scope.id() == other.scope.id()
+    }
+}
+
+impl<'a, 'b> Eq for Scope<'a, 'b> {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ScopeType {
@@ -979,6 +1005,7 @@ pub enum ScopeType {
 
 type Set<'a> = HashMap<Cow<'a, str>, Id<_Variable<'a>>>;
 
+#[derive(Debug)]
 pub struct ScopeBase<'a> {
     id: Id<_Scope<'a>>,
     type_: ScopeType,
@@ -1059,6 +1086,7 @@ impl<'a> ScopeBase<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct GlobalScope<'a> {
     base: ScopeBase<'a>,
     implicit: GlobalScopeImplicit<'a>,
@@ -1073,13 +1101,14 @@ impl<'a> GlobalScope<'a> {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct GlobalScopeImplicit<'a> {
     set: Set<'a>,
     variables: Vec<Id<_Variable<'a>>>,
     left: Vec<Id<_Reference<'a>>>,
 }
 
+#[derive(Debug)]
 pub struct FunctionScope<'a> {
     base: ScopeBase<'a>,
 }
@@ -1119,6 +1148,7 @@ impl<'a> FunctionScope<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct WithScope<'a> {
     base: ScopeBase<'a>,
 }

@@ -13,7 +13,7 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
-pub use scope_manager::{ScopeManager, ScopeManagerOptions};
+pub use scope_manager::{ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder};
 pub use scope::ScopeType;
 
 pub fn analyze<'a>(

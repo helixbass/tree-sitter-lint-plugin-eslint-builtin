@@ -115,4 +115,8 @@ impl<'a, 'b> Reference<'a, 'b> {
             self.scope_manager.borrow_variable(resolved)
         })
     }
+
+    pub fn identifier(&self) -> Node<'a> {
+        self.reference.identifier
+    }
 }

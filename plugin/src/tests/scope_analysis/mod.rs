@@ -2,3 +2,4 @@
 
 mod arguments;
 mod catch_scope;
+mod class_fields;
