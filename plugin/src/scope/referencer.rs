@@ -581,7 +581,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_class_static_block(&mut self, node: Node<'tree>) {
         self.scope_manager.__nest_class_static_block_scope(node);
 
-        visit_children(self, node);
+        visit_children(self, node.field("body"));
 
         self.close(node);
     }

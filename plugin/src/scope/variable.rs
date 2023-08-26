@@ -1,9 +1,9 @@
-use std::{borrow::Cow, cell::Ref};
+use std::{borrow::Cow, cell::Ref, hash};
 
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{definition::Definition, reference::_Reference, scope::_Scope, ScopeManager};
+use super::{definition::Definition, reference::_Reference, scope::{_Scope, Scope}, ScopeManager};
 
 #[derive(Debug)]
 pub struct _Variable<'a> {
@@ -49,6 +49,10 @@ impl<'a, 'b> Variable<'a, 'b> {
     pub fn name(&self) -> &str {
         &self.variable.name
     }
+
+    pub fn scope(&self) -> Scope<'a, 'b> {
+        self.scope_manager.borrow_scope(self.variable.scope)
+    }
 }
 
 impl<'a, 'b> PartialEq for Variable<'a, 'b> {
@@ -58,6 +62,12 @@ impl<'a, 'b> PartialEq for Variable<'a, 'b> {
 }
 
 impl<'a, 'b> Eq for Variable<'a, 'b> {}
+
+impl<'a, 'b> hash::Hash for Variable<'a, 'b> {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.variable.id.hash(state);
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VariableType {

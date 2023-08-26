@@ -977,6 +977,28 @@ impl<'a, 'b> Scope<'a, 'b> {
     pub fn variable_scope(&self) -> Self {
         self.scope_manager.borrow_scope(self.scope.base().variable_scope)
     }
+
+    pub fn maybe_upper(&self) -> Option<Self> {
+        self.scope.maybe_upper().map(|upper| self.scope_manager.borrow_scope(upper))
+    }
+
+    pub fn upper(&self) -> Self {
+        self.maybe_upper().unwrap()
+    }
+
+    pub fn is_strict(&self) -> bool {
+        self.scope.is_strict()
+    }
+
+    pub fn function_expression_scope(&self) -> bool {
+        self.scope.function_expression_scope()
+    }
+
+    pub fn set(&self) -> HashMap<Cow<'a, str>, Variable<'a, 'b>> {
+        self.scope.set().into_iter().map(|(key, value)| {
+            (key.clone(), self.scope_manager.borrow_variable(*value))
+        }).collect()
+    }
 }
 
 impl<'a, 'b> PartialEq for Scope<'a, 'b> {

@@ -112,11 +112,20 @@ impl<'a> ScopeManager<'a> {
         self.__node_to_scope.get(&node.id())
     }
 
-    pub fn get_declared_variables(&self, node: Node) -> Option<Vec<Id<_Variable<'a>>>> {
+    fn _get_declared_variables(&self, node: Node) -> Option<Vec<Id<_Variable<'a>>>> {
         self.__declared_variables.borrow().get(&node.id()).cloned()
     }
 
-    pub fn acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
+    pub fn get_declared_variables<'b>(&'b self, node: Node) -> Option<Vec<Variable<'a, 'b>>> {
+        self._get_declared_variables(node).map(|declared_variables| {
+            declared_variables
+                .into_iter()
+                .map(|variable| self.borrow_variable(variable))
+                .collect()
+        })
+    }
+
+    fn _acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
         let scopes = self.__get(node).non_empty()?;
 
         if scopes.len() == 1 {
@@ -136,15 +145,25 @@ impl<'a> ScopeManager<'a> {
         .copied()
     }
 
+    pub fn acquire<'b>(&'b self, node: Node, inner: Option<bool>) -> Option<Scope<'a, 'b>> {
+        self._acquire(node, inner)
+            .map(|scope| self.borrow_scope(scope))
+    }
+
     pub fn acquire_all(&self, node: Node) -> Option<&Vec<Id<_Scope<'a>>>> {
         self.__get(node)
     }
 
-    pub fn release(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
+    fn _release(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
         let scopes = self.__get(node).non_empty()?;
 
         let scope = self.arena.scopes.borrow()[scopes[0]].maybe_upper()?;
-        self.acquire(self.arena.scopes.borrow()[scope].block(), inner)
+        self._acquire(self.arena.scopes.borrow()[scope].block(), inner)
+    }
+
+    pub fn release<'b>(&'b self, node: Node, inner: Option<bool>) -> Option<Scope<'a, 'b>> {
+        self._release(node, inner)
+            .map(|scope| self.borrow_scope(scope))
     }
 
     fn __nest_scope(&mut self, scope: Id<_Scope<'a>>) -> Id<_Scope<'a>> {
