@@ -15,7 +15,7 @@ use super::{
     pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
     reference::ReadWriteFlags,
     scope::Scope,
-    scope_manager::ScopeManager,
+    scope_manager::{ScopeManager, ScopeManagerOptions},
     variable::VariableType,
 };
 use crate::{
@@ -32,17 +32,15 @@ use crate::{
 };
 
 fn traverse_identifier_in_pattern<'a, 'b>(
-    // options,
+    options: ScopeManagerOptions,
     root_pattern: Node<'a>,
     referencer: &mut Referencer<'a, 'b>,
     should_visit_referencer: bool,
-    mut callback: impl FnMut(&mut Referencer<'a, 'b>, Node<'a>, PatternInfo<'a>),
+    mut callback: impl FnMut(&mut Referencer<'a, 'b>, Node<'a>, PatternInfo<'a, '_>),
 ) {
-    let mut visitor = PatternVisitor::new(
-        // options,
-        root_pattern,
-        |node, pattern_info| callback(referencer, node, pattern_info),
-    );
+    let mut visitor = PatternVisitor::new(options, root_pattern, |node, pattern_info| {
+        callback(referencer, node, pattern_info)
+    });
 
     visitor.visit(root_pattern);
 
@@ -116,13 +114,15 @@ impl<'tree: 'a, 'a, 'b, 'c> Visit<'tree> for Importer<'a, 'b, 'c> {
 }
 
 pub struct Referencer<'a, 'b> {
+    options: ScopeManagerOptions,
     scope_manager: &'b mut ScopeManager<'a>,
     is_inner_method_definition: bool,
 }
 
 impl<'a, 'b> Referencer<'a, 'b> {
-    pub fn new(scope_manager: &'b mut ScopeManager<'a>) -> Self {
+    pub fn new(options: ScopeManagerOptions, scope_manager: &'b mut ScopeManager<'a>) -> Self {
         Self {
+            options,
             scope_manager,
             is_inner_method_definition: Default::default(),
         }
@@ -145,7 +145,10 @@ impl<'a, 'b> Referencer<'a, 'b> {
             self.maybe_current_scope(),
             Some(current_scope) if node == current_scope.block()
         ) {
-            let closed = Scope::__close(self.scope_manager.__current_scope.unwrap(), self.scope_manager);
+            let closed = Scope::__close(
+                self.scope_manager.__current_scope.unwrap(),
+                self.scope_manager,
+            );
             self.scope_manager.__current_scope = closed;
         }
     }
@@ -187,12 +190,12 @@ impl<'a, 'b> Referencer<'a, 'b> {
         &mut self,
         node: Node<'a>,
         options: Option<VisitPatternOptions>,
-        callback: impl FnMut(&mut Referencer<'a, 'b>, Node<'a>, PatternInfo<'a>),
+        callback: impl FnMut(&mut Referencer<'a, 'b>, Node<'a>, PatternInfo<'a, '_>),
     ) {
         let options = options.unwrap_or_default();
 
         traverse_identifier_in_pattern(
-            // this.options,
+            self.options,
             node,
             self,
             options.process_right_hand_nodes,
@@ -239,7 +242,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                 Some(VisitPatternOptions {
                     process_right_hand_nodes: true,
                 }),
-                |this, pattern: Node<'a>, info: PatternInfo<'a>| {
+                |this, pattern: Node<'a>, info: PatternInfo<'a, '_>| {
                     let definitions_arena = &this.scope_manager.arena.definitions;
                     this.current_scope_mut().__define(
                         &mut this.scope_manager.__declared_variables.borrow_mut(),

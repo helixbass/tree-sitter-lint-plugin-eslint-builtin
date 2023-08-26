@@ -20,7 +20,7 @@ pub fn analyze<'a>(
     options: ScopeManagerOptions,
 ) -> ScopeManager<'a> {
     let mut scope_manager = ScopeManager::new(source_text, options);
-    let mut referencer = Referencer::new(&mut scope_manager);
+    let mut referencer = Referencer::new(options, &mut scope_manager);
 
     referencer.visit_program(tree.root_node());
 

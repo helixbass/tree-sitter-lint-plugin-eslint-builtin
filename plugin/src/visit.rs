@@ -11,7 +11,7 @@ use crate::kind::{
     LexicalDeclaration, MemberExpression, MetaProperty, MethodDefinition, NamespaceImport, Pair,
     ParenthesizedExpression, PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock,
     SubscriptExpression, SwitchStatement, This, ThrowStatement, TryStatement, UpdateExpression,
-    VariableDeclaration, WhileStatement, WithStatement,
+    VariableDeclaration, WhileStatement, WithStatement, ArrayPattern, AssignmentPattern, RestPattern, SpreadElement, Array,
 };
 
 pub trait Visit<'a> {
@@ -240,6 +240,26 @@ pub trait Visit<'a> {
 
     fn visit_class_body(&mut self, node: Node<'a>) {
         visit_class_body(self, node);
+    }
+
+    fn visit_array_pattern(&mut self, node: Node<'a>) {
+        visit_array_pattern(self, node);
+    }
+
+    fn visit_assignment_pattern(&mut self, node: Node<'a>) {
+        visit_assignment_pattern(self, node);
+    }
+
+    fn visit_rest_pattern(&mut self, node: Node<'a>) {
+        visit_rest_pattern(self, node);
+    }
+
+    fn visit_spread_element(&mut self, node: Node<'a>) {
+        visit_spread_element(self, node);
+    }
+
+    fn visit_array(&mut self, node: Node<'a>) {
+        visit_array(self, node);
     }
 }
 
@@ -663,5 +683,30 @@ pub fn visit_class_heritage<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit
 
 pub fn visit_class_body<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     assert_node_kind!(node, ClassBody);
+    unimplemented!()
+}
+
+pub fn visit_array_pattern<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, ArrayPattern);
+    unimplemented!()
+}
+
+pub fn visit_assignment_pattern<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, AssignmentPattern);
+    unimplemented!()
+}
+
+pub fn visit_rest_pattern<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, RestPattern);
+    unimplemented!()
+}
+
+pub fn visit_spread_element<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, SpreadElement);
+    unimplemented!()
+}
+
+pub fn visit_array<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
+    assert_node_kind!(node, Array);
     unimplemented!()
 }

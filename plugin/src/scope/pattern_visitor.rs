@@ -1,9 +1,11 @@
-use tree_sitter_lint::tree_sitter::Node;
+use squalid::OptionExt;
+use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt};
 
+use super::scope_manager::ScopeManagerOptions;
 use crate::{
     kind::{
-        ArrayPattern, AssignmentPattern, Identifier, ObjectAssignmentPattern, ObjectPattern,
-        RestPattern, SpreadElement,
+        ArrayPattern, AssignmentPattern, ComputedPropertyName, Identifier, ObjectAssignmentPattern,
+        ObjectPattern, RestPattern, SpreadElement,
     },
     visit::Visit,
 };
@@ -27,29 +29,111 @@ pub fn is_pattern(node: Node) -> bool {
 }
 
 pub struct PatternVisitor<'a, TCallback> {
+    options: ScopeManagerOptions,
     root_pattern: Node<'a>,
     callback: TCallback,
+    assignments: Vec<Node<'a>>,
     pub right_hand_nodes: Vec<Node<'a>>,
+    rest_elements: Vec<Node<'a>>,
 }
 
-impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a>)> PatternVisitor<'a, TCallback> {
-    pub fn new(
-        // options,
-        root_pattern: Node<'a>,
-        callback: TCallback,
-    ) -> Self {
+impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> PatternVisitor<'a, TCallback> {
+    pub fn new(options: ScopeManagerOptions, root_pattern: Node<'a>, callback: TCallback) -> Self {
         Self {
+            options,
             root_pattern,
             callback,
+            assignments: Default::default(),
             right_hand_nodes: Default::default(),
+            rest_elements: Default::default(),
         }
     }
 }
 
-impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a>)> Visit<'a> for PatternVisitor<'a, TCallback> {}
+impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
+    for PatternVisitor<'a, TCallback>
+{
+    fn visit_identifier(&mut self, pattern: Node<'a>) {
+        let last_rest_element = self.rest_elements.last().copied();
 
-pub struct PatternInfo<'a> {
+        (self.callback)(
+            pattern,
+            PatternInfo {
+                top_level: pattern == self.root_pattern,
+                rest: last_rest_element.matches(|last_rest_element| {
+                    last_rest_element.first_non_comment_named_child(SupportedLanguage::Javascript)
+                        == pattern
+                }),
+                assignments: &self.assignments,
+            },
+        );
+    }
+
+    fn visit_pair(&mut self, property: Node<'a>) {
+        let key = property.field("key");
+        if key.kind() == ComputedPropertyName {
+            self.right_hand_nodes.push(key);
+        }
+
+        self.visit_expression(property.field("value"));
+    }
+
+    fn visit_array_pattern(&mut self, pattern: Node<'a>) {
+        for element in pattern.non_comment_named_children(SupportedLanguage::Javascript) {
+            self.visit(element);
+        }
+    }
+
+    fn visit_assignment_pattern(&mut self, pattern: Node<'a>) {
+        self.assignments.push(pattern);
+        self.visit(pattern.field("left"));
+        self.right_hand_nodes.push(pattern.field("right"));
+        self.assignments.pop().unwrap();
+    }
+
+    fn visit_rest_pattern(&mut self, pattern: Node<'a>) {
+        self.rest_elements.push(pattern);
+        self.visit_expression(pattern.first_non_comment_named_child(SupportedLanguage::Javascript));
+        self.rest_elements.pop().unwrap();
+    }
+
+    fn visit_member_expression(&mut self, node: Node<'a>) {
+        self.right_hand_nodes.push(node.field("object"));
+    }
+
+    fn visit_subscript_expression(&mut self, node: Node<'a>) {
+        self.right_hand_nodes.push(node.field("index"));
+
+        self.right_hand_nodes.push(node.field("object"));
+    }
+
+    fn visit_spread_element(&mut self, node: Node<'a>) {
+        self.visit_expression(node.first_non_comment_named_child(SupportedLanguage::Javascript));
+    }
+
+    fn visit_array(&mut self, node: Node<'a>) {
+        for child in node.non_comment_named_children(SupportedLanguage::Javascript) {
+            self.visit(child);
+        }
+    }
+
+    fn visit_assignment_expression(&mut self, node: Node<'a>) {
+        self.assignments.push(node);
+        self.visit_expression(node.field("left"));
+        self.right_hand_nodes.push(node.field("right"));
+        self.assignments.pop().unwrap();
+    }
+
+    fn visit_call_expression(&mut self, node: Node<'a>) {
+        node.field("arguments").non_comment_named_children(SupportedLanguage::Javascript).for_each(|a| {
+            self.right_hand_nodes.push(a);
+        });
+        self.visit_expression(node.field("function"));
+    }
+}
+
+pub struct PatternInfo<'a, 'b> {
     pub top_level: bool,
     pub rest: bool,
-    pub assignments: &'a [Node<'a>],
+    pub assignments: &'b [Node<'a>],
 }

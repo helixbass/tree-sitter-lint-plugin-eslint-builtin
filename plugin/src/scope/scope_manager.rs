@@ -26,7 +26,7 @@ pub enum SourceType {
     CommonJS,
 }
 
-#[derive(Builder)]
+#[derive(Builder, Copy, Clone)]
 #[builder(default, setter(strip_option))]
 pub struct ScopeManagerOptions {
     optimistic: bool,
