@@ -959,7 +959,8 @@ impl<'a, 'b> Scope<'a, 'b> {
     }
 
     pub fn is_arguments_materialized(&self) -> bool {
-        self.scope.is_arguments_materialized(&self.scope_manager.arena.variables.borrow())
+        self.scope
+            .is_arguments_materialized(&self.scope_manager.arena.variables.borrow())
     }
 
     pub fn child_scopes(&self) -> impl Iterator<Item = Scope<'a, 'b>> + '_ {
@@ -975,11 +976,14 @@ impl<'a, 'b> Scope<'a, 'b> {
     }
 
     pub fn variable_scope(&self) -> Self {
-        self.scope_manager.borrow_scope(self.scope.base().variable_scope)
+        self.scope_manager
+            .borrow_scope(self.scope.base().variable_scope)
     }
 
     pub fn maybe_upper(&self) -> Option<Self> {
-        self.scope.maybe_upper().map(|upper| self.scope_manager.borrow_scope(upper))
+        self.scope
+            .maybe_upper()
+            .map(|upper| self.scope_manager.borrow_scope(upper))
     }
 
     pub fn upper(&self) -> Self {
@@ -995,9 +999,18 @@ impl<'a, 'b> Scope<'a, 'b> {
     }
 
     pub fn set(&self) -> HashMap<Cow<'a, str>, Variable<'a, 'b>> {
-        self.scope.set().into_iter().map(|(key, value)| {
-            (key.clone(), self.scope_manager.borrow_variable(*value))
-        }).collect()
+        self.scope
+            .set()
+            .into_iter()
+            .map(|(key, value)| (key.clone(), self.scope_manager.borrow_variable(*value)))
+            .collect()
+    }
+
+    pub fn through(&self) -> impl Iterator<Item = Reference<'a, 'b>> + '_ {
+        self.scope
+            .through()
+            .into_iter()
+            .map(|&reference| self.scope_manager.borrow_reference(reference))
     }
 }
 

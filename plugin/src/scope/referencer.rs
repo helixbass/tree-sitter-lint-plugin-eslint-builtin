@@ -808,7 +808,7 @@ struct VisitPatternOptions {
     process_right_hand_nodes: bool,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PatternAndNode<'a> {
     pub pattern: Node<'a>,
     pub node: Node<'a>,

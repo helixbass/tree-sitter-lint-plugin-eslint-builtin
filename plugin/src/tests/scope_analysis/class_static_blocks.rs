@@ -113,3 +113,120 @@ fn test_class_c_a_b_c_d_e() {
         assert_that(&variable.scope()).is_equal_to(class_static_block_scope);
     });
 }
+
+#[test]
+fn test_class_c_f_f() {
+    tracing_subscribe();
+
+    let code = "class C { static { function f(){} f(); } }";
+    let ast = parse(code);
+
+    let scope_manager = analyze(
+        &ast,
+        code,
+        ScopeManagerOptionsBuilder::default()
+            .ecma_version(13)
+            .build()
+            .unwrap(),
+    );
+
+    let global_scope = scope_manager.global_scope();
+
+    assert_that(&global_scope.references().collect_vec()).is_empty();
+
+    assert_that(&global_scope.through().collect_vec()).is_empty();
+
+    let scopes = global_scope.child_scopes().collect_vec();
+    assert_that(&scopes).has_length(1);
+    let class_scope = &scopes[0];
+    assert_that(&class_scope.type_()).is_equal_to(ScopeType::Class);
+
+    assert_that(&class_scope.references().collect_vec()).is_empty();
+
+    assert_that(&class_scope.through().collect_vec()).is_empty();
+
+    let child_scopes = class_scope.child_scopes().collect_vec();
+    assert_that(&child_scopes).has_length(1);
+    let class_static_block_scope = &child_scopes[0];
+    assert_that(&class_static_block_scope.type_()).is_equal_to(ScopeType::ClassStaticBlock);
+
+    assert_that(&class_static_block_scope.through().collect_vec()).is_empty();
+
+    let variables = class_static_block_scope.variables().collect_vec();
+    assert_that(&variables).has_length(1);
+    assert_that(&variables[0].name()).is_equal_to("f");
+
+    let references = class_static_block_scope.references().collect_vec();
+    assert_that(&references).has_length(1);
+    assert_that(&references[0].resolved())
+        .is_some()
+        .is_equal_to(&variables[0]);
+
+    let f = &variables[0];
+    let f_references = f.references().collect_vec();
+    assert_that(&f_references).has_length(1);
+    assert_that(&f_references[0].from()).is_equal_to(class_static_block_scope);
+    assert_that(&f_references[0])
+        .is_equal_to(&class_static_block_scope.references().collect_vec()[0]);
+}
+
+#[test]
+fn test_class_c_a_if_x_a() {
+    tracing_subscribe();
+
+    let code = "class C { static { a = 1; if (this.x) { var a; } } }";
+    let ast = parse(code);
+
+    let scope_manager = analyze(
+        &ast,
+        code,
+        ScopeManagerOptionsBuilder::default()
+            .ecma_version(13)
+            .build()
+            .unwrap(),
+    );
+
+    let global_scope = scope_manager.global_scope();
+
+    assert_that(&global_scope.references().collect_vec()).is_empty();
+
+    assert_that(&global_scope.through().collect_vec()).is_empty();
+
+    let scopes = global_scope.child_scopes().collect_vec();
+    assert_that(&scopes).has_length(1);
+    let class_scope = &scopes[0];
+    assert_that(&class_scope.type_()).is_equal_to(ScopeType::Class);
+
+    assert_that(&class_scope.references().collect_vec()).is_empty();
+
+    assert_that(&class_scope.through().collect_vec()).is_empty();
+
+    let child_scopes = class_scope.child_scopes().collect_vec();
+    assert_that(&child_scopes).has_length(1);
+    let class_static_block_scope = &child_scopes[0];
+    assert_that(&class_static_block_scope.type_()).is_equal_to(ScopeType::ClassStaticBlock);
+
+    assert_that(&class_static_block_scope.through().collect_vec()).is_empty();
+
+    let variables = class_static_block_scope.variables().collect_vec();
+    assert_that(&variables).has_length(1);
+    assert_that(&variables[0].name()).is_equal_to("a");
+
+    let references = class_static_block_scope.references().collect_vec();
+    assert_that(&references).has_length(1);
+    assert_that(&references[0].resolved()).is_some().is_equal_to(&variables[0]);
+
+    let a = &variables[0];
+    let a_references = a.references().collect_vec();
+    assert_that(&a_references).has_length(1);
+    assert_that(&a_references[0].from()).is_equal_to(class_static_block_scope);
+
+    let child_scopes = class_static_block_scope.child_scopes().collect_vec();
+    assert_that(&child_scopes).has_length(1);
+    let block_scope = &child_scopes[0];
+    assert_that(&block_scope.type_()).is_equal_to(ScopeType::Block);
+
+    assert_that(&block_scope.variables().collect_vec()).is_empty();
+
+    assert_that(&block_scope.references().collect_vec()).is_empty();
+}

@@ -5,7 +5,7 @@ use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
-    arena::AllArenas, referencer::PatternAndNode, scope::_Scope, variable::{_Variable, Variable}, ScopeManager,
+    arena::AllArenas, referencer::PatternAndNode, scope::{_Scope, Scope}, variable::{_Variable, Variable}, ScopeManager,
 };
 
 bitflags! {
@@ -19,6 +19,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct _Reference<'a> {
     pub identifier: Node<'a>,
     pub from: Id<_Scope<'a>>,
@@ -29,6 +30,7 @@ pub struct _Reference<'a> {
     pub partial: bool,
     pub init: bool,
     pub __maybe_implicit_global: Option<PatternAndNode<'a>>,
+    id: Id<Self>,
 }
 
 impl<'a> _Reference<'a> {
@@ -43,7 +45,7 @@ impl<'a> _Reference<'a> {
         partial: bool,
         init: bool,
     ) -> Id<Self> {
-        arena.alloc(Self {
+        arena.alloc_with_id(|id| Self {
             identifier: ident,
             from: scope,
             tainted: Default::default(),
@@ -65,6 +67,7 @@ impl<'a> _Reference<'a> {
                 false
             },
             __maybe_implicit_global: maybe_implicit_global,
+            id,
         })
     }
 
@@ -97,6 +100,7 @@ impl<'a> _Reference<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Reference<'a, 'b> {
     reference: Ref<'b, _Reference<'a>>,
     scope_manager: &'b ScopeManager<'a>,
@@ -119,4 +123,16 @@ impl<'a, 'b> Reference<'a, 'b> {
     pub fn identifier(&self) -> Node<'a> {
         self.reference.identifier
     }
+
+    pub fn from(&self) -> Scope<'a, 'b> {
+        self.scope_manager.borrow_scope(self.reference.from)
+    }
 }
+
+impl<'a, 'b> PartialEq for Reference<'a, 'b> {
+    fn eq(&self, other: &Self) -> bool {
+        self.reference.id == other.reference.id
+    }
+}
+
+impl<'a, 'b> Eq for Reference<'a, 'b> {}

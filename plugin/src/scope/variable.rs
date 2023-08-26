@@ -3,7 +3,7 @@ use std::{borrow::Cow, cell::Ref, hash};
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{definition::Definition, reference::_Reference, scope::{_Scope, Scope}, ScopeManager};
+use super::{definition::Definition, reference::{_Reference, Reference}, scope::{_Scope, Scope}, ScopeManager};
 
 #[derive(Debug)]
 pub struct _Variable<'a> {
@@ -52,6 +52,10 @@ impl<'a, 'b> Variable<'a, 'b> {
 
     pub fn scope(&self) -> Scope<'a, 'b> {
         self.scope_manager.borrow_scope(self.variable.scope)
+    }
+
+    pub fn references(&self) -> impl Iterator<Item = Reference<'a, 'b>> + '_ {
+        self.variable.references.iter().map(|&reference| self.scope_manager.borrow_reference(reference))
     }
 }
 
