@@ -25,10 +25,7 @@ use crate::{
         FunctionDeclaration, Identifier, ImportStatement, LexicalDeclaration, StatementBlock,
         SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
-    visit::{
-        visit_call_expression, visit_class_static_block, visit_expression, visit_expressions,
-        visit_for_statement, visit_program, visit_statement_block, visit_update_expression, Visit,
-    },
+    visit::{visit_children, Visit},
 };
 
 fn traverse_identifier_in_pattern<'a, 'b>(
@@ -266,8 +263,8 @@ impl<'a, 'b> Referencer<'a, 'b> {
 
         let body = node.field("body");
         match body.kind() {
-            StatementBlock => visit_statement_block(self, body),
-            _ => self.visit_expression(body),
+            StatementBlock => visit_children(self, body),
+            _ => self.visit(body),
         }
 
         self.close(node);
@@ -403,7 +400,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
             );
 
             if let Some(init) = decl.child_by_field_name("value") {
-                self.visit_expression(init);
+                self.visit(init);
             }
         }
     }
@@ -441,9 +438,9 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                 },
             );
         } else {
-            self.visit_expression(node.child_by_field_name("left").unwrap());
+            self.visit(node.child_by_field_name("left").unwrap());
         }
-        self.visit_expression(node.child_by_field_name("right").unwrap());
+        self.visit(node.child_by_field_name("right").unwrap());
     }
 
     fn visit_augmented_assignment_expression(&mut self, node: Node<'tree>) {
@@ -458,9 +455,9 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                 None,
             );
         } else {
-            self.visit_expression(node.child_by_field_name("left").unwrap());
+            self.visit(node.child_by_field_name("left").unwrap());
         }
-        self.visit_expression(node.child_by_field_name("right").unwrap());
+        self.visit(node.child_by_field_name("right").unwrap());
     }
 
     fn visit_catch_clause(&mut self, node: Node<'tree>) {
@@ -495,7 +492,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             );
         }
 
-        self.visit_statement_block(node.child_by_field_name("body").unwrap());
+        self.visit(node.child_by_field_name("body").unwrap());
 
         self.close(node);
     }
@@ -516,7 +513,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             self.current_scope_mut().set_is_strict(true);
         }
 
-        visit_program(self, node);
+        visit_children(self, node);
         self.close(node);
     }
 
@@ -547,17 +544,17 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                 None,
             );
         } else {
-            visit_update_expression(self, node);
+            visit_children(self, node);
         }
     }
 
     fn visit_member_expression(&mut self, node: Node<'tree>) {
-        visit_expression(self, node.child_by_field_name("object").unwrap());
+        self.visit(node.child_by_field_name("object").unwrap());
     }
 
     fn visit_subscript_expression(&mut self, node: Node<'tree>) {
-        visit_expression(self, node.child_by_field_name("object").unwrap());
-        visit_expressions(self, node.child_by_field_name("index").unwrap());
+        self.visit(node.child_by_field_name("object").unwrap());
+        self.visit(node.child_by_field_name("index").unwrap());
     }
 
     fn visit_pair(&mut self, node: Node<'tree>) {
@@ -565,7 +562,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         if key.kind() == ComputedPropertyName {
             self.visit_computed_property_name(key);
         }
-        self.visit_expression(node.child_by_field_name("value").unwrap());
+        self.visit(node.child_by_field_name("value").unwrap());
     }
 
     fn visit_field_definition(&mut self, node: Node<'tree>) {
@@ -576,7 +573,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         if let Some(value) = node.child_by_field_name("value") {
             self.scope_manager
                 .__nest_class_field_initializer_scope(value);
-            self.visit_expression(value);
+            self.visit(value);
             self.close(value);
         }
     }
@@ -584,7 +581,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_class_static_block(&mut self, node: Node<'tree>) {
         self.scope_manager.__nest_class_static_block_scope(node);
 
-        visit_class_static_block(self, node);
+        visit_children(self, node);
 
         self.close(node);
     }
@@ -596,7 +593,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         }
         let previous = self.push_inner_method_definition(true);
         self.visit_formal_parameters(node.child_by_field_name("parameters").unwrap());
-        self.visit_statement_block(node.child_by_field_name("body").unwrap());
+        self.visit(node.child_by_field_name("body").unwrap());
         self.pop_inner_method_definition(previous);
     }
 
@@ -605,7 +602,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_continue_statement(&mut self, _node: Node<'tree>) {}
 
     fn visit_labeled_statement(&mut self, node: Node<'tree>) {
-        self.visit_statement(node.child_by_field_name("body").unwrap());
+        self.visit(node.child_by_field_name("body").unwrap());
     }
 
     fn visit_for_statement(&mut self, node: Node<'tree>) {
@@ -614,7 +611,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             self.scope_manager.__nest_for_scope(node);
         }
 
-        visit_for_statement(self, node);
+        visit_children(self, node);
 
         self.close(node);
     }
@@ -639,7 +636,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                 &mut self.scope_manager.arena.scopes.borrow_mut(),
             );
         }
-        visit_call_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_statement_block(&mut self, node: Node<'tree>) {
@@ -647,7 +644,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             self.scope_manager.__nest_block_scope(node);
         }
 
-        visit_statement_block(self, node);
+        visit_children(self, node);
 
         self.close(node);
     }
@@ -668,7 +665,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
 
         self.scope_manager.__nest_with_scope(node);
 
-        self.visit_statement(node.child_by_field_name("body").unwrap());
+        self.visit(node.child_by_field_name("body").unwrap());
 
         self.close(node);
     }
@@ -756,7 +753,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             );
         }
         self.visit(node.field("right"));
-        self.visit_statement(node.field("body"));
+        self.visit(node.field("body"));
 
         self.close(node);
     }

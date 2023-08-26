@@ -1,712 +1,585 @@
 use tree_sitter_lint::tree_sitter::Node;
 
-use crate::kind::{
-    is_declaration_kind, is_statement_kind, ArrowFunction, AssignmentExpression,
-    AugmentedAssignmentExpression, BreakStatement, CallExpression, CatchClause, Class, ClassBody,
-    ClassDeclaration, ClassHeritage, ClassStaticBlock, Comment, ComputedPropertyName,
-    ContinueStatement, DebuggerStatement, DoStatement, EmptyStatement, ExportClause,
-    ExportSpecifier, ExportStatement, ExpressionStatement, FieldDefinition, ForInStatement,
-    ForStatement, FormalParameters, Function, FunctionDeclaration, GeneratorFunctionDeclaration,
-    HashBangLine, Identifier, IfStatement, ImportSpecifier, ImportStatement, LabeledStatement,
-    LexicalDeclaration, MemberExpression, MetaProperty, MethodDefinition, NamespaceImport, Pair,
-    ParenthesizedExpression, PrivatePropertyIdentifier, Program, ReturnStatement, StatementBlock,
-    SubscriptExpression, SwitchStatement, This, ThrowStatement, TryStatement, UpdateExpression,
-    VariableDeclaration, WhileStatement, WithStatement, ArrayPattern, AssignmentPattern, RestPattern, SpreadElement, Array,
-};
+use crate::kind::{self, *};
 
 pub trait Visit<'a> {
     fn visit(&mut self, node: Node<'a>) {
         match node.kind() {
             Program => self.visit_program(node),
-            _ => unimplemented!(),
+            HashBangLine => self.visit_hash_bang_line(node),
+            ExportStatement => self.visit_export_statement(node),
+            NamespaceExport => self.visit_namespace_export(node),
+            ExportClause => self.visit_export_clause(node),
+            ExportSpecifier => self.visit_export_specifier(node),
+            Import => self.visit_import(node),
+            ImportStatement => self.visit_import_statement(node),
+            ImportClause => self.visit_import_clause(node),
+            NamespaceImport => self.visit_namespace_import(node),
+            NamedImports => self.visit_named_imports(node),
+            ImportSpecifier => self.visit_import_specifier(node),
+            ExpressionStatement => self.visit_expression_statement(node),
+            VariableDeclaration => self.visit_variable_declaration(node),
+            LexicalDeclaration => self.visit_lexical_declaration(node),
+            VariableDeclarator => self.visit_variable_declarator(node),
+            StatementBlock => self.visit_statement_block(node),
+            ElseClause => self.visit_else_clause(node),
+            IfStatement => self.visit_if_statement(node),
+            SwitchStatement => self.visit_switch_statement(node),
+            ForStatement => self.visit_for_statement(node),
+            ForInStatement => self.visit_for_in_statement(node),
+            WhileStatement => self.visit_while_statement(node),
+            DoStatement => self.visit_do_statement(node),
+            TryStatement => self.visit_try_statement(node),
+            WithStatement => self.visit_with_statement(node),
+            BreakStatement => self.visit_break_statement(node),
+            StatementIdentifier => self.visit_statement_identifier(node),
+            ContinueStatement => self.visit_continue_statement(node),
+            DebuggerStatement => self.visit_debugger_statement(node),
+            ReturnStatement => self.visit_return_statement(node),
+            ThrowStatement => self.visit_throw_statement(node),
+            EmptyStatement => self.visit_empty_statement(node),
+            LabeledStatement => self.visit_labeled_statement(node),
+            SwitchBody => self.visit_switch_body(node),
+            SwitchCase => self.visit_switch_case(node),
+            SwitchDefault => self.visit_switch_default(node),
+            CatchClause => self.visit_catch_clause(node),
+            FinallyClause => self.visit_finally_clause(node),
+            ParenthesizedExpression => self.visit_parenthesized_expression(node),
+            YieldExpression => self.visit_yield_expression(node),
+            Object => self.visit_object(node),
+            ShorthandPropertyIdentifier => self.visit_shorthand_property_identifier(node),
+            ObjectPattern => self.visit_object_pattern(node),
+            ShorthandPropertyIdentifierPattern => {
+                self.visit_shorthand_property_identifier_pattern(node)
+            }
+            AssignmentPattern => self.visit_assignment_pattern(node),
+            ObjectAssignmentPattern => self.visit_object_assignment_pattern(node),
+            Array => self.visit_array(node),
+            ArrayPattern => self.visit_array_pattern(node),
+            GlimmerTemplate => self.visit_glimmer_template(node),
+            GlimmerOpeningTag => self.visit_glimmer_opening_tag(node),
+            GlimmerClosingTag => self.visit_glimmer_closing_tag(node),
+            JsxElement => self.visit_jsx_element(node),
+            JsxText => self.visit_jsx_text(node),
+            JsxExpression => self.visit_jsx_expression(node),
+            JsxOpeningElement => self.visit_jsx_opening_element(node),
+            PropertyIdentifier => self.visit_property_identifier(node),
+            StringFragment => self.visit_string_fragment(node),
+            JsxNamespaceName => self.visit_jsx_namespace_name(node),
+            JsxClosingElement => self.visit_jsx_closing_element(node),
+            JsxSelfClosingElement => self.visit_jsx_self_closing_element(node),
+            JsxAttribute => self.visit_jsx_attribute(node),
+            Class => self.visit_class(node),
+            ClassDeclaration => self.visit_class_declaration(node),
+            ClassHeritage => self.visit_class_heritage(node),
+            Function => self.visit_function(node),
+            FunctionDeclaration => self.visit_function_declaration(node),
+            GeneratorFunction => self.visit_generator_function(node),
+            GeneratorFunctionDeclaration => self.visit_generator_function_declaration(node),
+            ArrowFunction => self.visit_arrow_function(node),
+            OptionalChain => self.visit_optional_chain(node),
+            CallExpression => self.visit_call_expression(node),
+            NewExpression => self.visit_new_expression(node),
+            AwaitExpression => self.visit_await_expression(node),
+            MemberExpression => self.visit_member_expression(node),
+            SubscriptExpression => self.visit_subscript_expression(node),
+            AssignmentExpression => self.visit_assignment_expression(node),
+            AugmentedAssignmentExpression => self.visit_augmented_assignment_expression(node),
+            SpreadElement => self.visit_spread_element(node),
+            TernaryExpression => self.visit_ternary_expression(node),
+            BinaryExpression => self.visit_binary_expression(node),
+            UnaryExpression => self.visit_unary_expression(node),
+            UpdateExpression => self.visit_update_expression(node),
+            SequenceExpression => self.visit_sequence_expression(node),
+            kind::String => self.visit_string(node),
+            EscapeSequence => self.visit_escape_sequence(node),
+            Comment => self.visit_comment(node),
+            TemplateString => self.visit_template_string(node),
+            TemplateSubstitution => self.visit_template_substitution(node),
+            kind::Regex => self.visit_regex(node),
+            RegexPattern => self.visit_regex_pattern(node),
+            RegexFlags => self.visit_regex_flags(node),
+            kind::Number => self.visit_number(node),
+            Identifier => self.visit_identifier(node),
+            PrivatePropertyIdentifier => self.visit_private_property_identifier(node),
+            MetaProperty => self.visit_meta_property(node),
+            This => self.visit_this(node),
+            Super => self.visit_super(node),
+            True => self.visit_true(node),
+            False => self.visit_false(node),
+            Null => self.visit_null(node),
+            Undefined => self.visit_undefined(node),
+            Arguments => self.visit_arguments(node),
+            Decorator => self.visit_decorator(node),
+            ClassBody => self.visit_class_body(node),
+            FieldDefinition => self.visit_field_definition(node),
+            FormalParameters => self.visit_formal_parameters(node),
+            ClassStaticBlock => self.visit_class_static_block(node),
+            RestPattern => self.visit_rest_pattern(node),
+            MethodDefinition => self.visit_method_definition(node),
+            Pair => self.visit_pair(node),
+            PairPattern => self.visit_pair_pattern(node),
+            ComputedPropertyName => self.visit_computed_property_name(node),
+            _ => unreachable!(),
         }
     }
 
     fn visit_program(&mut self, node: Node<'a>) {
-        visit_program(self, node);
+        visit_children(self, node);
     }
 
-    fn visit_statement(&mut self, node: Node<'a>) {
-        visit_statement(self, node);
-    }
-
-    fn visit_declaration(&mut self, node: Node<'a>) {
-        visit_declaration(self, node);
+    fn visit_hash_bang_line(&mut self, node: Node<'a>) {
+        visit_children(self, node);
     }
 
     fn visit_export_statement(&mut self, node: Node<'a>) {
-        visit_export_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_import_statement(&mut self, node: Node<'a>) {
-        visit_import_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_debugger_statement(&mut self, node: Node<'a>) {
-        visit_debugger_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_expression_statement(&mut self, node: Node<'a>) {
-        visit_expression_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_function_declaration(&mut self, node: Node<'a>) {
-        visit_function_declaration(self, node);
+        visit_children(self, node);
     }
 
     fn visit_generator_function_declaration(&mut self, node: Node<'a>) {
-        visit_generator_function_declaration(self, node);
+        visit_children(self, node);
     }
 
     fn visit_class_declaration(&mut self, node: Node<'a>) {
-        visit_class_declaration(self, node);
+        visit_children(self, node);
     }
 
     fn visit_lexical_declaration(&mut self, node: Node<'a>) {
-        visit_lexical_declaration(self, node);
+        visit_children(self, node);
     }
 
     fn visit_variable_declaration(&mut self, node: Node<'a>) {
-        visit_variable_declaration(self, node);
+        visit_children(self, node);
     }
 
     fn visit_statement_block(&mut self, node: Node<'a>) {
-        visit_statement_block(self, node);
+        visit_children(self, node);
     }
 
     fn visit_if_statement(&mut self, node: Node<'a>) {
-        visit_if_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_switch_statement(&mut self, node: Node<'a>) {
-        visit_switch_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_for_statement(&mut self, node: Node<'a>) {
-        visit_for_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_for_in_statement(&mut self, node: Node<'a>) {
-        visit_for_in_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_while_statement(&mut self, node: Node<'a>) {
-        visit_while_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_do_statement(&mut self, node: Node<'a>) {
-        visit_do_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_try_statement(&mut self, node: Node<'a>) {
-        visit_try_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_with_statement(&mut self, node: Node<'a>) {
-        visit_with_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_break_statement(&mut self, node: Node<'a>) {
-        visit_break_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_continue_statement(&mut self, node: Node<'a>) {
-        visit_continue_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_return_statement(&mut self, node: Node<'a>) {
-        visit_return_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_throw_statement(&mut self, node: Node<'a>) {
-        visit_throw_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_empty_statement(&mut self, node: Node<'a>) {
-        visit_empty_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_labeled_statement(&mut self, node: Node<'a>) {
-        visit_labeled_statement(self, node);
+        visit_children(self, node);
     }
 
     fn visit_assignment_expression(&mut self, node: Node<'a>) {
-        visit_assignment_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_augmented_assignment_expression(&mut self, node: Node<'a>) {
-        visit_augmented_assignment_expression(self, node);
-    }
-
-    fn visit_expression(&mut self, node: Node<'a>) {
-        visit_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_catch_clause(&mut self, node: Node<'a>) {
-        visit_catch_clause(self, node);
+        visit_children(self, node);
     }
 
     fn visit_identifier(&mut self, node: Node<'a>) {
-        visit_identifier(self, node);
+        visit_children(self, node);
     }
 
     fn visit_private_property_identifier(&mut self, node: Node<'a>) {
-        visit_private_property_identifier(self, node);
+        visit_children(self, node);
     }
 
     fn visit_update_expression(&mut self, node: Node<'a>) {
-        visit_update_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_member_expression(&mut self, node: Node<'a>) {
-        visit_member_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_subscript_expression(&mut self, node: Node<'a>) {
-        visit_subscript_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_pair(&mut self, node: Node<'a>) {
-        visit_pair(self, node);
+        visit_children(self, node);
     }
 
     fn visit_computed_property_name(&mut self, node: Node<'a>) {
-        visit_computed_property_name(self, node);
+        visit_children(self, node);
     }
 
     fn visit_method_definition(&mut self, node: Node<'a>) {
-        visit_method_definition(self, node);
+        visit_children(self, node);
     }
 
     fn visit_formal_parameters(&mut self, node: Node<'a>) {
-        visit_formal_parameters(self, node);
+        visit_children(self, node);
     }
 
     fn visit_field_definition(&mut self, node: Node<'a>) {
-        visit_field_definition(self, node);
+        visit_children(self, node);
     }
 
     fn visit_class_static_block(&mut self, node: Node<'a>) {
-        visit_class_static_block(self, node);
+        visit_children(self, node);
     }
 
     fn visit_class(&mut self, node: Node<'a>) {
-        visit_class(self, node);
+        visit_children(self, node);
     }
 
     fn visit_call_expression(&mut self, node: Node<'a>) {
-        visit_call_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_this(&mut self, node: Node<'a>) {
-        visit_this(self, node);
+        visit_children(self, node);
     }
 
     fn visit_parenthesized_expression(&mut self, node: Node<'a>) {
-        visit_parenthesized_expression(self, node);
+        visit_children(self, node);
     }
 
     fn visit_function(&mut self, node: Node<'a>) {
-        visit_function(self, node);
+        visit_children(self, node);
     }
 
     fn visit_arrow_function(&mut self, node: Node<'a>) {
-        visit_arrow_function(self, node);
+        visit_children(self, node);
     }
 
     fn visit_namespace_import(&mut self, node: Node<'a>) {
-        visit_namespace_import(self, node);
+        visit_children(self, node);
     }
 
     fn visit_import_specifier(&mut self, node: Node<'a>) {
-        visit_import_specifier(self, node);
+        visit_children(self, node);
     }
 
     fn visit_export_clause(&mut self, node: Node<'a>) {
-        visit_export_clause(self, node);
+        visit_children(self, node);
     }
 
     fn visit_export_specifier(&mut self, node: Node<'a>) {
-        visit_export_specifier(self, node);
+        visit_children(self, node);
     }
 
     fn visit_meta_property(&mut self, node: Node<'a>) {
-        visit_meta_property(self, node);
+        visit_children(self, node);
     }
 
     fn visit_class_heritage(&mut self, node: Node<'a>) {
-        visit_class_heritage(self, node);
+        visit_children(self, node);
     }
 
     fn visit_class_body(&mut self, node: Node<'a>) {
-        visit_class_body(self, node);
+        visit_children(self, node);
     }
 
     fn visit_array_pattern(&mut self, node: Node<'a>) {
-        visit_array_pattern(self, node);
+        visit_children(self, node);
     }
 
     fn visit_assignment_pattern(&mut self, node: Node<'a>) {
-        visit_assignment_pattern(self, node);
+        visit_children(self, node);
     }
 
     fn visit_rest_pattern(&mut self, node: Node<'a>) {
-        visit_rest_pattern(self, node);
+        visit_children(self, node);
     }
 
     fn visit_spread_element(&mut self, node: Node<'a>) {
-        visit_spread_element(self, node);
+        visit_children(self, node);
     }
 
     fn visit_array(&mut self, node: Node<'a>) {
-        visit_array(self, node);
+        visit_children(self, node);
+    }
+
+    fn visit_namespace_export(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_import(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_import_clause(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_named_imports(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_variable_declarator(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_else_clause(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_statement_identifier(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_switch_body(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_switch_case(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_switch_default(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_finally_clause(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_yield_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_object(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_shorthand_property_identifier(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_object_pattern(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_shorthand_property_identifier_pattern(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_object_assignment_pattern(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_glimmer_template(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_glimmer_opening_tag(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_glimmer_closing_tag(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_element(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_text(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_opening_element(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_property_identifier(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_string_fragment(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_namespace_name(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_closing_element(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_self_closing_element(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_jsx_attribute(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_generator_function(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_optional_chain(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_new_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_await_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_ternary_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_binary_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_unary_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_sequence_expression(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_string(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_escape_sequence(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_comment(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_template_string(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_template_substitution(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_regex(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_regex_pattern(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_regex_flags(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_number(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_super(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_true(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_false(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_null(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_undefined(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_arguments(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_decorator(&mut self, node: Node<'a>) {
+        visit_children(self, node);
+    }
+
+    fn visit_pair_pattern(&mut self, node: Node<'a>) {
+        visit_children(self, node);
     }
 }
 
-macro_rules! assert_node_kind {
-    ($node: expr, $kind:expr) => {
-        debug_assert_eq!($node.kind(), $kind);
-    };
-}
-
-macro_rules! return_if_false {
-    ($expr:expr) => {
-        if (!$expr) {
-            return;
-        }
-    };
-}
-
-pub fn visit_program<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, Program);
-
+pub fn visit_children<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
     let mut cursor = node.walk();
-    return_if_false!(cursor.goto_first_child());
-
-    loop {
-        let current_child = cursor.node();
-        match current_child.kind() {
-            HashBangLine => unimplemented!(),
-            kind if is_statement_kind(kind) => visitor.visit_statement(current_child),
-            Comment => unimplemented!(),
-            _ => unreachable!(),
-        }
-        return_if_false!(cursor.goto_next_sibling());
+    for child in node.named_children(&mut cursor) {
+        visitor.visit(child);
     }
-}
-
-pub fn visit_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    debug_assert!(is_statement_kind(node.kind()));
-
-    match node.kind() {
-        ExportStatement => visitor.visit_export_statement(node),
-        ImportStatement => visitor.visit_import_statement(node),
-        DebuggerStatement => visitor.visit_debugger_statement(node),
-        ExpressionStatement => visitor.visit_expression_statement(node),
-        kind if is_declaration_kind(kind) => visitor.visit_declaration(node),
-        StatementBlock => visitor.visit_statement_block(node),
-        IfStatement => visitor.visit_if_statement(node),
-        SwitchStatement => visitor.visit_switch_statement(node),
-        ForStatement => visitor.visit_for_statement(node),
-        ForInStatement => visitor.visit_for_in_statement(node),
-        WhileStatement => visitor.visit_while_statement(node),
-        DoStatement => visitor.visit_do_statement(node),
-        TryStatement => visitor.visit_try_statement(node),
-        WithStatement => visitor.visit_with_statement(node),
-        BreakStatement => visitor.visit_break_statement(node),
-        ContinueStatement => visitor.visit_continue_statement(node),
-        ReturnStatement => visitor.visit_return_statement(node),
-        ThrowStatement => visitor.visit_throw_statement(node),
-        EmptyStatement => visitor.visit_empty_statement(node),
-        LabeledStatement => visitor.visit_labeled_statement(node),
-        _ => unreachable!(),
-    }
-}
-
-pub fn visit_declaration<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    debug_assert!(is_declaration_kind(node.kind()));
-
-    match node.kind() {
-        FunctionDeclaration => visitor.visit_function_declaration(node),
-        GeneratorFunctionDeclaration => visitor.visit_generator_function_declaration(node),
-        ClassDeclaration => visitor.visit_class_declaration(node),
-        LexicalDeclaration => visitor.visit_lexical_declaration(node),
-        VariableDeclaration => visitor.visit_variable_declaration(node),
-        _ => unreachable!(),
-    }
-}
-
-pub fn visit_export_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ExportStatement);
-    unimplemented!()
-}
-
-pub fn visit_import_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ImportStatement);
-    unimplemented!()
-}
-
-pub fn visit_debugger_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, DebuggerStatement);
-    unimplemented!()
-}
-
-pub fn visit_expression_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ExpressionStatement);
-    unimplemented!()
-}
-
-pub fn visit_function_declaration<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, FunctionDeclaration);
-    unimplemented!()
-}
-
-pub fn visit_generator_function_declaration<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, GeneratorFunctionDeclaration);
-    unimplemented!()
-}
-
-pub fn visit_class_declaration<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ClassDeclaration);
-    unimplemented!()
-}
-
-pub fn visit_lexical_declaration<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, LexicalDeclaration);
-    unimplemented!()
-}
-
-pub fn visit_variable_declaration<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, VariableDeclaration);
-    unimplemented!()
-}
-
-pub fn visit_statement_block<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, StatementBlock);
-    unimplemented!()
-}
-
-pub fn visit_if_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, IfStatement);
-    unimplemented!()
-}
-
-pub fn visit_switch_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, SwitchStatement);
-    unimplemented!()
-}
-
-pub fn visit_for_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ForStatement);
-    unimplemented!()
-}
-
-pub fn visit_for_in_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ForInStatement);
-    unimplemented!()
-}
-
-pub fn visit_while_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, WhileStatement);
-    unimplemented!()
-}
-
-pub fn visit_do_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, DoStatement);
-    unimplemented!()
-}
-
-pub fn visit_try_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, TryStatement);
-    unimplemented!()
-}
-
-pub fn visit_with_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, WithStatement);
-    unimplemented!()
-}
-
-pub fn visit_break_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, BreakStatement);
-    unimplemented!()
-}
-
-pub fn visit_continue_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ContinueStatement);
-    unimplemented!()
-}
-
-pub fn visit_return_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ReturnStatement);
-    unimplemented!()
-}
-
-pub fn visit_throw_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ThrowStatement);
-    unimplemented!()
-}
-
-pub fn visit_empty_statement<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, EmptyStatement);
-    unimplemented!()
-}
-
-pub fn visit_labeled_statement<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, LabeledStatement);
-    unimplemented!()
-}
-
-pub fn visit_assignment_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, AssignmentExpression);
-    unimplemented!()
-}
-
-pub fn visit_augmented_assignment_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, AugmentedAssignmentExpression);
-    unimplemented!()
-}
-
-pub fn visit_expression<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    unimplemented!()
-}
-
-pub fn visit_expressions<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    unimplemented!()
-}
-
-pub fn visit_catch_clause<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, CatchClause);
-    unimplemented!()
-}
-
-pub fn visit_identifier<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, Identifier);
-    unimplemented!()
-}
-
-pub fn visit_private_property_identifier<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, PrivatePropertyIdentifier);
-    unimplemented!()
-}
-
-pub fn visit_update_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, UpdateExpression);
-    unimplemented!()
-}
-
-pub fn visit_member_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, MemberExpression);
-    unimplemented!()
-}
-
-pub fn visit_subscript_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, SubscriptExpression);
-    unimplemented!()
-}
-
-pub fn visit_pair<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, Pair);
-    unimplemented!()
-}
-
-pub fn visit_computed_property_name<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ComputedPropertyName);
-    unimplemented!()
-}
-
-pub fn visit_method_definition<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, MethodDefinition);
-    unimplemented!()
-}
-
-pub fn visit_formal_parameters<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, FormalParameters);
-    unimplemented!()
-}
-
-pub fn visit_field_definition<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, FieldDefinition);
-    unimplemented!()
-}
-
-pub fn visit_class_static_block<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ClassStaticBlock);
-    unimplemented!()
-}
-
-pub fn visit_class<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, Class);
-    unimplemented!()
-}
-
-pub fn visit_call_expression<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, CallExpression);
-    unimplemented!()
-}
-
-pub fn visit_this<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, This);
-    unimplemented!()
-}
-
-pub fn visit_parenthesized_expression<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ParenthesizedExpression);
-    unimplemented!()
-}
-
-pub fn visit_function<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, Function);
-    unimplemented!()
-}
-
-pub fn visit_arrow_function<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ArrowFunction);
-    unimplemented!()
-}
-
-pub fn visit_namespace_import<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, NamespaceImport);
-    unimplemented!()
-}
-
-pub fn visit_import_specifier<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ImportSpecifier);
-    unimplemented!()
-}
-
-pub fn visit_export_clause<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ExportClause);
-    unimplemented!()
-}
-
-pub fn visit_export_specifier<'a, TVisit: Visit<'a> + ?Sized>(
-    visitor: &mut TVisit,
-    node: Node<'a>,
-) {
-    assert_node_kind!(node, ExportSpecifier);
-    unimplemented!()
-}
-
-pub fn visit_meta_property<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, MetaProperty);
-    unimplemented!()
-}
-
-pub fn visit_class_heritage<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ClassHeritage);
-    unimplemented!()
-}
-
-pub fn visit_class_body<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ClassBody);
-    unimplemented!()
-}
-
-pub fn visit_array_pattern<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, ArrayPattern);
-    unimplemented!()
-}
-
-pub fn visit_assignment_pattern<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, AssignmentPattern);
-    unimplemented!()
-}
-
-pub fn visit_rest_pattern<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, RestPattern);
-    unimplemented!()
-}
-
-pub fn visit_spread_element<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, SpreadElement);
-    unimplemented!()
-}
-
-pub fn visit_array<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node: Node<'a>) {
-    assert_node_kind!(node, Array);
-    unimplemented!()
 }

@@ -69,5 +69,9 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

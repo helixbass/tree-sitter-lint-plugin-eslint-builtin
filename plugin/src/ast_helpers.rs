@@ -501,10 +501,12 @@ pub fn is_punctuation_kind(kind: Kind) -> bool {
     !regex!(r#"^[a-zA-Z]"#).is_match(kind)
 }
 
+#[allow(dead_code)]
 pub fn is_punctuation(node: Node) -> bool {
     is_punctuation_kind(node.kind())
 }
 
+#[allow(dead_code)]
 pub fn is_line_comment(node: Node, context: &QueryMatchContext) -> bool {
     node.kind() == Comment && get_comment_type(node, context) == CommentType::Line
 }

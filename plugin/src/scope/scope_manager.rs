@@ -264,7 +264,7 @@ tid! { impl<'a> TidAble<'a> for ScopeManager<'a> }
 impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
         analyze(
-            &file_run_context.tree,
+            file_run_context.tree,
             file_run_context.file_contents,
             Default::default(),
         )

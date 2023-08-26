@@ -76,7 +76,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
             self.right_hand_nodes.push(key);
         }
 
-        self.visit_expression(property.field("value"));
+        self.visit(property.field("value"));
     }
 
     fn visit_array_pattern(&mut self, pattern: Node<'a>) {
@@ -94,7 +94,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
 
     fn visit_rest_pattern(&mut self, pattern: Node<'a>) {
         self.rest_elements.push(pattern);
-        self.visit_expression(pattern.first_non_comment_named_child(SupportedLanguage::Javascript));
+        self.visit(pattern.first_non_comment_named_child(SupportedLanguage::Javascript));
         self.rest_elements.pop().unwrap();
     }
 
@@ -109,7 +109,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
     }
 
     fn visit_spread_element(&mut self, node: Node<'a>) {
-        self.visit_expression(node.first_non_comment_named_child(SupportedLanguage::Javascript));
+        self.visit(node.first_non_comment_named_child(SupportedLanguage::Javascript));
     }
 
     fn visit_array(&mut self, node: Node<'a>) {
@@ -120,7 +120,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
 
     fn visit_assignment_expression(&mut self, node: Node<'a>) {
         self.assignments.push(node);
-        self.visit_expression(node.field("left"));
+        self.visit(node.field("left"));
         self.right_hand_nodes.push(node.field("right"));
         self.assignments.pop().unwrap();
     }
@@ -131,7 +131,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
             .for_each(|a| {
                 self.right_hand_nodes.push(a);
             });
-        self.visit_expression(node.field("function"));
+        self.visit(node.field("function"));
     }
 }
 
