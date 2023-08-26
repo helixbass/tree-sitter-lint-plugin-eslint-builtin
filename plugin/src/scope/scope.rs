@@ -821,14 +821,6 @@ impl<'a> Scope<'a> {
         &self.base().set
     }
 
-    fn set_mut(&mut self) -> &mut Set<'a> {
-        &mut self.base_mut().set
-    }
-
-    fn variables_mut(&mut self) -> &mut Vec<Id<Variable<'a>>> {
-        &mut self.base_mut().variables
-    }
-
     pub fn set_is_strict(&mut self, is_strict: bool) {
         self.base_mut().is_strict = is_strict;
     }

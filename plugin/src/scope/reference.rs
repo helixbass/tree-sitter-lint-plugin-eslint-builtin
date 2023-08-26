@@ -21,9 +21,9 @@ pub struct Reference<'a> {
     pub tainted: bool,
     pub resolved: Option<Id<Variable<'a>>>,
     flag: ReadWriteFlags,
-    write_expr: Option<Node<'a>>,
-    partial: bool,
-    init: bool,
+    pub write_expr: Option<Node<'a>>,
+    pub partial: bool,
+    pub init: bool,
     pub __maybe_implicit_global: Option<PatternAndNode<'a>>,
 }
 

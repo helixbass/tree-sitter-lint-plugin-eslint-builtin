@@ -36,6 +36,7 @@ use rules::{
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, yield_star_spacing_rule,
 };
 pub use scope::ScopeManager;
+pub use visit::Visit;
 
 pub type ProvidedTypes<'a> = (CodePathAnalyzer<'a>, ScopeManager<'a>);
 

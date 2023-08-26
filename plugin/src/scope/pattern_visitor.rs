@@ -29,6 +29,7 @@ pub fn is_pattern(node: Node) -> bool {
 }
 
 pub struct PatternVisitor<'a, TCallback> {
+    #[allow(dead_code)]
     options: ScopeManagerOptions,
     root_pattern: Node<'a>,
     callback: TCallback,
@@ -125,9 +126,11 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
     }
 
     fn visit_call_expression(&mut self, node: Node<'a>) {
-        node.field("arguments").non_comment_named_children(SupportedLanguage::Javascript).for_each(|a| {
-            self.right_hand_nodes.push(a);
-        });
+        node.field("arguments")
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .for_each(|a| {
+                self.right_hand_nodes.push(a);
+            });
         self.visit_expression(node.field("function"));
     }
 }

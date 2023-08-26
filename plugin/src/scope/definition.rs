@@ -73,8 +73,8 @@ pub struct DefinitionBase<'a> {
     name: Node<'a>,
     node: Node<'a>,
     parent: Option<Node<'a>>,
-    index: Option<usize>,
-    kind: Option<String>,
+    pub index: Option<usize>,
+    pub kind: Option<String>,
 }
 
 impl<'a> DefinitionBase<'a> {
@@ -99,7 +99,7 @@ impl<'a> DefinitionBase<'a> {
 
 pub struct ParameterDefinition<'a> {
     base: DefinitionBase<'a>,
-    rest: bool,
+    pub rest: bool,
 }
 
 impl<'a> ParameterDefinition<'a> {
