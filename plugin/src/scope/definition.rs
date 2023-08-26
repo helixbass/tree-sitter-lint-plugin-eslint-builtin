@@ -40,19 +40,31 @@ impl<'a> Definition<'a> {
     }
 
     pub fn node(&self) -> Node<'a> {
-        unimplemented!()
+        match self {
+            Self::Base(value) => value.node,
+            Self::Parameter(value) => value.base.node,
+        }
     }
 
     pub fn parent(&self) -> Option<Node<'a>> {
-        unimplemented!()
+        match self {
+            Self::Base(value) => value.parent,
+            Self::Parameter(value) => value.base.parent,
+        }
     }
 
     pub fn type_(&self) -> VariableType {
-        unimplemented!()
+        match self {
+            Self::Base(value) => value.type_,
+            Self::Parameter(value) => value.base.type_,
+        }
     }
 
     pub fn name(&self) -> Node<'a> {
-        unimplemented!()
+        match self {
+            Self::Base(value) => value.name,
+            Self::Parameter(value) => value.base.name,
+        }
     }
 }
 

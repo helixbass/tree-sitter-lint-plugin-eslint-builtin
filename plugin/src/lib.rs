@@ -35,6 +35,9 @@ use rules::{
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, yield_star_spacing_rule,
 };
+pub use scope::ScopeManager;
+
+pub type ProvidedTypes<'a> = (CodePathAnalyzer<'a>, ScopeManager<'a>);
 
 pub fn instantiate() -> Plugin {
     Plugin {

@@ -8,15 +8,15 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
-use scope_manager::ScopeManager;
-use tree_sitter_lint::tree_sitter::Tree;
+pub use scope_manager::ScopeManager;
+use tree_sitter_lint::{tree_sitter::Tree, tree_sitter_grep::RopeOrSlice};
 
 use self::scope_manager::ScopeManagerOptions;
 use crate::visit::Visit;
 
 pub fn analyze<'a>(
     tree: &'a Tree,
-    source_text: &'a [u8],
+    source_text: RopeOrSlice<'a>,
     options: ScopeManagerOptions,
 ) -> ScopeManager<'a> {
     let mut scope_manager = ScopeManager::new(source_text, options);

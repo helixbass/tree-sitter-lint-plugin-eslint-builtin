@@ -9,9 +9,13 @@ use derive_builder::Builder;
 use id_arena::Id;
 use itertools::Either;
 use squalid::{EverythingExt, NonEmpty};
-use tree_sitter_lint::{tree_sitter::Node, SourceTextProvider};
+use tree_sitter_lint::{
+    better_any::tid, tree_sitter::Node, tree_sitter_grep::RopeOrSlice, FileRunContext,
+    FromFileRunContext, SourceTextProvider,
+};
 
 use super::{
+    analyze,
     arena::AllArenas,
     scope::{Scope, ScopeType},
     variable::Variable,
@@ -61,12 +65,12 @@ pub struct ScopeManager<'a> {
     pub __current_scope: Option<Id<Scope<'a>>>,
     pub arena: AllArenas<'a>,
     pub __declared_variables: RefCell<HashMap<NodeId, Vec<Id<Variable<'a>>>>>,
-    pub source_text: &'a [u8],
+    pub source_text: RopeOrSlice<'a>,
     __options: ScopeManagerOptions,
 }
 
 impl<'a> ScopeManager<'a> {
-    pub fn new(source_text: &'a [u8], options: ScopeManagerOptions) -> Self {
+    pub fn new(source_text: RopeOrSlice<'a>, options: ScopeManagerOptions) -> Self {
         Self {
             scopes: Default::default(),
             global_scope: Default::default(),
@@ -252,5 +256,17 @@ impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {
 
     fn slice(&self, range: ops::Range<usize>) -> Cow<'a, str> {
         self.source_text.slice(range)
+    }
+}
+
+tid! { impl<'a> TidAble<'a> for ScopeManager<'a> }
+
+impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
+    fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
+        analyze(
+            &file_run_context.tree,
+            file_run_context.file_contents,
+            Default::default(),
+        )
     }
 }
