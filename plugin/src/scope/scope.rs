@@ -955,6 +955,10 @@ impl<'a, 'b> Scope<'a, 'b> {
             .into_iter()
             .map(|reference| self.scope_manager.borrow_reference(*reference))
     }
+
+    pub fn is_arguments_materialized(&self) -> bool {
+        self.scope.is_arguments_materialized(&self.scope_manager.arena.variables.borrow())
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

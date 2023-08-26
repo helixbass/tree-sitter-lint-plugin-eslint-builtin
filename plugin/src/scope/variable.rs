@@ -5,6 +5,7 @@ use tree_sitter_lint::tree_sitter::Node;
 
 use super::{definition::Definition, reference::_Reference, scope::_Scope, ScopeManager};
 
+#[derive(Debug)]
 pub struct _Variable<'a> {
     pub name: Cow<'a, str>,
     pub identifiers: Vec<Node<'a>>,
@@ -13,11 +14,12 @@ pub struct _Variable<'a> {
     pub tainted: bool,
     pub stack: bool,
     pub scope: Id<_Scope<'a>>,
+    id: Id<Self>,
 }
 
 impl<'a> _Variable<'a> {
     pub fn new(arena: &mut Arena<Self>, name: Cow<'a, str>, scope: Id<_Scope<'a>>) -> Id<Self> {
-        arena.alloc(Self {
+        arena.alloc_with_id(|id| Self {
             name,
             identifiers: Default::default(),
             references: Default::default(),
@@ -25,10 +27,12 @@ impl<'a> _Variable<'a> {
             tainted: Default::default(),
             stack: true,
             scope,
+            id,
         })
     }
 }
 
+#[derive(Debug)]
 pub struct Variable<'a, 'b> {
     variable: Ref<'b, _Variable<'a>>,
     scope_manager: &'b ScopeManager<'a>,
@@ -41,7 +45,19 @@ impl<'a, 'b> Variable<'a, 'b> {
             scope_manager,
         }
     }
+
+    pub fn name(&self) -> &str {
+        &self.variable.name
+    }
 }
+
+impl<'a, 'b> PartialEq for Variable<'a, 'b> {
+    fn eq(&self, other: &Self) -> bool {
+        self.variable.id == other.variable.id
+    }
+}
+
+impl<'a, 'b> Eq for Variable<'a, 'b> {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VariableType {

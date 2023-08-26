@@ -34,4 +34,8 @@ fn test_arguments_are_correctly_materialized() {
     assert_that(&scope.type_()).is_equal_to(ScopeType::Function);
     let variables = scope.variables().collect_vec();
     assert_that(&variables).has_length(1);
+    assert_that(&scope.is_arguments_materialized()).is_true();
+    let references = scope.references().collect_vec();
+    assert_that(&references).has_length(1);
+    assert_that(&references[0].resolved().as_ref()).is_equal_to(Some(&variables[0]));
 }

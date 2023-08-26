@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     cell::{Ref, RefCell, RefMut},
     collections::HashMap,
-    ops,
+    fmt, ops,
 };
 
 use derive_builder::Builder;
@@ -17,8 +17,9 @@ use tree_sitter_lint::{
 use super::{
     analyze,
     arena::AllArenas,
-    scope::{_Scope, ScopeType, Scope},
-    variable::{_Variable, Variable}, reference::{Reference, _Reference},
+    reference::{Reference, _Reference},
+    scope::{Scope, ScopeType, _Scope},
+    variable::{Variable, _Variable},
 };
 
 pub type NodeId = usize;
@@ -30,7 +31,7 @@ pub enum SourceType {
     CommonJS,
 }
 
-#[derive(Builder, Copy, Clone)]
+#[derive(Builder, Copy, Clone, Debug)]
 #[builder(default, setter(strip_option))]
 pub struct ScopeManagerOptions {
     optimistic: bool,
@@ -251,7 +252,7 @@ impl<'a> ScopeManager<'a> {
     pub(crate) fn borrow_scope<'b>(&'b self, scope: Id<_Scope<'a>>) -> Scope<'a, 'b> {
         Scope::new(
             Ref::map(self.arena.scopes.borrow(), |scopes| &scopes[scope]),
-            self
+            self,
         )
     }
 
@@ -261,15 +262,22 @@ impl<'a> ScopeManager<'a> {
 
     pub(crate) fn borrow_variable<'b>(&'b self, variable: Id<_Variable<'a>>) -> Variable<'a, 'b> {
         Variable::new(
-            Ref::map(self.arena.variables.borrow(), |variables| &variables[variable]),
-            self
+            Ref::map(self.arena.variables.borrow(), |variables| {
+                &variables[variable]
+            }),
+            self,
         )
     }
 
-    pub(crate) fn borrow_reference<'b>(&'b self, reference: Id<_Reference<'a>>) -> Reference<'a, 'b> {
+    pub(crate) fn borrow_reference<'b>(
+        &'b self,
+        reference: Id<_Reference<'a>>,
+    ) -> Reference<'a, 'b> {
         Reference::new(
-            Ref::map(self.arena.references.borrow(), |references| &references[reference]),
-            self
+            Ref::map(self.arena.references.borrow(), |references| {
+                &references[reference]
+            }),
+            self,
         )
     }
 }
@@ -293,5 +301,20 @@ impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
             file_run_context.file_contents,
             Default::default(),
         )
+    }
+}
+
+impl<'a> fmt::Debug for ScopeManager<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ScopeManager")
+            .field("scopes", &self.scopes)
+            .field("global_scope", &self.global_scope)
+            .field("__node_to_scope", &self.__node_to_scope)
+            .field("__current_scope", &self.__current_scope)
+            // .field("arena", &self.arena)
+            .field("__declared_variables", &self.__declared_variables)
+            .field("source_text", &self.source_text)
+            .field("__options", &self.__options)
+            .finish()
     }
 }

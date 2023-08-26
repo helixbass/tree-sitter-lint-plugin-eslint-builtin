@@ -5,7 +5,7 @@ use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
-    arena::AllArenas, referencer::PatternAndNode, scope::_Scope, variable::_Variable, ScopeManager,
+    arena::AllArenas, referencer::PatternAndNode, scope::_Scope, variable::{_Variable, Variable}, ScopeManager,
 };
 
 bitflags! {
@@ -108,5 +108,11 @@ impl<'a, 'b> Reference<'a, 'b> {
             reference,
             scope_manager,
         }
+    }
+
+    pub fn resolved(&self) -> Option<Variable<'a, 'b>> {
+        self.reference.resolved.map(|resolved| {
+            self.scope_manager.borrow_variable(resolved)
+        })
     }
 }
