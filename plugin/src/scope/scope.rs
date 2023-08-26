@@ -7,6 +7,7 @@ use std::{
 use id_arena::{Arena, Id};
 use itertools::Itertools;
 use squalid::{return_default_if_none, EverythingExt, OptionExt};
+use tracing::{instrument, trace};
 use tree_sitter_lint::{
     tree_sitter::Node,
     tree_sitter_grep::{return_if_none, SupportedLanguage},
@@ -1010,6 +1011,7 @@ impl<'a> ScopeBase<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[instrument(level = "trace", skip_all, fields(?name))]
     fn __define_generic(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
@@ -1027,6 +1029,8 @@ impl<'a> ScopeBase<'a> {
             .unwrap_or(&mut self.set)
             .entry(name.clone())
             .or_insert_with(|| {
+                trace!("new variable");
+
                 did_insert = true;
                 _Variable::new(&mut variable_arena.borrow_mut(), name, id)
             });
@@ -1090,6 +1094,7 @@ impl<'a> FunctionScope<'a> {
         ret
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn __define_arguments(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,

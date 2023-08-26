@@ -6,7 +6,7 @@ plugins:
 rules:
   rustfmt/rustfmt:
     level: error
-  rust-known-imports/no-undef:
+  rust-known-imports/known-imports:
     level: error
     options:
       known_imports:
@@ -79,5 +79,11 @@ rules:
         Ref:
           module: std::cell
           kind: type_identifier
+        instrument:
+          module: tracing
+          kind: attribute
+        trace:
+          module: tracing
+          kind: macro
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

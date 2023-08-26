@@ -20,7 +20,9 @@ fancy-regex = "0.11.0"
 natord = "1.0.9"
 derive_builder = "0.12.0"
 serde_regex = "1.1.0"
+tracing = "0.1.37"
 
 [dev-dependencies]
 rstest = "0.18.1"
 speculoos = "0.11.0"
+tracing-subscriber = "0.3.17"

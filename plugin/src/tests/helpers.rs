@@ -10,3 +10,7 @@ pub fn parse(source_text: &str) -> Tree {
         .unwrap();
     parser.parse(source_text, None).unwrap()
 }
+
+pub fn tracing_subscribe() {
+    tracing_subscriber::fmt::init();
+}

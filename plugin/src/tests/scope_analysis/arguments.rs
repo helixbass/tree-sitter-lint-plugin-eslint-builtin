@@ -5,11 +5,13 @@ use speculoos::prelude::*;
 
 use crate::{
     scope::{analyze, ScopeType},
-    tests::helpers::parse,
+    tests::helpers::{parse, tracing_subscribe},
 };
 
 #[test]
 fn test_arguments_are_correctly_materialized() {
+    tracing_subscribe();
+
     let code = "
         (function () {
             arguments;
@@ -26,4 +28,10 @@ fn test_arguments_are_correctly_materialized() {
     assert_that(&global_scope.type_()).is_equal_to(ScopeType::Global);
     assert_that(&global_scope.variables().collect_vec()).is_empty();
     assert_that(&global_scope.references().collect_vec()).is_empty();
+
+    let scope = &scopes[1];
+
+    assert_that(&scope.type_()).is_equal_to(ScopeType::Function);
+    let variables = scope.variables().collect_vec();
+    assert_that(&variables).has_length(1);
 }
