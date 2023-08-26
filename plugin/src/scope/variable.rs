@@ -3,12 +3,12 @@ use std::{borrow::Cow, cell::Ref};
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{definition::Definition, reference::Reference, scope::_Scope, ScopeManager};
+use super::{definition::Definition, reference::_Reference, scope::_Scope, ScopeManager};
 
 pub struct _Variable<'a> {
     pub name: Cow<'a, str>,
     pub identifiers: Vec<Node<'a>>,
-    pub references: Vec<Id<Reference<'a>>>,
+    pub references: Vec<Id<_Reference<'a>>>,
     pub defs: Vec<Id<Definition<'a>>>,
     pub tainted: bool,
     pub stack: bool,

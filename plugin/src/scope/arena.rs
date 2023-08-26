@@ -2,18 +2,18 @@ use std::cell::{Ref, RefCell, RefMut};
 
 use id_arena::{Arena, Id};
 
-use super::{definition::Definition, reference::Reference, scope::_Scope, variable::_Variable};
+use super::{definition::Definition, reference::_Reference, scope::_Scope, variable::_Variable};
 
 #[derive(Default)]
 pub struct AllArenas<'a> {
-    pub references: RefCell<Arena<Reference<'a>>>,
+    pub references: RefCell<Arena<_Reference<'a>>>,
     pub scopes: RefCell<Arena<_Scope<'a>>>,
     pub variables: RefCell<Arena<_Variable<'a>>>,
     pub definitions: RefCell<Arena<Definition<'a>>>,
 }
 
 impl<'a> AllArenas<'a> {
-    pub fn alloc_reference(&mut self, reference: Reference<'a>) -> Id<Reference<'a>> {
+    pub fn alloc_reference(&mut self, reference: _Reference<'a>) -> Id<_Reference<'a>> {
         self.references.borrow_mut().alloc(reference)
     }
 

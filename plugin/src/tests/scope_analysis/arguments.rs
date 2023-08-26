@@ -25,4 +25,5 @@ fn test_arguments_are_correctly_materialized() {
 
     assert_that(&global_scope.type_()).is_equal_to(ScopeType::Global);
     assert_that(&global_scope.variables().collect_vec()).is_empty();
+    assert_that(&global_scope.references().collect_vec()).is_empty();
 }

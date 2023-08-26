@@ -1,8 +1,12 @@
+use std::cell::Ref;
+
 use bitflags::bitflags;
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{arena::AllArenas, referencer::PatternAndNode, scope::_Scope, variable::_Variable};
+use super::{
+    arena::AllArenas, referencer::PatternAndNode, scope::_Scope, variable::_Variable, ScopeManager,
+};
 
 bitflags! {
     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -15,7 +19,7 @@ bitflags! {
     }
 }
 
-pub struct Reference<'a> {
+pub struct _Reference<'a> {
     pub identifier: Node<'a>,
     pub from: Id<_Scope<'a>>,
     pub tainted: bool,
@@ -27,7 +31,7 @@ pub struct Reference<'a> {
     pub __maybe_implicit_global: Option<PatternAndNode<'a>>,
 }
 
-impl<'a> Reference<'a> {
+impl<'a> _Reference<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         arena: &mut Arena<Self>,
@@ -90,5 +94,19 @@ impl<'a> Reference<'a> {
 
     pub fn is_read_write(&self) -> bool {
         self.flag == ReadWriteFlags::RW
+    }
+}
+
+pub struct Reference<'a, 'b> {
+    reference: Ref<'b, _Reference<'a>>,
+    scope_manager: &'b ScopeManager<'a>,
+}
+
+impl<'a, 'b> Reference<'a, 'b> {
+    pub fn new(reference: Ref<'b, _Reference<'a>>, scope_manager: &'b ScopeManager<'a>) -> Self {
+        Self {
+            reference,
+            scope_manager,
+        }
     }
 }

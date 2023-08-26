@@ -15,7 +15,7 @@ use tree_sitter_lint::{
 
 use super::{
     definition::Definition,
-    reference::{ReadWriteFlags, Reference},
+    reference::{ReadWriteFlags, Reference, _Reference},
     referencer::PatternAndNode,
     scope_manager::{NodeId, ScopeManager},
     variable::{Variable, VariableType, _Variable},
@@ -353,11 +353,11 @@ impl<'a> _Scope<'a> {
 
     fn __should_statically_close_for_global(
         &self,
-        reference_arena: &Arena<Reference<'a>>,
+        reference_arena: &Arena<_Reference<'a>>,
         variable_arena: &Arena<_Variable<'a>>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
-        ref_: Id<Reference<'a>>,
+        ref_: Id<_Reference<'a>>,
     ) -> bool {
         let name = reference_arena[ref_].identifier.text(source_text_provider);
 
@@ -374,12 +374,12 @@ impl<'a> _Scope<'a> {
 
     fn __static_close_ref(
         self_: Id<Self>,
-        reference_arena: &mut Arena<Reference<'a>>,
+        reference_arena: &mut Arena<_Reference<'a>>,
         variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
-        ref_: Id<Reference<'a>>,
+        ref_: Id<_Reference<'a>>,
     ) {
         if !Self::__resolve(
             self_,
@@ -394,7 +394,7 @@ impl<'a> _Scope<'a> {
         }
     }
 
-    fn __dynamic_close_ref(self_: Id<Self>, arena: &mut Arena<Self>, ref_: Id<Reference<'a>>) {
+    fn __dynamic_close_ref(self_: Id<Self>, arena: &mut Arena<Self>, ref_: Id<_Reference<'a>>) {
         let mut current = self_;
 
         loop {
@@ -405,12 +405,12 @@ impl<'a> _Scope<'a> {
 
     fn __global_close_ref(
         self_: Id<Self>,
-        reference_arena: &mut Arena<Reference<'a>>,
+        reference_arena: &mut Arena<_Reference<'a>>,
         variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
-        ref_: Id<Reference<'a>>,
+        ref_: Id<_Reference<'a>>,
     ) {
         if scope_arena[self_].__should_statically_close_for_global(
             reference_arena,
@@ -549,9 +549,9 @@ impl<'a> _Scope<'a> {
     fn __is_valid_resolution(
         &self,
         variable_arena: &Arena<_Variable<'a>>,
-        reference_arena: &Arena<Reference<'a>>,
+        reference_arena: &Arena<_Reference<'a>>,
         definition_arena: &Arena<Definition<'a>>,
-        ref_: Id<Reference<'a>>,
+        ref_: Id<_Reference<'a>>,
         variable: Id<_Variable<'a>>,
     ) -> bool {
         match self {
@@ -575,12 +575,12 @@ impl<'a> _Scope<'a> {
 
     fn __resolve(
         self_: Id<Self>,
-        reference_arena: &mut Arena<Reference<'a>>,
+        reference_arena: &mut Arena<_Reference<'a>>,
         variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
         definition_arena: &Arena<Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
-        ref_: Id<Reference<'a>>,
+        ref_: Id<_Reference<'a>>,
     ) -> bool {
         let name = reference_arena[ref_].identifier.text(source_text_provider);
 
@@ -617,7 +617,7 @@ impl<'a> _Scope<'a> {
     fn __delegate_to_upper_scope(
         self_: Id<Self>,
         arena: &mut Arena<Self>,
-        ref_: Id<Reference<'a>>,
+        ref_: Id<_Reference<'a>>,
     ) {
         if let Some(upper) = arena[self_].maybe_upper() {
             arena[upper].__left_mut().push(ref_);
@@ -685,7 +685,7 @@ impl<'a> _Scope<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn __referencing(
         &mut self,
-        arena: &mut Arena<Reference<'a>>,
+        arena: &mut Arena<_Reference<'a>>,
         node: Node<'a>,
         assign: Option<ReadWriteFlags>,
         write_expr: Option<Node<'a>>,
@@ -697,7 +697,7 @@ impl<'a> _Scope<'a> {
             return;
         }
 
-        let ref_ = Reference::new(
+        let ref_ = _Reference::new(
             arena,
             node,
             self.id(),
@@ -739,9 +739,9 @@ impl<'a> _Scope<'a> {
 
     pub fn resolve(
         &self,
-        reference_arena: &Arena<Reference<'a>>,
+        reference_arena: &Arena<_Reference<'a>>,
         ident: Node<'a>,
-    ) -> Option<Id<Reference<'a>>> {
+    ) -> Option<Id<_Reference<'a>>> {
         assert!(self.__is_closed(), "Scope should be closed.");
         assert!(ident.kind() == Identifier, "Target should be identifier.");
         self.references()
@@ -791,7 +791,7 @@ impl<'a> _Scope<'a> {
 
     pub fn is_used_name(
         &self,
-        reference_arena: &Arena<Reference<'a>>,
+        reference_arena: &Arena<_Reference<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         name: &str,
     ) -> bool {
@@ -855,28 +855,28 @@ impl<'a> _Scope<'a> {
     }
 
     #[allow(non_snake_case)]
-    fn maybe__left(&self) -> Option<&[Id<Reference<'a>>]> {
+    fn maybe__left(&self) -> Option<&[Id<_Reference<'a>>]> {
         self.base().__left.as_deref()
     }
 
-    fn __left(&self) -> &[Id<Reference<'a>>] {
+    fn __left(&self) -> &[Id<_Reference<'a>>] {
         self.maybe__left().unwrap()
     }
 
-    fn __left_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+    fn __left_mut(&mut self) -> &mut Vec<Id<_Reference<'a>>> {
         self.base_mut().__left.as_mut().unwrap()
     }
 
     #[allow(non_snake_case)]
-    fn set__left(&mut self, __left: Option<Vec<Id<Reference<'a>>>>) {
+    fn set__left(&mut self, __left: Option<Vec<Id<_Reference<'a>>>>) {
         self.base_mut().__left = __left;
     }
 
-    pub fn through(&self) -> &[Id<Reference<'a>>] {
+    pub fn through(&self) -> &[Id<_Reference<'a>>] {
         &self.base().through
     }
 
-    pub fn through_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+    pub fn through_mut(&mut self) -> &mut Vec<Id<_Reference<'a>>> {
         &mut self.base_mut().through
     }
 
@@ -910,11 +910,11 @@ impl<'a> _Scope<'a> {
         &mut self.base_mut().taints
     }
 
-    pub fn references(&self) -> &[Id<Reference<'a>>] {
+    pub fn references(&self) -> &[Id<_Reference<'a>>] {
         &self.base().references
     }
 
-    pub fn references_mut(&mut self) -> &mut Vec<Id<Reference<'a>>> {
+    pub fn references_mut(&mut self) -> &mut Vec<Id<_Reference<'a>>> {
         &mut self.base_mut().references
     }
 
@@ -947,6 +947,13 @@ impl<'a, 'b> Scope<'a, 'b> {
             .iter()
             .map(|variable| self.scope_manager.borrow_variable(*variable))
     }
+
+    pub fn references(&self) -> impl Iterator<Item = Reference<'a, 'b>> + '_ {
+        self.scope
+            .references()
+            .into_iter()
+            .map(|reference| self.scope_manager.borrow_reference(*reference))
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -974,14 +981,14 @@ pub struct ScopeBase<'a> {
     taints: HashMap<String, bool>,
     dynamic: bool,
     block: Node<'a>,
-    through: Vec<Id<Reference<'a>>>,
+    through: Vec<Id<_Reference<'a>>>,
     variables: Vec<Id<_Variable<'a>>>,
-    references: Vec<Id<Reference<'a>>>,
+    references: Vec<Id<_Reference<'a>>>,
     variable_scope: Id<_Scope<'a>>,
     function_expression_scope: bool,
     direct_call_to_eval_scope: bool,
     this_found: bool,
-    __left: Option<Vec<Id<Reference<'a>>>>,
+    __left: Option<Vec<Id<_Reference<'a>>>>,
     upper: Option<Id<_Scope<'a>>>,
     is_strict: bool,
     child_scopes: Vec<Id<_Scope<'a>>>,
@@ -1062,7 +1069,7 @@ impl<'a> GlobalScope<'a> {
 pub struct GlobalScopeImplicit<'a> {
     set: Set<'a>,
     variables: Vec<Id<_Variable<'a>>>,
-    left: Vec<Id<Reference<'a>>>,
+    left: Vec<Id<_Reference<'a>>>,
 }
 
 pub struct FunctionScope<'a> {

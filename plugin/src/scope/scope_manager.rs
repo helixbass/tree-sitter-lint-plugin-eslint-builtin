@@ -18,7 +18,7 @@ use super::{
     analyze,
     arena::AllArenas,
     scope::{_Scope, ScopeType, Scope},
-    variable::{_Variable, Variable},
+    variable::{_Variable, Variable}, reference::{Reference, _Reference},
 };
 
 pub type NodeId = usize;
@@ -262,6 +262,13 @@ impl<'a> ScopeManager<'a> {
     pub(crate) fn borrow_variable<'b>(&'b self, variable: Id<_Variable<'a>>) -> Variable<'a, 'b> {
         Variable::new(
             Ref::map(self.arena.variables.borrow(), |variables| &variables[variable]),
+            self
+        )
+    }
+
+    pub(crate) fn borrow_reference<'b>(&'b self, reference: Id<_Reference<'a>>) -> Reference<'a, 'b> {
+        Reference::new(
+            Ref::map(self.arena.references.borrow(), |references| &references[reference]),
             self
         )
     }
