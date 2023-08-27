@@ -23,7 +23,7 @@ use crate::{
     ast_helpers::get_first_child_of_kind,
     kind::{
         ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
-        FunctionDeclaration, Identifier, ImportStatement, LexicalDeclaration, StatementBlock,
+        FunctionDeclaration, Identifier, ImportClause, LexicalDeclaration, StatementBlock,
         SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
     visit::{visit_children, Visit},
@@ -101,7 +101,7 @@ impl<'tree: 'a, 'a, 'b, 'c> Visit<'tree> for Importer<'a, 'b, 'c> {
     }
 
     fn visit_identifier(&mut self, node: Node<'tree>) {
-        if node.parent().unwrap().kind() != ImportStatement {
+        if node.parent().unwrap().kind() != ImportClause {
             return;
         }
 

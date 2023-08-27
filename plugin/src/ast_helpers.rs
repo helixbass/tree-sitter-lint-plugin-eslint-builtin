@@ -10,10 +10,10 @@ use tree_sitter_lint::{
 use crate::{
     kind::{
         self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
-        ExpressionStatement, FieldDefinition, ForInStatement, Kind, MemberExpression,
+        ExpressionStatement, FieldDefinition, ForInStatement, ImportClause, Kind, MemberExpression,
         MethodDefinition, NewExpression, Object, Pair, ParenthesizedExpression, PropertyIdentifier,
         SequenceExpression, ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
-        UpdateExpression,
+        UpdateExpression, Identifier,
     },
     return_default_if_none,
 };
@@ -529,4 +529,8 @@ pub fn maybe_get_directive<'a>(
             .when_kind(kind::String)
             .map(|child| child.text(source_text_provider))
     })
+}
+
+pub fn is_default_import(node: Node) -> bool {
+    node.kind() == Identifier && node.parent().unwrap().kind() == ImportClause
 }
