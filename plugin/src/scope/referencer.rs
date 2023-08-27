@@ -8,7 +8,7 @@ use id_arena::Id;
 use squalid::OptionExt;
 use tracing::{trace, trace_span};
 use tree_sitter_lint::{
-    tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt, SourceTextProvider,
+    tree_sitter::Node, NodeExt, SourceTextProvider,
 };
 
 use super::{
@@ -20,7 +20,7 @@ use super::{
     variable::VariableType,
 };
 use crate::{
-    ast_helpers::get_first_child_of_kind,
+    ast_helpers::{get_first_child_of_kind, get_function_params},
     kind::{
         ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
         FunctionDeclaration, Identifier, ImportClause, LexicalDeclaration, StatementBlock,
@@ -238,10 +238,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
         self.scope_manager
             .__nest_function_scope(node, self.is_inner_method_definition);
 
-        for (param_index, param) in node
-            .field("parameters")
-            .non_comment_named_children(SupportedLanguage::Javascript)
-            .enumerate()
+        for (param_index, param) in get_function_params(node).enumerate()
         {
             self.visit_pattern(
                 param,

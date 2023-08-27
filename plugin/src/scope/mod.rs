@@ -1,4 +1,3 @@
-
 use tree_sitter_lint::{tree_sitter::Tree, tree_sitter_grep::RopeOrSlice};
 
 use crate::visit::Visit;
@@ -13,8 +12,10 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
-pub use scope_manager::{ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType};
 pub use scope::ScopeType;
+pub use scope_manager::{
+    EcmaVersion, ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType,
+};
 
 pub fn analyze<'a>(
     tree: &'a Tree,

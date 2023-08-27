@@ -72,7 +72,7 @@ pub fn get_upper_function(node: Node) -> Option<Node> {
 
 static any_function_pattern: Lazy<Regex> = Lazy::new(|| {
     Regex::new(formatcp!(
-        r#"^(?:{FunctionDeclaration}|{Function}|{ArrowFunction}|{MethodDefinition})$"#
+        r#"^(?:{FunctionDeclaration}|{GeneratorFunctionDeclaration}|{Function}|{GeneratorFunction}|{ArrowFunction}|{MethodDefinition})$"#
     ))
     .unwrap()
 });

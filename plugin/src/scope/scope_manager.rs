@@ -32,6 +32,8 @@ pub enum SourceType {
     CommonJS,
 }
 
+pub type EcmaVersion = u32;
+
 #[derive(Builder, Copy, Clone, Debug)]
 #[builder(default, setter(strip_option))]
 pub struct ScopeManagerOptions {
@@ -41,7 +43,7 @@ pub struct ScopeManagerOptions {
     nodejs_scope: bool,
     implied_strict: bool,
     source_type: SourceType,
-    ecma_version: u32,
+    ecma_version: EcmaVersion,
     // child_visitor_keys: Option<HashMap<String, Vec<String>>>,
     // fallback:
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use tree_sitter_lint::{rule, violation, Rule};
 
-use crate::{string_utils::upper_case_first, utils::ast_utils};
+use crate::{ast_helpers::get_function_params, string_utils::upper_case_first, utils::ast_utils};
 
 const DEFAULT_MAX: usize = 3;
 
@@ -63,13 +63,8 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
               (generator_function_declaration) @c
               (method_definition) @c
             "# => |node, context| {
-                let num_params = node.child_by_field_name("parameters").map(|parameters| {
-                    let mut cursor = parameters.walk();
-                    parameters.named_children(&mut cursor).count()
-                });
-                if let Some(num_params) =
-                    num_params.filter(|&num_params| num_params > self.num_params)
-                {
+                let num_params = get_function_params(node).count();
+                if num_params > self.num_params {
                     context.report(violation! {
                         range => ast_utils::get_function_head_range(node),
                         node => node,
@@ -88,9 +83,9 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_max_params_rule() {

@@ -13,7 +13,7 @@ use crate::{
         ExpressionStatement, FieldDefinition, ForInStatement, ImportClause, Kind, MemberExpression,
         MethodDefinition, NewExpression, Object, Pair, ParenthesizedExpression, PropertyIdentifier,
         SequenceExpression, ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
-        UpdateExpression, Identifier,
+        UpdateExpression, Identifier, ArrowFunction,
     },
     return_default_if_none,
 };
@@ -533,4 +533,13 @@ pub fn maybe_get_directive<'a>(
 
 pub fn is_default_import(node: Node) -> bool {
     node.kind() == Identifier && node.parent().unwrap().kind() == ImportClause
+}
+
+pub fn get_function_params(node: Node) -> impl Iterator<Item = Node> {
+    if node.kind() == ArrowFunction {
+        if let Some(parameter) = node.child_by_field_name("parameter") {
+            return Either::Left(iter::once(parameter));
+        }
+    }
+    Either::Right(node.field("parameters").non_comment_named_children(SupportedLanguage::Javascript))
 }

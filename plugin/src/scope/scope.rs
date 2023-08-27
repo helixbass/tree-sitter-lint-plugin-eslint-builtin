@@ -25,7 +25,7 @@ use crate::{
     ast_helpers::maybe_get_directive,
     break_if_none,
     kind::{
-        ArrowFunction, Identifier, Program, ShorthandPropertyIdentifierPattern, StatementBlock,
+        ArrowFunction, Identifier, Program, ShorthandPropertyIdentifierPattern, StatementBlock, LexicalDeclaration,
     },
 };
 
@@ -89,7 +89,7 @@ fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<_Scope<'a>
 fn should_be_statically(arena: &Arena<Definition>, def: Id<Definition>) -> bool {
     arena[def].type_() == VariableType::ClassName
         || arena[def].type_() == VariableType::Variable
-            && arena[def].parent().unwrap().field("kind").kind() != "var"
+            && arena[def].parent().unwrap().kind() == LexicalDeclaration
 }
 
 #[derive(Debug)]
