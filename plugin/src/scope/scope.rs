@@ -24,7 +24,9 @@ use super::{
 use crate::{
     ast_helpers::maybe_get_directive,
     break_if_none,
-    kind::{ArrowFunction, Identifier, Program, StatementBlock, ShorthandPropertyIdentifierPattern},
+    kind::{
+        ArrowFunction, Identifier, Program, ShorthandPropertyIdentifierPattern, StatementBlock,
+    },
 };
 
 fn is_strict_scope<'a>(
@@ -696,9 +698,13 @@ impl<'a> _Scope<'a> {
         partial: Option<bool>,
         init: Option<bool>,
     ) {
-        if node.kind() != Identifier {
+        if ![Identifier, ShorthandPropertyIdentifierPattern].contains(&node.kind()) {
+            trace!(?node, ?assign, "not adding reference");
+
             return;
         }
+
+        trace!(?node, ?assign, "adding reference");
 
         let ref_ = _Reference::new(
             arena,
@@ -1022,6 +1028,15 @@ impl<'a, 'b> PartialEq for Scope<'a, 'b> {
 }
 
 impl<'a, 'b> Eq for Scope<'a, 'b> {}
+
+impl<'a, 'b> Clone for Scope<'a, 'b> {
+    fn clone(&self) -> Self {
+        Self {
+            scope: Ref::clone(&self.scope),
+            scope_manager: self.scope_manager.clone(),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ScopeType {

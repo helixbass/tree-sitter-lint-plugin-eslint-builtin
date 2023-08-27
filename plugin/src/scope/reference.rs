@@ -127,6 +127,14 @@ impl<'a, 'b> Reference<'a, 'b> {
     pub fn from(&self) -> Scope<'a, 'b> {
         self.scope_manager.borrow_scope(self.reference.from)
     }
+
+    pub fn is_write_only(&self) -> bool {
+        self.reference.is_write_only()
+    }
+
+    pub fn is_read_only(&self) -> bool {
+        self.reference.is_read_only()
+    }
 }
 
 impl<'a, 'b> PartialEq for Reference<'a, 'b> {
