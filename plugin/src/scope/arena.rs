@@ -2,14 +2,14 @@ use std::cell::{Ref, RefCell, RefMut};
 
 use id_arena::{Arena, Id};
 
-use super::{definition::Definition, reference::_Reference, scope::_Scope, variable::_Variable};
+use super::{definition::_Definition, reference::_Reference, scope::_Scope, variable::_Variable};
 
 #[derive(Default)]
 pub struct AllArenas<'a> {
     pub references: RefCell<Arena<_Reference<'a>>>,
     pub scopes: RefCell<Arena<_Scope<'a>>>,
     pub variables: RefCell<Arena<_Variable<'a>>>,
-    pub definitions: RefCell<Arena<Definition<'a>>>,
+    pub definitions: RefCell<Arena<_Definition<'a>>>,
 }
 
 impl<'a> AllArenas<'a> {

@@ -1,16 +1,17 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::variable::VariableType;
+use super::{variable::VariableType, ScopeManager};
 
-pub enum Definition<'a> {
+#[derive(Debug)]
+pub enum _Definition<'a> {
     Base(DefinitionBase<'a>),
     Parameter(ParameterDefinition<'a>),
 }
 
-impl<'a> Definition<'a> {
+impl<'a> _Definition<'a> {
     pub fn new(
         arena: &RefCell<Arena<Self>>,
         type_: VariableType,
@@ -68,6 +69,7 @@ impl<'a> Definition<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct DefinitionBase<'a> {
     type_: VariableType,
     name: Node<'a>,
@@ -97,6 +99,7 @@ impl<'a> DefinitionBase<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct ParameterDefinition<'a> {
     base: DefinitionBase<'a>,
     pub rest: bool,
@@ -108,5 +111,24 @@ impl<'a> ParameterDefinition<'a> {
             base: DefinitionBase::new(VariableType::Parameter, name, node, None, index, None),
             rest,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Definition<'a, 'b> {
+    definition: Ref<'b, _Definition<'a>>,
+    scope_manager: &'b ScopeManager<'a>,
+}
+
+impl<'a, 'b> Definition<'a, 'b> {
+    pub fn new(definition: Ref<'b, _Definition<'a>>, scope_manager: &'b ScopeManager<'a>) -> Self {
+        Self {
+            definition,
+            scope_manager,
+        }
+    }
+
+    pub fn type_(&self) -> VariableType {
+        self.definition.type_()
     }
 }

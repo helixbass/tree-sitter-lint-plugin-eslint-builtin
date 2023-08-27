@@ -12,7 +12,7 @@ use tree_sitter_lint::{
 };
 
 use super::{
-    definition::Definition,
+    definition::_Definition,
     pattern_visitor::{is_pattern, PatternInfo, PatternVisitor},
     reference::ReadWriteFlags,
     scope::_Scope,
@@ -81,7 +81,7 @@ impl<'a, 'b, 'c> Importer<'a, 'b, 'c> {
                     definitions_arena,
                     &*referencer,
                     pattern,
-                    Definition::new(
+                    _Definition::new(
                         definitions_arena,
                         VariableType::ImportBinding,
                         pattern,
@@ -218,7 +218,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                 definitions_arena,
                 &*self,
                 node.field("name"),
-                Definition::new(
+                _Definition::new(
                     definitions_arena,
                     VariableType::FunctionName,
                     node.field("name"),
@@ -253,7 +253,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                         definitions_arena,
                         &*this,
                         pattern,
-                        Definition::new_parameter(
+                        _Definition::new_parameter(
                             definitions_arena,
                             pattern,
                             node,
@@ -285,7 +285,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                 definitions_arena,
                 &*self,
                 node.field("name"),
-                Definition::new(
+                _Definition::new(
                     definitions_arena,
                     VariableType::ClassName,
                     node.field("name"),
@@ -311,7 +311,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                 definitions_arena,
                 &*self,
                 name,
-                Definition::new(
+                _Definition::new(
                     definitions_arena,
                     VariableType::ClassName,
                     name,
@@ -353,7 +353,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                     definitions_arena,
                     &*this,
                     pattern,
-                    Definition::new(
+                    _Definition::new(
                         definitions_arena,
                         type_,
                         pattern,
@@ -505,7 +505,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                         definitions_arena,
                         &*this,
                         pattern,
-                        Definition::new(
+                        _Definition::new(
                             definitions_arena,
                             VariableType::CatchClause,
                             parameter,

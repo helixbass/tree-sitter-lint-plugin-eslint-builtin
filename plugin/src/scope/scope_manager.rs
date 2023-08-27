@@ -20,7 +20,7 @@ use super::{
     arena::AllArenas,
     reference::{Reference, _Reference},
     scope::{Scope, ScopeType, _Scope},
-    variable::{Variable, _Variable},
+    variable::{Variable, _Variable}, Definition, definition::_Definition,
 };
 
 pub type NodeId = usize;
@@ -307,6 +307,18 @@ impl<'a> ScopeManager<'a> {
 
     pub fn global_scope<'b>(&'b self) -> Scope<'a, 'b> {
         self.borrow_scope(self.global_scope.unwrap())
+    }
+
+    pub(crate) fn borrow_definition<'b>(
+        &'b self,
+        definition: Id<_Definition<'a>>,
+    ) -> Definition<'a, 'b> {
+        Definition::new(
+            Ref::map(self.arena.definitions.borrow(), |definitions| {
+                &definitions[definition]
+            }),
+            self,
+        )
     }
 }
 

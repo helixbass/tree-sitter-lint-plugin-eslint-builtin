@@ -15,7 +15,7 @@ use tree_sitter_lint::{
 };
 
 use super::{
-    definition::Definition,
+    definition::_Definition,
     reference::{ReadWriteFlags, Reference, _Reference},
     referencer::PatternAndNode,
     scope_manager::{NodeId, ScopeManager},
@@ -87,7 +87,7 @@ fn register_scope<'a>(scope_manager: &mut ScopeManager<'a>, scope: Id<_Scope<'a>
         .push(scope);
 }
 
-fn should_be_statically(arena: &Arena<Definition>, def: Id<Definition>) -> bool {
+fn should_be_statically(arena: &Arena<_Definition>, def: Id<_Definition>) -> bool {
     arena[def].type_() == VariableType::ClassName
         || arena[def].type_() == VariableType::Variable
             && arena[def].parent().unwrap().kind() == LexicalDeclaration
@@ -233,7 +233,7 @@ impl<'a> _Scope<'a> {
             definitions_arena,
             &*scope_manager,
             block.field("name"),
-            Definition::new(
+            _Definition::new(
                 definitions_arena,
                 VariableType::FunctionName,
                 block.field("name"),
@@ -360,7 +360,7 @@ impl<'a> _Scope<'a> {
         &self,
         reference_arena: &Arena<_Reference<'a>>,
         variable_arena: &Arena<_Variable<'a>>,
-        definition_arena: &Arena<Definition<'a>>,
+        definition_arena: &Arena<_Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<_Reference<'a>>,
     ) -> bool {
@@ -382,7 +382,7 @@ impl<'a> _Scope<'a> {
         reference_arena: &mut Arena<_Reference<'a>>,
         variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
-        definition_arena: &Arena<Definition<'a>>,
+        definition_arena: &Arena<_Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<_Reference<'a>>,
     ) {
@@ -413,7 +413,7 @@ impl<'a> _Scope<'a> {
         reference_arena: &mut Arena<_Reference<'a>>,
         variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
-        definition_arena: &Arena<Definition<'a>>,
+        definition_arena: &Arena<_Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<_Reference<'a>>,
     ) {
@@ -471,7 +471,7 @@ impl<'a> _Scope<'a> {
                             Some(&mut global_scope.implicit.set),
                             Some(&mut global_scope.implicit.variables),
                             Some(node),
-                            Some(Definition::new(
+                            Some(_Definition::new(
                                 &scope_manager.arena.definitions,
                                 VariableType::ImplicitGlobalVariable,
                                 node,
@@ -555,7 +555,7 @@ impl<'a> _Scope<'a> {
         &self,
         variable_arena: &Arena<_Variable<'a>>,
         reference_arena: &Arena<_Reference<'a>>,
-        definition_arena: &Arena<Definition<'a>>,
+        definition_arena: &Arena<_Definition<'a>>,
         ref_: Id<_Reference<'a>>,
         variable: Id<_Variable<'a>>,
     ) -> bool {
@@ -583,7 +583,7 @@ impl<'a> _Scope<'a> {
         reference_arena: &mut Arena<_Reference<'a>>,
         variable_arena: &mut Arena<_Variable<'a>>,
         scope_arena: &mut Arena<Self>,
-        definition_arena: &Arena<Definition<'a>>,
+        definition_arena: &Arena<_Definition<'a>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<_Reference<'a>>,
     ) -> bool {
@@ -645,12 +645,12 @@ impl<'a> _Scope<'a> {
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
-        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        definition_arena: &RefCell<Arena<_Definition<'a>>>,
         name: Cow<'a, str>,
         set: Option<&mut _Set<'a>>,
         variables: Option<&mut Vec<Id<_Variable<'a>>>>,
         node: Option<Node<'a>>,
-        def: Option<Id<Definition<'a>>>,
+        def: Option<Id<_Definition<'a>>>,
     ) {
         self.base_mut().__define_generic(
             __declared_variables,
@@ -669,10 +669,10 @@ impl<'a> _Scope<'a> {
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
-        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        definition_arena: &RefCell<Arena<_Definition<'a>>>,
         source_text_provider: &impl SourceTextProvider<'a>,
         node: Node<'a>,
-        def: Id<Definition<'a>>,
+        def: Id<_Definition<'a>>,
     ) {
         if [Identifier, ShorthandPropertyIdentifierPattern].contains(&node.kind()) {
             self.__define_generic(
@@ -1124,12 +1124,12 @@ impl<'a> ScopeBase<'a> {
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
-        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        definition_arena: &RefCell<Arena<_Definition<'a>>>,
         name: Cow<'a, str>,
         set: Option<&mut _Set<'a>>,
         variables: Option<&mut Vec<Id<_Variable<'a>>>>,
         node: Option<Node<'a>>,
-        def: Option<Id<Definition<'a>>>,
+        def: Option<Id<_Definition<'a>>>,
     ) {
         let mut did_insert = false;
         let id = self.id();
@@ -1200,7 +1200,7 @@ impl<'a> FunctionScope<'a> {
     pub fn new(
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
-        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        definition_arena: &RefCell<Arena<_Definition<'a>>>,
         base: ScopeBase<'a>,
     ) -> Self {
         let mut ret = Self { base };
@@ -1215,7 +1215,7 @@ impl<'a> FunctionScope<'a> {
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
-        definition_arena: &RefCell<Arena<Definition<'a>>>,
+        definition_arena: &RefCell<Arena<_Definition<'a>>>,
     ) {
         self.base.__define_generic(
             __declared_variables,

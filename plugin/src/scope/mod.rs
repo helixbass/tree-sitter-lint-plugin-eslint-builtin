@@ -12,10 +12,12 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
+pub use definition::Definition;
 pub use scope::{ScopeType, Scope};
 pub use scope_manager::{
     EcmaVersion, ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType,
 };
+pub use variable::VariableType;
 
 pub fn analyze<'a>(
     tree: &'a Tree,
