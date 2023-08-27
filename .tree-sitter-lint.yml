@@ -99,5 +99,9 @@ rules:
         HashSet:
           module: std::collections
           kind: type_identifier
+        tokens:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

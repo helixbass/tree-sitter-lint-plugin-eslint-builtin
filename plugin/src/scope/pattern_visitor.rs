@@ -1,4 +1,5 @@
 use squalid::OptionExt;
+use tracing::instrument;
 use tree_sitter_lint::{tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt};
 
 use super::scope_manager::ScopeManagerOptions;
@@ -49,12 +50,9 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> PatternVisitor<'a, TCa
             rest_elements: Default::default(),
         }
     }
-}
 
-impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
-    for PatternVisitor<'a, TCallback>
-{
-    fn visit_identifier(&mut self, pattern: Node<'a>) {
+    #[instrument(level = "trace", skip(self))]
+    fn _visit_identifier(&mut self, pattern: Node<'a>) {
         let last_rest_element = self.rest_elements.last().copied();
 
         (self.callback)(
@@ -68,6 +66,25 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
                 assignments: &self.assignments,
             },
         );
+    }
+
+    fn _visit_assignment_pattern(&mut self, pattern: Node<'a>) {
+        self.assignments.push(pattern);
+        self.visit(pattern.field("left"));
+        self.right_hand_nodes.push(pattern.field("right"));
+        self.assignments.pop().unwrap();
+    }
+}
+
+impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
+    for PatternVisitor<'a, TCallback>
+{
+    fn visit_identifier(&mut self, pattern: Node<'a>) {
+        self._visit_identifier(pattern);
+    }
+
+    fn visit_shorthand_property_identifier_pattern(&mut self, pattern: Node<'a>) {
+        self._visit_identifier(pattern);
     }
 
     fn visit_pair(&mut self, property: Node<'a>) {
@@ -86,10 +103,11 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
     }
 
     fn visit_assignment_pattern(&mut self, pattern: Node<'a>) {
-        self.assignments.push(pattern);
-        self.visit(pattern.field("left"));
-        self.right_hand_nodes.push(pattern.field("right"));
-        self.assignments.pop().unwrap();
+        self._visit_assignment_pattern(pattern);
+    }
+
+    fn visit_object_assignment_pattern(&mut self, pattern: Node<'a>) {
+        self._visit_assignment_pattern(pattern);
     }
 
     fn visit_rest_pattern(&mut self, pattern: Node<'a>) {

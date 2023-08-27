@@ -5,12 +5,20 @@ use itertools::{EitherOrBoth, Itertools};
 use squalid::OptionExt;
 use tree_sitter_lint::{
     better_any::{tid, Tid},
-    tree_sitter::{Node, Tree},
+    tree_sitter::Node,
     tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
     FileRunContext, FromFileRunContext, FromFileRunContextInstanceProvider,
     FromFileRunContextInstanceProviderFactory, NodeExt, SourceTextProvider,
 };
 
+use super::{
+    code_path::{CodePath, CodePathOrigin},
+    code_path_segment::CodePathSegment,
+    code_path_state::ChoiceContextKind,
+    debug_helpers as debug,
+    fork_context::ForkContext,
+    id_generator::IdGenerator,
+};
 use crate::{
     ast_helpers::{
         get_num_call_expression_arguments, is_for_of, is_outermost_chain_expression, NodeExtJs,
@@ -31,16 +39,8 @@ use crate::{
         YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
+    visit::{walk_tree, TreeEnterLeaveVisitor},
     EnterOrExit,
-};
-
-use super::{
-    code_path::{CodePath, CodePathOrigin},
-    code_path_segment::CodePathSegment,
-    code_path_state::ChoiceContextKind,
-    debug_helpers as debug,
-    fork_context::ForkContext,
-    id_generator::IdGenerator,
 };
 
 fn is_property_definition_value(node: Node) -> bool {
@@ -949,7 +949,29 @@ impl<'a> CodePathAnalyzer<'a> {
         }
         segments
     }
+}
 
+tid! { impl<'a> TidAble<'a> for CodePathAnalyzer<'a> }
+
+impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
+    fn node_text(&self, node: Node) -> Cow<'a, str> {
+        self.file_contents.node_text(node)
+    }
+
+    fn slice(&self, range: ops::Range<usize>) -> Cow<'a, str> {
+        self.file_contents.slice(range)
+    }
+}
+
+impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
+    fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
+        let mut code_path_analyzer = CodePathAnalyzer::new(file_run_context.file_contents);
+        walk_tree(file_run_context.tree, &mut code_path_analyzer);
+        code_path_analyzer
+    }
+}
+
+impl<'a> TreeEnterLeaveVisitor<'a> for CodePathAnalyzer<'a> {
     fn enter_node(&mut self, node: Node<'a>) {
         if !node.is_named() || node.kind() == Comment {
             return;
@@ -978,57 +1000,6 @@ impl<'a> CodePathAnalyzer<'a> {
         self.postprocess(node);
 
         self.current_node = None;
-    }
-}
-
-tid! { impl<'a> TidAble<'a> for CodePathAnalyzer<'a> }
-
-impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
-    fn node_text(&self, node: Node) -> Cow<'a, str> {
-        self.file_contents.node_text(node)
-    }
-
-    fn slice(&self, range: ops::Range<usize>) -> Cow<'a, str> {
-        self.file_contents.slice(range)
-    }
-}
-
-impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
-    fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
-        let mut code_path_analyzer = CodePathAnalyzer::new(file_run_context.file_contents);
-        walk_tree(file_run_context.tree, &mut code_path_analyzer);
-        code_path_analyzer
-    }
-}
-
-fn walk_tree<'a>(tree: &'a Tree, code_path_analyzer: &mut CodePathAnalyzer<'a>) {
-    let mut node_stack: Vec<Node<'a>> = Default::default();
-    let mut cursor = tree.walk();
-    'outer: loop {
-        let node = cursor.node();
-        while node_stack
-            .last()
-            .matches(|&last| node.end_byte() > last.end_byte())
-        {
-            code_path_analyzer.leave_node(node_stack.pop().unwrap());
-        }
-        node_stack.push(node);
-        code_path_analyzer.enter_node(node);
-
-        #[allow(clippy::collapsible_if)]
-        if !cursor.goto_first_child() {
-            if !cursor.goto_next_sibling() {
-                while cursor.goto_parent() {
-                    if cursor.goto_next_sibling() {
-                        continue 'outer;
-                    }
-                }
-                break;
-            }
-        }
-    }
-    while let Some(node) = node_stack.pop() {
-        code_path_analyzer.leave_node(node);
     }
 }
 
@@ -1086,9 +1057,10 @@ impl<'a> FromFileRunContextInstanceProvider<'a> for CodePathAnalyzerInstanceProv
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::RefCell, iter, path::PathBuf, sync::Arc};
+
     use rstest::rstest;
     use squalid::regex;
-    use std::{cell::RefCell, iter, path::PathBuf, sync::Arc};
     use tree_sitter_lint::{rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration};
 
     use super::{super::debug_helpers::make_dot_arrows, *};

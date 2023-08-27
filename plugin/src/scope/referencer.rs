@@ -6,6 +6,7 @@ use std::{
 
 use id_arena::Id;
 use squalid::OptionExt;
+use tracing::{trace, trace_span};
 use tree_sitter_lint::{
     tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt, SourceTextProvider,
 };
@@ -39,9 +40,15 @@ fn traverse_identifier_in_pattern<'a, 'b>(
         callback(referencer, node, pattern_info)
     });
 
+    let _span = trace_span!("pattern visitor").entered();
+
     visitor.visit(root_pattern);
 
+    drop(_span);
+
     if should_visit_referencer {
+        let _span = trace_span!("visiting right-hand nodes").entered();
+
         visitor
             .right_hand_nodes
             .iter()
@@ -142,6 +149,8 @@ impl<'a, 'b> Referencer<'a, 'b> {
             self.maybe_current_scope(),
             Some(current_scope) if node == current_scope.block()
         ) {
+            trace!(id = ?self.maybe_current_scope().unwrap(), "closing scope");
+
             let closed = _Scope::__close(
                 self.scope_manager.__current_scope.unwrap(),
                 self.scope_manager,
@@ -292,7 +301,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
         }
 
         if let Some(super_class) = node.maybe_first_child_of_kind(ClassHeritage) {
-            self.visit_class_heritage(super_class);
+            self.visit(super_class);
         }
 
         self.scope_manager.__nest_class_scope(node);
@@ -317,7 +326,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
             );
         }
 
-        self.visit_class_body(node.field("body"));
+        self.visit(node.field("body"));
 
         self.close(node);
     }
@@ -560,7 +569,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_pair(&mut self, node: Node<'tree>) {
         let key = node.child_by_field_name("key").unwrap();
         if key.kind() == ComputedPropertyName {
-            self.visit_computed_property_name(key);
+            self.visit(key);
         }
         self.visit(node.child_by_field_name("value").unwrap());
     }
@@ -568,7 +577,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_field_definition(&mut self, node: Node<'tree>) {
         let property = node.child_by_field_name("property").unwrap();
         if property.kind() == ComputedPropertyName {
-            self.visit_computed_property_name(property);
+            self.visit(property);
         }
         if let Some(value) = node.child_by_field_name("value") {
             self.scope_manager
@@ -589,10 +598,10 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_method_definition(&mut self, node: Node<'tree>) {
         let key = node.child_by_field_name("name").unwrap();
         if key.kind() == ComputedPropertyName {
-            self.visit_computed_property_name(key);
+            self.visit(key);
         }
         let previous = self.push_inner_method_definition(true);
-        self.visit_formal_parameters(node.child_by_field_name("parameters").unwrap());
+        self.visit(node.child_by_field_name("parameters").unwrap());
         self.visit(node.child_by_field_name("body").unwrap());
         self.pop_inner_method_definition(previous);
     }
@@ -661,7 +670,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     }
 
     fn visit_with_statement(&mut self, node: Node<'tree>) {
-        self.visit_parenthesized_expression(node.child_by_field_name("object").unwrap());
+        self.visit(node.child_by_field_name("object").unwrap());
 
         self.scope_manager.__nest_with_scope(node);
 
@@ -679,7 +688,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     }
 
     fn visit_switch_statement(&mut self, node: Node<'tree>) {
-        self.visit_parenthesized_expression(node.child_by_field_name("value").unwrap());
+        self.visit(node.child_by_field_name("value").unwrap());
 
         if self.scope_manager.__is_es6() {
             self.scope_manager.__nest_switch_scope(node);
@@ -787,7 +796,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             .named_children(&mut cursor)
             .filter(|child| child.kind() == ExportClause)
         {
-            self.visit_export_clause(export_clause);
+            self.visit(export_clause);
         }
     }
 
@@ -796,7 +805,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             .child_by_field_name("alias")
             .unwrap_or_else(|| node.child_by_field_name("name").unwrap());
         if name.kind() == Identifier {
-            self.visit_identifier(name);
+            self.visit(name);
         }
     }
 

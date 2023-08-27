@@ -1,9 +1,13 @@
-use tree_sitter_lint::tree_sitter::Node;
+use squalid::OptionExt;
+use tracing::trace;
+use tree_sitter_lint::tree_sitter::{Node, Tree};
 
 use crate::kind::{self, *};
 
 pub trait Visit<'a> {
     fn visit(&mut self, node: Node<'a>) {
+        trace!(?node, "visiting node");
+
         match node.kind() {
             Program => self.visit_program(node),
             HashBangLine => self.visit_hash_bang_line(node),
@@ -581,5 +585,47 @@ pub fn visit_children<'a, TVisit: Visit<'a> + ?Sized>(visitor: &mut TVisit, node
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
         visitor.visit(child);
+    }
+}
+
+pub trait TreeEnterLeaveVisitor<'a> {
+    fn enter_node(&mut self, node: Node<'a>);
+    fn leave_node(&mut self, node: Node<'a>);
+}
+
+pub fn walk_tree<'a>(tree: &'a Tree, visitor: &mut impl TreeEnterLeaveVisitor<'a>) {
+    let mut node_stack: Vec<Node<'a>> = Default::default();
+    let mut cursor = tree.walk();
+    'outer: loop {
+        let node = cursor.node();
+        while node_stack
+            .last()
+            .matches(|&last| node.end_byte() > last.end_byte())
+        {
+            trace!(?node, "leaving node");
+
+            visitor.leave_node(node_stack.pop().unwrap());
+        }
+        trace!(?node, "entering node");
+
+        node_stack.push(node);
+        visitor.enter_node(node);
+
+        #[allow(clippy::collapsible_if)]
+        if !cursor.goto_first_child() {
+            if !cursor.goto_next_sibling() {
+                while cursor.goto_parent() {
+                    if cursor.goto_next_sibling() {
+                        continue 'outer;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    while let Some(node) = node_stack.pop() {
+        trace!(?node, "leaving node");
+
+        visitor.leave_node(node);
     }
 }

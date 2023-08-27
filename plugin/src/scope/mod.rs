@@ -13,7 +13,7 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
-pub use scope_manager::{ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder};
+pub use scope_manager::{ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType};
 pub use scope::ScopeType;
 
 pub fn analyze<'a>(
@@ -26,7 +26,7 @@ pub fn analyze<'a>(
     let mut scope_manager = ScopeManager::new(source_text, options);
     let mut referencer = Referencer::new(options, &mut scope_manager);
 
-    referencer.visit_program(tree.root_node());
+    referencer.visit(tree.root_node());
 
     assert!(
         scope_manager.maybe_current_scope().is_none(),

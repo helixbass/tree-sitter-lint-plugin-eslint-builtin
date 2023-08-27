@@ -9,6 +9,7 @@ use derive_builder::Builder;
 use id_arena::Id;
 use itertools::Either;
 use squalid::{EverythingExt, NonEmpty};
+use tracing::trace;
 use tree_sitter_lint::{
     better_any::tid, tree_sitter::Node, tree_sitter_grep::RopeOrSlice, FileRunContext,
     FromFileRunContext, SourceTextProvider,
@@ -167,6 +168,8 @@ impl<'a> ScopeManager<'a> {
     }
 
     fn __nest_scope(&mut self, scope: Id<_Scope<'a>>) -> Id<_Scope<'a>> {
+        trace!(?scope, "nesting scope");
+
         if self.arena.scopes.borrow()[scope].type_() == ScopeType::Global {
             assert!(self.__current_scope.is_none());
             self.global_scope = Some(scope);

@@ -24,7 +24,7 @@ use super::{
 use crate::{
     ast_helpers::maybe_get_directive,
     break_if_none,
-    kind::{ArrowFunction, Identifier, Program, StatementBlock},
+    kind::{ArrowFunction, Identifier, Program, StatementBlock, ShorthandPropertyIdentifierPattern},
 };
 
 fn is_strict_scope<'a>(
@@ -661,6 +661,7 @@ impl<'a> _Scope<'a> {
         )
     }
 
+    #[instrument(level = "trace", skip_all, fields(?node, ?def))]
     pub fn __define(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
@@ -670,7 +671,7 @@ impl<'a> _Scope<'a> {
         node: Node<'a>,
         def: Id<Definition<'a>>,
     ) {
-        if node.kind() == Identifier {
+        if [Identifier, ShorthandPropertyIdentifierPattern].contains(&node.kind()) {
             self.__define_generic(
                 __declared_variables,
                 variable_arena,
