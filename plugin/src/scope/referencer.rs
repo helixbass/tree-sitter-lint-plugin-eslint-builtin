@@ -620,8 +620,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
             self.visit(key);
         }
         let previous = self.push_inner_method_definition(true);
-        self.visit(node.child_by_field_name("parameters").unwrap());
-        self.visit(node.child_by_field_name("body").unwrap());
+        self._visit_function(node);
         self.pop_inner_method_definition(previous);
     }
 

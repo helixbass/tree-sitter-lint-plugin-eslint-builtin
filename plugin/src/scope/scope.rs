@@ -564,7 +564,7 @@ impl<'a> _Scope<'a> {
                     return true;
                 }
 
-                let body_start = self.block().range().start_byte;
+                let body_start = self.block().field("body").range().start_byte;
 
                 !(variable_arena[variable].scope == self.id()
                     && reference_arena[ref_].identifier.range().start_byte < body_start

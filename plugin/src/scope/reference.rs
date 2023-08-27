@@ -135,6 +135,18 @@ impl<'a, 'b> Reference<'a, 'b> {
     pub fn is_read_only(&self) -> bool {
         self.reference.is_read_only()
     }
+
+    pub fn write_expr(&self) -> Option<Node<'a>> {
+        self.reference.write_expr
+    }
+
+    pub fn is_write(&self) -> bool {
+        self.reference.is_write()
+    }
+
+    pub fn is_read(&self) -> bool {
+        self.reference.is_read()
+    }
 }
 
 impl<'a, 'b> PartialEq for Reference<'a, 'b> {
