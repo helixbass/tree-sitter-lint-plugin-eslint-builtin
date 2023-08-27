@@ -12,7 +12,7 @@ mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
-pub use scope::ScopeType;
+pub use scope::{ScopeType, Scope};
 pub use scope_manager::{
     EcmaVersion, ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType,
 };

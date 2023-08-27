@@ -13,6 +13,15 @@ pub fn parse(source_text: &str) -> Tree {
     parser.parse(source_text, None).unwrap()
 }
 
+#[allow(dead_code)]
+pub fn parse_typescript(source_text: &str) -> Tree {
+    let mut parser = Parser::new();
+    parser
+        .set_language(SupportedLanguage::Typescript.language())
+        .unwrap();
+    parser.parse(source_text, None).unwrap()
+}
+
 pub fn tracing_subscribe() {
     run_once! {
         tracing_subscriber::fmt::init();

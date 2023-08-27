@@ -11,4 +11,8 @@ mod es6_class;
 mod es6_default_parameters;
 mod es6_destructuring_assignments;
 mod get_declared_variables;
+mod references;
+mod typescript;
 mod util;
+mod use_strict;
+mod with_scope;
