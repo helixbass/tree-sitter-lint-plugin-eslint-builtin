@@ -436,9 +436,9 @@ impl<'a, 'b> Referencer<'a, 'b> {
 
 impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     fn visit_assignment_expression(&mut self, node: Node<'tree>) {
-        if is_pattern(node) {
+        if is_pattern(node.field("left")) {
             self.visit_pattern(
-                node.child_by_field_name("left").unwrap(),
+                node.field("left"),
                 Some(VisitPatternOptions {
                     process_right_hand_nodes: true,
                 }),
@@ -466,9 +466,9 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                 },
             );
         } else {
-            self.visit(node.child_by_field_name("left").unwrap());
+            self.visit(node.field("left"));
         }
-        self.visit(node.child_by_field_name("right").unwrap());
+        self.visit(node.field("right"));
     }
 
     fn visit_augmented_assignment_expression(&mut self, node: Node<'tree>) {

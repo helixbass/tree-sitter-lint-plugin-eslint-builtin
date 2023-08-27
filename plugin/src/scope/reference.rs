@@ -28,7 +28,7 @@ pub struct _Reference<'a> {
     flag: ReadWriteFlags,
     pub write_expr: Option<Node<'a>>,
     pub partial: bool,
-    pub init: bool,
+    pub init: Option<bool>,
     pub __maybe_implicit_global: Option<PatternAndNode<'a>>,
     id: Id<Self>,
 }
@@ -61,11 +61,7 @@ impl<'a> _Reference<'a> {
             } else {
                 false
             },
-            init: if flag.intersects(ReadWriteFlags::WRITE) {
-                init
-            } else {
-                false
-            },
+            init: flag.intersects(ReadWriteFlags::WRITE).then_some(init),
             __maybe_implicit_global: maybe_implicit_global,
             id,
         })
@@ -150,6 +146,10 @@ impl<'a, 'b> Reference<'a, 'b> {
 
     pub fn partial(&self) -> bool {
         self.reference.partial
+    }
+
+    pub fn init(&self) -> Option<bool> {
+        self.reference.init
     }
 }
 
