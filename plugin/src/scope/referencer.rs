@@ -331,21 +331,20 @@ impl<'a, 'b> Referencer<'a, 'b> {
         self.close(node);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn _visit_variable_declaration(
         &mut self,
         variable_target_scope: Id<_Scope<'a>>,
         type_: VariableType,
         node: Node<'a>,
         index: usize,
+        decl: Node<'a>,
+        decl_name: Node<'a>,
+        init: Option<Node<'a>>,
+        node_kind: &str,
     ) {
-        let decl = node
-            .non_comment_named_children(SupportedLanguage::Javascript)
-            .nth(index)
-            .unwrap();
-        let init = decl.child_by_field_name("value");
-
         self.visit_pattern(
-            decl.field("name"),
+            decl_name,
             Some(VisitPatternOptions {
                 process_right_hand_nodes: true,
             }),
@@ -364,11 +363,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
                         decl,
                         Some(node),
                         Some(index),
-                        Some(match node.kind() {
-                            VariableDeclaration => "var".to_owned(),
-                            LexicalDeclaration => node.field("kind").kind().to_owned(),
-                            _ => unreachable!(),
-                        }),
+                        Some(node_kind.to_owned()),
                     ),
                 );
 
@@ -406,12 +401,39 @@ impl<'a, 'b> Referencer<'a, 'b> {
                 VariableType::Variable,
                 node,
                 i,
+                decl,
+                decl.field("name"),
+                decl.child_by_field_name("value"),
+                match node.kind() {
+                    VariableDeclaration => "var",
+                    LexicalDeclaration => node.field("kind").kind(),
+                    _ => unreachable!(),
+                },
             );
 
             if let Some(init) = decl.child_by_field_name("value") {
                 self.visit(init);
             }
         }
+    }
+
+    fn visit_for_in_left_declaration(&mut self, node: Node<'a>, kind: &str) {
+        let variable_target_scope = if kind == "var" {
+            self.current_scope().variable_scope()
+        } else {
+            self.current_scope().id()
+        };
+
+        self._visit_variable_declaration(
+            variable_target_scope,
+            VariableType::Variable,
+            node,
+            0,
+            node,
+            node,
+            None,
+            kind,
+        );
     }
 }
 
@@ -721,8 +743,8 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         if kind.matches(|kind| ["let", "const"].contains(&kind.kind())) {
             self.scope_manager.__nest_for_scope(node);
         }
-        if kind.is_some() {
-            self.visit(left);
+        if let Some(kind) = kind {
+            self.visit_for_in_left_declaration(left, kind.kind());
             self.visit_pattern(left, None, |this, pattern, _| {
                 this.current_scope_mut().__referencing(
                     &mut this.scope_manager.arena.references.borrow_mut(),

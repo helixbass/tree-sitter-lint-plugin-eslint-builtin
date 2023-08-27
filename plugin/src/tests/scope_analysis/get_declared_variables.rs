@@ -5,7 +5,7 @@ use speculoos::prelude::*;
 use tree_sitter_lint::tree_sitter::{Node, Tree};
 
 use crate::{
-    kind::{Kind, LexicalDeclaration, VariableDeclaration},
+    kind::{ForInStatement, Kind, LexicalDeclaration, ObjectPattern, VariableDeclaration},
     scope::{analyze, ScopeManager, ScopeManagerOptionsBuilder, SourceType},
     tests::helpers::{parse, tracing_subscribe},
     visit::{walk_tree, TreeEnterLeaveVisitor},
@@ -20,13 +20,16 @@ struct VerifyEnterLeaveVisitor<'a, 'b> {
 impl<'a, 'b> TreeEnterLeaveVisitor<'a> for VerifyEnterLeaveVisitor<'a, 'b> {
     fn enter_node(&mut self, node: Node<'a>) {
         if self.types.contains(&node.kind()) {
+            if node.kind() == ObjectPattern && node.parent().unwrap().kind() != ForInStatement {
+                return;
+            }
             let expected = self.expected_names_list.remove(0);
             let actual = self.scope_manager.get_declared_variables(node);
 
             if expected.is_empty() {
                 assert_that!(&actual).is_none();
             } else {
-                // println!("actual: {actual:#?}");
+                // println!("actual: {actual:#?}, node: {node:#?}, expected: {expected:#?}");
                 assert_that!(&actual).is_some().has_length(expected.len());
                 let actual = actual.unwrap();
                 for (i, actual_item) in actual.into_iter().enumerate() {
@@ -89,6 +92,33 @@ fn test_variable_declaration() {
             vec!["d", "e", "f"],
             vec!["g", "h", "i", "j", "k"],
             vec!["l"],
+        ],
+    );
+}
+
+#[test]
+fn test_variable_declaration_for_in_of() {
+    tracing_subscribe();
+
+    let code = "
+        for (var {a, x: [b], y: {c = 0}} in foo) {
+            let g;
+        }
+        for (let {d, x: [e], y: {f = 0}} of foo) {
+            let h;
+        }
+    ";
+    let ast = parse(code);
+
+    verify(
+        &ast,
+        code,
+        [VariableDeclaration, LexicalDeclaration, ObjectPattern],
+        [
+            vec!["a", "b", "c"],
+            vec!["g"],
+            vec!["d", "e", "f"],
+            vec!["h"],
         ],
     );
 }
