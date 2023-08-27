@@ -9,5 +9,6 @@ mod es6_block_scope;
 mod es6_catch;
 mod es6_class;
 mod es6_default_parameters;
+mod es6_destructuring_assignments;
 mod get_declared_variables;
 mod util;

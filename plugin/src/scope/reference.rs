@@ -147,6 +147,10 @@ impl<'a, 'b> Reference<'a, 'b> {
     pub fn is_read(&self) -> bool {
         self.reference.is_read()
     }
+
+    pub fn partial(&self) -> bool {
+        self.reference.partial
+    }
 }
 
 impl<'a, 'b> PartialEq for Reference<'a, 'b> {

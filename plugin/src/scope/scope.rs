@@ -25,7 +25,8 @@ use crate::{
     ast_helpers::maybe_get_directive,
     break_if_none,
     kind::{
-        ArrowFunction, Identifier, Program, ShorthandPropertyIdentifierPattern, StatementBlock, LexicalDeclaration,
+        ArrowFunction, Identifier, LexicalDeclaration, Program, ShorthandPropertyIdentifierPattern,
+        StatementBlock,
     },
 };
 
@@ -646,7 +647,7 @@ impl<'a> _Scope<'a> {
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         name: Cow<'a, str>,
-        set: Option<&mut Set<'a>>,
+        set: Option<&mut _Set<'a>>,
         variables: Option<&mut Vec<Id<_Variable<'a>>>>,
         node: Option<Node<'a>>,
         def: Option<Id<Definition<'a>>>,
@@ -831,7 +832,7 @@ impl<'a> _Scope<'a> {
         self.base().type_
     }
 
-    fn set(&self) -> &Set<'a> {
+    fn set(&self) -> &_Set<'a> {
         &self.base().set
     }
 
@@ -1005,12 +1006,14 @@ impl<'a, 'b> Scope<'a, 'b> {
         self.scope.function_expression_scope()
     }
 
-    pub fn set(&self) -> HashMap<Cow<'a, str>, Variable<'a, 'b>> {
-        self.scope
-            .set()
-            .into_iter()
+    pub fn _set_to_set(&self, set: &_Set<'a>) -> Set<'a, 'b> {
+        set.into_iter()
             .map(|(key, value)| (key.clone(), self.scope_manager.borrow_variable(*value)))
             .collect()
+    }
+
+    pub fn set(&self) -> Set<'a, 'b> {
+        self._set_to_set(self.scope.set())
     }
 
     pub fn through(&self) -> impl Iterator<Item = Reference<'a, 'b>> + '_ {
@@ -1018,6 +1021,27 @@ impl<'a, 'b> Scope<'a, 'b> {
             .through()
             .into_iter()
             .map(|&reference| self.scope_manager.borrow_reference(reference))
+    }
+
+    pub fn implicit(&self) -> GlobalScopeImplicit<'a, 'b> {
+        match &*self.scope {
+            _Scope::Global(scope) => GlobalScopeImplicit {
+                set: self._set_to_set(&scope.implicit.set),
+                variables: scope
+                    .implicit
+                    .variables
+                    .iter()
+                    .map(|&variable| self.scope_manager.borrow_variable(variable))
+                    .collect(),
+                left: scope
+                    .implicit
+                    .left
+                    .iter()
+                    .map(|&reference| self.scope_manager.borrow_reference(reference))
+                    .collect(),
+            },
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -1054,13 +1078,15 @@ pub enum ScopeType {
     ClassStaticBlock,
 }
 
-type Set<'a> = HashMap<Cow<'a, str>, Id<_Variable<'a>>>;
+type _Set<'a> = HashMap<Cow<'a, str>, Id<_Variable<'a>>>;
+
+type Set<'a, 'b> = HashMap<Cow<'a, str>, Variable<'a, 'b>>;
 
 #[derive(Debug)]
 pub struct ScopeBase<'a> {
     id: Id<_Scope<'a>>,
     type_: ScopeType,
-    set: Set<'a>,
+    set: _Set<'a>,
     taints: HashMap<String, bool>,
     dynamic: bool,
     block: Node<'a>,
@@ -1100,7 +1126,7 @@ impl<'a> ScopeBase<'a> {
         variable_arena: &RefCell<Arena<_Variable<'a>>>,
         definition_arena: &RefCell<Arena<Definition<'a>>>,
         name: Cow<'a, str>,
-        set: Option<&mut Set<'a>>,
+        set: Option<&mut _Set<'a>>,
         variables: Option<&mut Vec<Id<_Variable<'a>>>>,
         node: Option<Node<'a>>,
         def: Option<Id<Definition<'a>>>,
@@ -1140,7 +1166,7 @@ impl<'a> ScopeBase<'a> {
 #[derive(Debug)]
 pub struct GlobalScope<'a> {
     base: ScopeBase<'a>,
-    implicit: GlobalScopeImplicit<'a>,
+    implicit: _GlobalScopeImplicit<'a>,
 }
 
 impl<'a> GlobalScope<'a> {
@@ -1153,10 +1179,16 @@ impl<'a> GlobalScope<'a> {
 }
 
 #[derive(Debug, Default)]
-pub struct GlobalScopeImplicit<'a> {
-    set: Set<'a>,
+pub struct _GlobalScopeImplicit<'a> {
+    set: _Set<'a>,
     variables: Vec<Id<_Variable<'a>>>,
     left: Vec<Id<_Reference<'a>>>,
+}
+
+pub struct GlobalScopeImplicit<'a, 'b> {
+    pub set: Set<'a, 'b>,
+    pub variables: Vec<Variable<'a, 'b>>,
+    pub left: Vec<Reference<'a, 'b>>,
 }
 
 #[derive(Debug)]
