@@ -131,4 +131,8 @@ impl<'a, 'b> Definition<'a, 'b> {
     pub fn type_(&self) -> VariableType {
         self.definition.type_()
     }
+
+    pub fn name(&self) -> Node<'a> {
+        self.definition.name()
+    }
 }

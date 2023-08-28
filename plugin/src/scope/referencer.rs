@@ -7,9 +7,7 @@ use std::{
 use id_arena::Id;
 use squalid::OptionExt;
 use tracing::{trace, trace_span};
-use tree_sitter_lint::{
-    tree_sitter::Node, NodeExt, SourceTextProvider,
-};
+use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
 
 use super::{
     definition::_Definition,
@@ -22,7 +20,7 @@ use super::{
 use crate::{
     ast_helpers::{get_first_child_of_kind, get_function_params},
     kind::{
-        ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
+        ClassBody, ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
         FunctionDeclaration, Identifier, ImportClause, LexicalDeclaration, StatementBlock,
         SwitchCase, SwitchDefault, VariableDeclaration, VariableDeclarator,
     },
@@ -238,8 +236,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
         self.scope_manager
             .__nest_function_scope(node, self.is_inner_method_definition);
 
-        for (param_index, param) in get_function_params(node).enumerate()
-        {
+        for (param_index, param) in get_function_params(node).enumerate() {
             self.visit_pattern(
                 param,
                 Some(VisitPatternOptions {
@@ -619,7 +616,8 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
         if key.kind() == ComputedPropertyName {
             self.visit(key);
         }
-        let previous = self.push_inner_method_definition(true);
+        let previous =
+            self.push_inner_method_definition(node.parent().unwrap().kind() == ClassBody);
         self._visit_function(node);
         self.pop_inner_method_definition(previous);
     }
