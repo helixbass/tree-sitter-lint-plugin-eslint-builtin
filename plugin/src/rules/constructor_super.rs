@@ -385,7 +385,7 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
 mod tests {
     use crate::{
         kind::{CallExpression, MethodDefinition},
-        CodePathAnalyzerInstanceProviderFactory,
+        get_instance_provider_factory,
     };
 
     use super::*;
@@ -649,7 +649,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

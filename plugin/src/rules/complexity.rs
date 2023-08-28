@@ -180,9 +180,8 @@ pub fn complexity_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::CodePathAnalyzerInstanceProviderFactory;
-
     use super::*;
+    use crate::get_instance_provider_factory;
 
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedError, RuleTestExpectedErrorBuilder, RuleTester,
@@ -704,7 +703,7 @@ mod tests {
                     { code => "function a(x) {}", options => { max => 0 }, errors => [make_error("Function 'a'", 1, 0)] }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

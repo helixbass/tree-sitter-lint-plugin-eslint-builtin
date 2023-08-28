@@ -205,7 +205,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::CodePathAnalyzerInstanceProviderFactory;
+    use crate::get_instance_provider_factory;
 
     fn expected_error_builder() -> RuleTestExpectedErrorBuilder {
         RuleTestExpectedErrorBuilder::default()
@@ -548,7 +548,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

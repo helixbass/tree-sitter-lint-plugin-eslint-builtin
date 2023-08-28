@@ -251,7 +251,7 @@ mod tests {
 
     use tree_sitter_lint::{rule_tests, serde_json::json, RuleTester};
 
-    use crate::CodePathAnalyzerInstanceProviderFactory;
+    use crate::get_instance_provider_factory;
 
     #[test]
     fn test_array_callback_return_rule() {
@@ -727,7 +727,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

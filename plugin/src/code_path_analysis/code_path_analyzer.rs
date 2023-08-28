@@ -1,14 +1,13 @@
-use std::{any::TypeId, borrow::Cow, ops, rc::Rc, sync::OnceLock};
+use std::{borrow::Cow, ops, rc::Rc};
 
 use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
 use squalid::OptionExt;
 use tree_sitter_lint::{
-    better_any::{tid, Tid},
+    better_any::tid,
     tree_sitter::Node,
     tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
-    FileRunContext, FromFileRunContext, FromFileRunContextInstanceProvider,
-    FromFileRunContextInstanceProviderFactory, NodeExt, SourceTextProvider,
+    FileRunContext, FromFileRunContext, NodeExt, SourceTextProvider,
 };
 
 use super::{
@@ -1026,44 +1025,18 @@ impl OnLooped {
     }
 }
 
-pub struct CodePathAnalyzerInstanceProviderFactory;
-
-impl FromFileRunContextInstanceProviderFactory for CodePathAnalyzerInstanceProviderFactory {
-    fn create<'a>(&self) -> Box<dyn FromFileRunContextInstanceProvider<'a> + 'a> {
-        Box::<CodePathAnalyzerInstanceProvider>::default()
-    }
-}
-
-#[derive(Default)]
-pub struct CodePathAnalyzerInstanceProvider<'a> {
-    code_path_analyzer_instance: OnceLock<CodePathAnalyzer<'a>>,
-}
-
-impl<'a> FromFileRunContextInstanceProvider<'a> for CodePathAnalyzerInstanceProvider<'a> {
-    fn get(
-        &self,
-        type_id: TypeId,
-        file_run_context: FileRunContext<'a, '_>,
-    ) -> Option<&dyn Tid<'a>> {
-        match type_id {
-            id if id == CodePathAnalyzer::<'a>::id() => Some(
-                self.code_path_analyzer_instance
-                    .get_or_init(|| CodePathAnalyzer::from_file_run_context(file_run_context)),
-            ),
-            _ => None,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, iter, path::PathBuf, sync::Arc};
 
     use rstest::rstest;
     use squalid::regex;
-    use tree_sitter_lint::{rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration};
+    use tree_sitter_lint::{
+        instance_provider_factory, rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration,
+    };
 
     use super::{super::debug_helpers::make_dot_arrows, *};
+    use crate::ProvidedTypes;
 
     fn get_expected_dot_arrows(source: &str) -> Vec<String> {
         regex!(r#"/\*expected\s+((?:.|[\r\n])+?)\s*\*/"#)
@@ -1128,7 +1101,7 @@ mod tests {
                 .build()
                 .unwrap(),
             tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
-            &CodePathAnalyzerInstanceProviderFactory,
+            &instance_provider_factory!(ProvidedTypes),
         );
 
         assert!(violations.is_empty(), "Unexpected linting error in code.");

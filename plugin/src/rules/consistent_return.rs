@@ -169,7 +169,7 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
 mod tests {
     use crate::{
         kind::{ArrowFunction, Function, FunctionDeclaration, Program, ReturnStatement},
-        CodePathAnalyzerInstanceProviderFactory,
+        get_instance_provider_factory,
     };
 
     use super::*;
@@ -516,7 +516,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

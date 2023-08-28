@@ -177,7 +177,7 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{kind::ReturnStatement, CodePathAnalyzerInstanceProviderFactory};
+    use crate::{kind::ReturnStatement, get_instance_provider_factory};
 
     use super::*;
 
@@ -784,7 +784,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

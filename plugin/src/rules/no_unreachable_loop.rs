@@ -192,7 +192,7 @@ mod tests {
 
     use crate::{
         kind::{DoStatement, ForInStatement, ForStatement, WhileStatement},
-        CodePathAnalyzerInstanceProviderFactory,
+        get_instance_provider_factory,
     };
 
     static LOOP_TEMPLATES: Lazy<HashMap<&'static str, Vec<&'static str>>> = Lazy::new(|| {
@@ -620,7 +620,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

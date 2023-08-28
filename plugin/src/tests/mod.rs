@@ -1,4 +1,4 @@
 #![cfg(test)]
 
-mod helpers;
+pub mod helpers;
 mod scope_analysis;

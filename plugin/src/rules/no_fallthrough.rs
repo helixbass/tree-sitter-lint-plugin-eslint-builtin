@@ -190,7 +190,7 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{kind::SwitchCase, CodePathAnalyzerInstanceProviderFactory};
+    use crate::{kind::SwitchCase, get_instance_provider_factory};
 
     use super::*;
 
@@ -499,7 +499,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

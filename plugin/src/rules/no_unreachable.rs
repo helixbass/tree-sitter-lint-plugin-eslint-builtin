@@ -230,7 +230,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
 mod tests {
     use crate::{
         kind::{ExpressionStatement, LexicalDeclaration, StatementBlock, VariableDeclaration},
-        CodePathAnalyzerInstanceProviderFactory,
+        get_instance_provider_factory,
     };
 
     use super::*;
@@ -609,7 +609,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

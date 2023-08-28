@@ -126,14 +126,13 @@ pub fn no_this_before_super_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        kind::{Super, This},
-        CodePathAnalyzerInstanceProviderFactory,
-    };
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::{
+        kind::{Super, This},
+        get_instance_provider_factory,
+    };
 
     #[test]
     fn test_no_this_before_super_rule() {
@@ -306,7 +305,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

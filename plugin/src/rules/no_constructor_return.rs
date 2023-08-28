@@ -47,7 +47,7 @@ mod tests {
 
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
-    use crate::{kind::ReturnStatement, CodePathAnalyzerInstanceProviderFactory};
+    use crate::{kind::ReturnStatement, get_instance_provider_factory};
 
     #[test]
     fn test_no_constructor_return_rule() {
@@ -97,7 +97,7 @@ mod tests {
                     }
                 ]
             },
-            Box::new(CodePathAnalyzerInstanceProviderFactory),
+            get_instance_provider_factory(),
         )
     }
 }

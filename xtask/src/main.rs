@@ -4,7 +4,7 @@ use clap::{ArgGroup, Parser, Subcommand};
 
 use tree_sitter_lint::{rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration};
 use tree_sitter_lint_plugin_eslint_builtin::{
-    CodePathAnalyzer, CodePathAnalyzerInstanceProviderFactory,
+    CodePathAnalyzer, get_instance_provider_factory,
 };
 
 #[derive(Parser)]
@@ -79,6 +79,6 @@ fn dump_dot_file(source_text: &str) {
             .build()
             .unwrap(),
         tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
-        &CodePathAnalyzerInstanceProviderFactory,
+        &*get_instance_provider_factory(),
     );
 }

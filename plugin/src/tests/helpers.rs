@@ -54,7 +54,10 @@ where
         if subject.into_iter().next().is_some() {
             AssertionFailure::from_spec(self)
                 .with_expected("empty iterator".to_owned())
-                .with_actual(format!("iterator with <{}> items", subject.into_iter().count()))
+                .with_actual(format!(
+                    "iterator with <{}> items",
+                    subject.into_iter().count()
+                ))
                 .fail();
         }
     }
