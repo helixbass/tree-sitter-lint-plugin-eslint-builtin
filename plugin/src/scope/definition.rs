@@ -135,4 +135,11 @@ impl<'a, 'b> Definition<'a, 'b> {
     pub fn name(&self) -> Node<'a> {
         self.definition.name()
     }
+
+    pub fn rest(&self) -> bool {
+        match &*self.definition {
+            _Definition::Parameter(value) => value.rest,
+            _ => unreachable!(),
+        }
+    }
 }
