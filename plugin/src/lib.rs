@@ -36,6 +36,7 @@ use rules::{
     no_unsafe_finally_rule, no_unsafe_negation_rule, no_unsafe_optional_chaining_rule,
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, yield_star_spacing_rule,
+    no_class_assign_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -109,6 +110,7 @@ pub fn instantiate() -> Plugin {
             array_bracket_newline_rule(),
             space_unary_ops_rule(),
             no_const_assign_rule(),
+            no_class_assign_rule(),
         ],
     }
 }
