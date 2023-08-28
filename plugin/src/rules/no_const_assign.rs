@@ -47,6 +47,7 @@ pub fn no_const_assign_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
+    use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTester, instance_provider_factory};
 
     use super::*;
@@ -54,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_no_const_assign_rule() {
-        RuleTester::run_with_from_file_run_context_instance_provider(
+        RuleTester::run_with_instance_provider_and_environment(
             no_const_assign_rule(),
             rule_tests! {
                 valid => [
@@ -124,6 +125,7 @@ mod tests {
                 ]
             },
             Box::new(instance_provider_factory!(ProvidedTypes)),
+            json_object!({"ecma_version": 6}),
         )
     }
 }

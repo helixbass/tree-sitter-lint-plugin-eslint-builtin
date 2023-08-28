@@ -8,6 +8,7 @@ use std::{
 use derive_builder::Builder;
 use id_arena::Id;
 use itertools::Either;
+use serde::Deserialize;
 use squalid::{EverythingExt, NonEmpty};
 use tracing::trace;
 use tree_sitter_lint::{
@@ -18,14 +19,16 @@ use tree_sitter_lint::{
 use super::{
     analyze,
     arena::AllArenas,
+    definition::_Definition,
     reference::{Reference, _Reference},
     scope::{Scope, ScopeType, _Scope},
-    variable::{Variable, _Variable}, Definition, definition::_Definition,
+    variable::{Variable, _Variable},
+    Definition,
 };
 
 pub type NodeId = usize;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
 pub enum SourceType {
     Script,
     Module,
@@ -34,8 +37,9 @@ pub enum SourceType {
 
 pub type EcmaVersion = u32;
 
-#[derive(Builder, Copy, Clone, Debug)]
+#[derive(Builder, Copy, Clone, Debug, Deserialize)]
 #[builder(default, setter(strip_option))]
+#[serde(default)]
 pub struct ScopeManagerOptions {
     optimistic: bool,
     directive: bool,
@@ -120,12 +124,13 @@ impl<'a> ScopeManager<'a> {
     }
 
     pub fn get_declared_variables<'b>(&'b self, node: Node) -> Option<Vec<Variable<'a, 'b>>> {
-        self._get_declared_variables(node).map(|declared_variables| {
-            declared_variables
-                .into_iter()
-                .map(|variable| self.borrow_variable(variable))
-                .collect()
-        })
+        self._get_declared_variables(node)
+            .map(|declared_variables| {
+                declared_variables
+                    .into_iter()
+                    .map(|variable| self.borrow_variable(variable))
+                    .collect()
+            })
     }
 
     fn _acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
@@ -339,7 +344,10 @@ impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
         analyze(
             file_run_context.tree,
             file_run_context.file_contents,
-            Default::default(),
+            serde_json::from_value(serde_json::Value::Object(
+                file_run_context.environment.clone(),
+            ))
+            .unwrap(),
         )
     }
 }
