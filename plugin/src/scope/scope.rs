@@ -7,7 +7,7 @@ use std::{
 use id_arena::{Arena, Id};
 use itertools::Itertools;
 use squalid::{return_default_if_none, EverythingExt, OptionExt};
-use tracing::{instrument, trace};
+use tracing::{instrument, trace, trace_span};
 use tree_sitter_lint::{
     tree_sitter::Node,
     tree_sitter_grep::{return_if_none, SupportedLanguage},
@@ -587,9 +587,13 @@ impl<'a> _Scope<'a> {
         source_text_provider: &impl SourceTextProvider<'a>,
         ref_: Id<_Reference<'a>>,
     ) -> bool {
+        let _span = trace_span!(target: "scope_analysis", "resolving reference", ?ref_).entered();
+
         let name = reference_arena[ref_].identifier.text(source_text_provider);
 
         let Some(variable) = scope_arena[self_].set().get(&name).copied() else {
+            trace!(target: "scope_analysis", "not found in set");
+
             return false;
         };
 
@@ -600,6 +604,8 @@ impl<'a> _Scope<'a> {
             ref_,
             variable,
         ) {
+            trace!(target: "scope_analysis", "not valid resolution");
+
             return false;
         }
         variable_arena[variable].references.push(ref_);
@@ -615,6 +621,8 @@ impl<'a> _Scope<'a> {
                 .insert(variable_arena[variable].name.clone().into_owned(), true);
         }
         reference_arena[ref_].resolved = Some(variable);
+
+        trace!(target: "scope_analysis", ?variable, "resolved");
 
         true
     }
@@ -664,7 +672,7 @@ impl<'a> _Scope<'a> {
         )
     }
 
-    #[instrument(level = "trace", skip_all, fields(?node, ?def))]
+    #[instrument(target = "scope_analysis", level = "trace", skip_all, fields(?node, ?def))]
     pub fn __define(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
@@ -700,12 +708,12 @@ impl<'a> _Scope<'a> {
         init: Option<bool>,
     ) {
         if ![Identifier, ShorthandPropertyIdentifierPattern].contains(&node.kind()) {
-            trace!(?node, ?assign, "not adding reference");
+            trace!(target: "scope_analysis", ?node, ?assign, "not adding reference");
 
             return;
         }
 
-        trace!(?node, ?assign, "adding reference");
+        trace!(target: "scope_analysis", ?node, ?assign, "adding reference");
 
         let ref_ = _Reference::new(
             arena,
@@ -832,7 +840,7 @@ impl<'a> _Scope<'a> {
         self.base().type_
     }
 
-    fn set(&self) -> &_Set<'a> {
+    pub fn set(&self) -> &_Set<'a> {
         &self.base().set
     }
 
@@ -1119,7 +1127,7 @@ impl<'a> ScopeBase<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[instrument(level = "trace", skip_all, fields(?name))]
+    #[instrument(target = "scope_analysis", level = "trace", skip_all, fields(?name))]
     fn __define_generic(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,
@@ -1137,7 +1145,7 @@ impl<'a> ScopeBase<'a> {
             .unwrap_or(&mut self.set)
             .entry(name.clone())
             .or_insert_with(|| {
-                trace!("new variable");
+                trace!(target: "scope_analysis", "new variable");
 
                 did_insert = true;
                 _Variable::new(&mut variable_arena.borrow_mut(), name, id)
@@ -1210,7 +1218,7 @@ impl<'a> FunctionScope<'a> {
         ret
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(target = "scope_analysis", level = "trace", skip_all)]
     fn __define_arguments(
         &mut self,
         __declared_variables: &mut HashMap<NodeId, Vec<Id<_Variable<'a>>>>,

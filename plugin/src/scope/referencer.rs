@@ -38,14 +38,14 @@ fn traverse_identifier_in_pattern<'a, 'b>(
         callback(referencer, node, pattern_info)
     });
 
-    let _span = trace_span!("pattern visitor").entered();
+    let _span = trace_span!(target: "scope_analysis", "pattern visitor").entered();
 
     visitor.visit(root_pattern);
 
     drop(_span);
 
     if should_visit_referencer {
-        let _span = trace_span!("visiting right-hand nodes").entered();
+        let _span = trace_span!(target: "scope_analysis", "visiting right-hand nodes").entered();
 
         visitor
             .right_hand_nodes
@@ -147,7 +147,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
             self.maybe_current_scope(),
             Some(current_scope) if node == current_scope.block()
         ) {
-            trace!(id = ?self.maybe_current_scope().unwrap(), "closing scope");
+            trace!(target: "scope_analysis", id = ?self.maybe_current_scope().unwrap(), "closing scope");
 
             let closed = _Scope::__close(
                 self.scope_manager.__current_scope.unwrap(),

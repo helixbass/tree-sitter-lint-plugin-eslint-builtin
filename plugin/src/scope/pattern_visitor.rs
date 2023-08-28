@@ -51,7 +51,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> PatternVisitor<'a, TCa
         }
     }
 
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(target = "scope_analysis", level = "trace", skip(self))]
     fn _visit_identifier(&mut self, pattern: Node<'a>) {
         let last_rest_element = self.rest_elements.last().copied();
 

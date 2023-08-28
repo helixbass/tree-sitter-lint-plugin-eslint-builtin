@@ -48,10 +48,11 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind::Identifier, get_instance_provider_factory};
+    use crate::{kind::Identifier, get_instance_provider_factory, tests::helpers::tracing_subscribe};
 
     #[test]
     fn test_no_func_assign_rule() {
+        tracing_subscribe();
         RuleTester::run_with_from_file_run_context_instance_provider(
             no_func_assign_rule(),
             rule_tests! {

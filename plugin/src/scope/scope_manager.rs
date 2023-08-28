@@ -13,7 +13,7 @@ use squalid::{EverythingExt, NonEmpty};
 use tracing::trace;
 use tree_sitter_lint::{
     better_any::tid, tree_sitter::Node, tree_sitter_grep::RopeOrSlice, FileRunContext,
-    FromFileRunContext, SourceTextProvider,
+    FromFileRunContext, NodeExt, SourceTextProvider,
 };
 
 use super::{
@@ -170,7 +170,7 @@ impl<'a> ScopeManager<'a> {
     }
 
     fn __nest_scope(&mut self, scope: Id<_Scope<'a>>) -> Id<_Scope<'a>> {
-        trace!(?scope, "nesting scope");
+        trace!(target: "scope_analysis", ?scope, type_ = ?self.arena.scopes.borrow()[scope].type_(), "nesting scope");
 
         if self.arena.scopes.borrow()[scope].type_() == ScopeType::Global {
             assert!(self.__current_scope.is_none());
@@ -336,14 +336,16 @@ tid! { impl<'a> TidAble<'a> for ScopeManager<'a> }
 
 impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
-        analyze(
+        let scope_manager = analyze(
             file_run_context.tree,
             file_run_context.file_contents,
             serde_json::from_value(serde_json::Value::Object(
                 file_run_context.environment.clone(),
             ))
             .unwrap(),
-        )
+        );
+        add_declared_globals(&scope_manager);
+        scope_manager
     }
 }
 
@@ -420,4 +422,29 @@ impl<'a, 'b> DeclaredVariablesPresent<'a, 'b> {
             next_index: Default::default(),
         }
     }
+}
+
+fn add_declared_globals(scope_manager: &ScopeManager) {
+    let global_scope = &mut scope_manager.arena.scopes.borrow_mut()[scope_manager.scopes[0]];
+    let through = global_scope.through().to_owned();
+    *global_scope.through_mut() = through
+        .iter()
+        .filter(|&&reference| {
+            let reference = &mut scope_manager.arena.references.borrow_mut()[reference];
+            let name = reference.identifier.text(scope_manager);
+            let variable = global_scope.set().get(&name).copied();
+
+            if let Some(variable) = variable {
+                reference.resolved = Some(variable);
+                scope_manager.arena.variables.borrow_mut()[variable]
+                    .references
+                    .push(reference.id);
+
+                return false;
+            }
+
+            true
+        })
+        .copied()
+        .collect();
 }

@@ -6,7 +6,7 @@ use crate::kind::{self, *};
 
 pub trait Visit<'a> {
     fn visit(&mut self, node: Node<'a>) {
-        trace!(?node, "visiting node");
+        trace!(target: "scope_analysis", ?node, "visiting node");
 
         match node.kind() {
             Program => self.visit_program(node),
@@ -602,11 +602,11 @@ pub fn walk_tree<'a>(tree: &'a Tree, visitor: &mut impl TreeEnterLeaveVisitor<'a
             .last()
             .matches(|&last| node.end_byte() > last.end_byte())
         {
-            trace!(?node, "leaving node");
+            trace!(target: "scope_analysis", ?node, "leaving node");
 
             visitor.leave_node(node_stack.pop().unwrap());
         }
-        trace!(?node, "entering node");
+        trace!(target: "scope_analysis", ?node, "entering node");
 
         node_stack.push(node);
         visitor.enter_node(node);
@@ -624,7 +624,7 @@ pub fn walk_tree<'a>(tree: &'a Tree, visitor: &mut impl TreeEnterLeaveVisitor<'a
         }
     }
     while let Some(node) = node_stack.pop() {
-        trace!(?node, "leaving node");
+        trace!(target: "scope_analysis", ?node, "leaving node");
 
         visitor.leave_node(node);
     }

@@ -5,7 +5,11 @@ use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
 use super::{
-    arena::AllArenas, referencer::PatternAndNode, scope::{_Scope, Scope}, variable::{_Variable, Variable}, ScopeManager,
+    arena::AllArenas,
+    referencer::PatternAndNode,
+    scope::{Scope, _Scope},
+    variable::{Variable, _Variable},
+    ScopeManager,
 };
 
 bitflags! {
@@ -30,7 +34,7 @@ pub struct _Reference<'a> {
     pub partial: bool,
     pub init: Option<bool>,
     pub __maybe_implicit_global: Option<PatternAndNode<'a>>,
-    id: Id<Self>,
+    pub id: Id<Self>,
 }
 
 impl<'a> _Reference<'a> {
@@ -111,9 +115,9 @@ impl<'a, 'b> Reference<'a, 'b> {
     }
 
     pub fn resolved(&self) -> Option<Variable<'a, 'b>> {
-        self.reference.resolved.map(|resolved| {
-            self.scope_manager.borrow_variable(resolved)
-        })
+        self.reference
+            .resolved
+            .map(|resolved| self.scope_manager.borrow_variable(resolved))
     }
 
     pub fn identifier(&self) -> Node<'a> {
