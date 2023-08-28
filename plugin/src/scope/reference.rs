@@ -151,6 +151,10 @@ impl<'a, 'b> Reference<'a, 'b> {
     pub fn init(&self) -> Option<bool> {
         self.reference.init
     }
+
+    pub fn is_read_write(&self) -> bool {
+        self.reference.is_read_write()
+    }
 }
 
 impl<'a, 'b> PartialEq for Reference<'a, 'b> {
