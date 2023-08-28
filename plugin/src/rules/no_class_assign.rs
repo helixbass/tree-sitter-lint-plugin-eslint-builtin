@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use itertools::Itertools;
+use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+
+use crate::{scope::ScopeManager, utils::ast_utils};
 
 pub fn no_class_assign_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,13 +13,27 @@ pub fn no_class_assign_rule() -> Arc<dyn Rule> {
             class => "'{{name}}' is a class.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (class_declaration) @c
+              (class) @c
+            "# => |node, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+
+                if let Some(declared_variables) = scope_manager.get_declared_variables(node) {
+                    declared_variables.into_iter().for_each(|variable| {
+                        ast_utils::get_modifying_references(&variable.references().collect_vec())
+                            .into_iter()
+                            .for_each(|reference| {
+                                context.report(violation! {
+                                    node => reference.identifier(),
+                                    message_id => "class",
+                                    data => {
+                                        name => reference.identifier().text(context)
+                                    }
+                                });
+                            });
+                    });
+                }
             },
         ],
     }
@@ -24,14 +41,15 @@ pub fn no_class_assign_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
+    use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::Identifier;
+    use crate::{kind::{Identifier, ShorthandPropertyIdentifierPattern}, get_instance_provider_factory};
 
     #[test]
     fn test_no_class_assign_rule() {
-        RuleTester::run(
+        RuleTester::run_with_instance_provider_and_environment(
             no_class_assign_rule(),
             rule_tests! {
                 valid => [
@@ -56,7 +74,7 @@ mod tests {
                     },
                     {
                         code => "class A { } ({A} = 0);",
-                        errors => [{ message_id => "class", data => { name => "A" }, type => Identifier }]
+                        errors => [{ message_id => "class", data => { name => "A" }, type => ShorthandPropertyIdentifierPattern }]
                     },
                     {
                         code => "class A { } ({b: A = 0} = {});",
@@ -83,6 +101,8 @@ mod tests {
                     }
                 ]
             },
+            get_instance_provider_factory(),
+            json_object!({"ecma_version": 6})
         )
     }
 }
