@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use itertools::Itertools;
+use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+
+use crate::{scope::{ScopeManager, VariableType}, utils::ast_utils};
 
 pub fn no_func_assign_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,13 +13,31 @@ pub fn no_func_assign_rule() -> Arc<dyn Rule> {
             is_a_function => "'{{name}}' is a function.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (function) @c
+              (function_declaration) @c
+              (generator_function) @c
+              (generator_function_declaration) @c
+            "# => |node, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+
+                scope_manager.get_declared_variables(node)
+                    .filter(|variable| {
+                        variable.defs().next().unwrap().type_() == VariableType::FunctionName
+                    })
+                    .for_each(|variable| {
+                        ast_utils::get_modifying_references(&variable.references().collect_vec())
+                            .into_iter()
+                            .for_each(|reference| {
+                                context.report(violation! {
+                                    node => reference.identifier(),
+                                    message_id => "is_a_function",
+                                    data => {
+                                        name => reference.identifier().text(context),
+                                    }
+                                });
+                            });
+                    });
             },
         ],
     }
@@ -27,11 +48,11 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::Identifier;
+    use crate::{kind::Identifier, get_instance_provider_factory};
 
     #[test]
     fn test_no_func_assign_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             no_func_assign_rule(),
             rule_tests! {
                 valid => [
@@ -114,6 +135,7 @@ mod tests {
                     }
                 ]
             },
+            get_instance_provider_factory(),
         )
     }
 }

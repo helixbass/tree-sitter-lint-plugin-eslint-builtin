@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use itertools::Itertools;
-use squalid::return_if_none;
-use tree_sitter_lint::{rule, violation, Rule, QueryMatchContext, NodeExt};
+use tree_sitter_lint::{rule, violation, NodeExt, QueryMatchContext, Rule};
 
-use crate::{scope::{ScopeManager, Variable}, utils::ast_utils};
+use crate::{
+    scope::{ScopeManager, Variable},
+    utils::ast_utils,
+};
 
 fn check_variable(variable: Variable, context: &QueryMatchContext) {
     ast_utils::get_modifying_references(&variable.references().collect_vec())
@@ -35,9 +37,7 @@ pub fn no_const_assign_rule() -> Arc<dyn Rule> {
               ) @c
             "# => |node, context| {
                 let scope_manager = context.retrieve::<ScopeManager<'a>>();
-                return_if_none!(
-                    scope_manager.get_declared_variables(node)
-                ).into_iter().for_each(|variable| {
+                scope_manager.get_declared_variables(node).for_each(|variable| {
                     check_variable(variable, context);
                 });
             },
@@ -48,10 +48,13 @@ pub fn no_const_assign_rule() -> Arc<dyn Rule> {
 #[cfg(test)]
 mod tests {
     use squalid::json_object;
-    use tree_sitter_lint::{rule_tests, RuleTester, instance_provider_factory};
+    use tree_sitter_lint::{instance_provider_factory, rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind::{Identifier, ShorthandPropertyIdentifierPattern}, ProvidedTypes};
+    use crate::{
+        kind::{Identifier, ShorthandPropertyIdentifierPattern},
+        ProvidedTypes,
+    };
 
     #[test]
     fn test_no_const_assign_rule() {

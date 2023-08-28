@@ -29,6 +29,7 @@ use super::{
 pub type NodeId = usize;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SourceType {
     Script,
     Module,
@@ -123,14 +124,8 @@ impl<'a> ScopeManager<'a> {
         self.__declared_variables.borrow().get(&node.id()).cloned()
     }
 
-    pub fn get_declared_variables<'b>(&'b self, node: Node) -> Option<Vec<Variable<'a, 'b>>> {
-        self._get_declared_variables(node)
-            .map(|declared_variables| {
-                declared_variables
-                    .into_iter()
-                    .map(|variable| self.borrow_variable(variable))
-                    .collect()
-            })
+    pub fn get_declared_variables<'b>(&'b self, node: Node) -> DeclaredVariables<'a, 'b> {
+        DeclaredVariables::new(self, node)
     }
 
     fn _acquire(&self, node: Node, inner: Option<bool>) -> Option<Id<_Scope<'a>>> {
@@ -364,5 +359,65 @@ impl<'a> fmt::Debug for ScopeManager<'a> {
             .field("source_text", &self.source_text)
             .field("__options", &self.__options)
             .finish()
+    }
+}
+
+pub enum DeclaredVariables<'a, 'b> {
+    Present(DeclaredVariablesPresent<'a, 'b>),
+    Missing,
+}
+
+impl<'a, 'b> DeclaredVariables<'a, 'b> {
+    pub fn new(scope_manager: &'b ScopeManager<'a>, node: Node) -> Self {
+        let __declared_variables = scope_manager.__declared_variables.borrow();
+        if __declared_variables.contains_key(&node.id()) {
+            Self::Present(DeclaredVariablesPresent::new(
+                Ref::map(__declared_variables, |__declared_variables| {
+                    &__declared_variables[&node.id()]
+                }),
+                scope_manager,
+            ))
+        } else {
+            Self::Missing
+        }
+    }
+}
+
+impl<'a, 'b> Iterator for DeclaredVariables<'a, 'b> {
+    type Item = Variable<'a, 'b>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            DeclaredVariables::Present(value) => {
+                if value.next_index >= value.variables.len() {
+                    return None;
+                }
+                let ret = value
+                    .scope_manager
+                    .borrow_variable(value.variables[value.next_index]);
+                value.next_index += 1;
+                Some(ret)
+            }
+            DeclaredVariables::Missing => None,
+        }
+    }
+}
+
+pub struct DeclaredVariablesPresent<'a, 'b> {
+    variables: Ref<'b, Vec<Id<_Variable<'a>>>>,
+    scope_manager: &'b ScopeManager<'a>,
+    next_index: usize,
+}
+
+impl<'a, 'b> DeclaredVariablesPresent<'a, 'b> {
+    fn new(
+        variables: Ref<'b, Vec<Id<_Variable<'a>>>>,
+        scope_manager: &'b ScopeManager<'a>,
+    ) -> Self {
+        Self {
+            variables,
+            scope_manager,
+            next_index: Default::default(),
+        }
     }
 }

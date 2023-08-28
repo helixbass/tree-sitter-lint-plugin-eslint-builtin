@@ -79,7 +79,7 @@ fn test_class_c_a_b_c_d_e() {
     )
     .is_equal_to(Some(class_static_block_scope));
 
-    assert_that(&scope_manager.get_declared_variables(static_block_node)).is_none();
+    assert_that(&scope_manager.get_declared_variables(static_block_node).collect_vec()).is_empty();
 
     let expected_variable_names = vec!["a", "b", "c", "d", "e"];
     let expected_variable_names_owned = expected_variable_names

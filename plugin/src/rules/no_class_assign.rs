@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use itertools::Itertools;
-use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 use crate::{scope::ScopeManager, utils::ast_utils};
 
@@ -19,21 +19,19 @@ pub fn no_class_assign_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 let scope_manager = context.retrieve::<ScopeManager<'a>>();
 
-                if let Some(declared_variables) = scope_manager.get_declared_variables(node) {
-                    declared_variables.into_iter().for_each(|variable| {
-                        ast_utils::get_modifying_references(&variable.references().collect_vec())
-                            .into_iter()
-                            .for_each(|reference| {
-                                context.report(violation! {
-                                    node => reference.identifier(),
-                                    message_id => "class",
-                                    data => {
-                                        name => reference.identifier().text(context)
-                                    }
-                                });
+                scope_manager.get_declared_variables(node).for_each(|variable| {
+                    ast_utils::get_modifying_references(&variable.references().collect_vec())
+                        .into_iter()
+                        .for_each(|reference| {
+                            context.report(violation! {
+                                node => reference.identifier(),
+                                message_id => "class",
+                                data => {
+                                    name => reference.identifier().text(context)
+                                }
                             });
-                    });
-                }
+                        });
+                });
             },
         ],
     }
@@ -45,7 +43,10 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind::{Identifier, ShorthandPropertyIdentifierPattern}, get_instance_provider_factory};
+    use crate::{
+        get_instance_provider_factory,
+        kind::{Identifier, ShorthandPropertyIdentifierPattern},
+    };
 
     #[test]
     fn test_no_class_assign_rule() {
@@ -102,7 +103,7 @@ mod tests {
                 ]
             },
             get_instance_provider_factory(),
-            json_object!({"ecma_version": 6})
+            json_object!({"ecma_version": 6}),
         )
     }
 }

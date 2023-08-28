@@ -18,7 +18,7 @@ pub fn no_ex_assign_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 let scope_manager = context.retrieve::<ScopeManager<'a>>();
 
-                scope_manager.get_declared_variables(node).unwrap_or_default().into_iter().for_each(|variable| {
+                scope_manager.get_declared_variables(node).for_each(|variable| {
                     ast_utils::get_modifying_references(&variable.references().collect_vec())
                         .into_iter()
                         .for_each(|reference| {

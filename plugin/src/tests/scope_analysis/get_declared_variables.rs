@@ -32,14 +32,13 @@ impl<'a, 'b> TreeEnterLeaveVisitor<'a> for VerifyEnterLeaveVisitor<'a, 'b> {
             }
         {
             let expected = self.expected_names_list.remove(0);
-            let actual = self.scope_manager.get_declared_variables(node);
+            let actual = self.scope_manager.get_declared_variables(node).collect_vec();
 
             if expected.is_empty() {
-                assert_that!(&actual).is_none();
+                assert_that!(&actual).is_empty();
             } else {
                 // println!("actual: {actual:#?}, node: {node:#?}, expected: {expected:#?}");
-                assert_that!(&actual).is_some().has_length(expected.len());
-                let actual = actual.unwrap();
+                assert_that!(&actual).has_length(expected.len());
                 for (i, actual_item) in actual.into_iter().enumerate() {
                     assert_that!(&actual_item.name()).is_equal_to(expected[i]);
                 }
