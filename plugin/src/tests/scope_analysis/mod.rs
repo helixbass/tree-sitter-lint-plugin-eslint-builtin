@@ -10,6 +10,8 @@ mod es6_catch;
 mod es6_class;
 mod es6_default_parameters;
 mod es6_destructuring_assignments;
+mod es6_export;
+mod es6_import;
 mod es6_iteration_scope;
 mod es6_new_target;
 mod es6_object;

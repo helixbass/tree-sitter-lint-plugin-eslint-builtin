@@ -817,11 +817,9 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     }
 
     fn visit_export_specifier(&mut self, node: Node<'tree>) {
-        let name = node
-            .child_by_field_name("alias")
-            .unwrap_or_else(|| node.child_by_field_name("name").unwrap());
-        if name.kind() == Identifier {
-            self.visit(name);
+        let local = node.field("name");
+        if local.kind() == Identifier {
+            self.visit(local);
         }
     }
 
