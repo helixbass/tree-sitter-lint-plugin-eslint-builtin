@@ -164,3 +164,12 @@ impl<'a, 'b> PartialEq for Reference<'a, 'b> {
 }
 
 impl<'a, 'b> Eq for Reference<'a, 'b> {}
+
+impl<'a, 'b> Clone for Reference<'a, 'b> {
+    fn clone(&self) -> Self {
+        Self {
+            reference: Ref::clone(&self.reference),
+            scope_manager: self.scope_manager,
+        }
+    }
+}

@@ -117,6 +117,7 @@ impl<'a> ParameterDefinition<'a> {
 #[derive(Debug)]
 pub struct Definition<'a, 'b> {
     definition: Ref<'b, _Definition<'a>>,
+    #[allow(dead_code)]
     scope_manager: &'b ScopeManager<'a>,
 }
 

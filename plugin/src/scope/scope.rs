@@ -1057,7 +1057,7 @@ impl<'a, 'b> Clone for Scope<'a, 'b> {
     fn clone(&self) -> Self {
         Self {
             scope: Ref::clone(&self.scope),
-            scope_manager: self.scope_manager.clone(),
+            scope_manager: self.scope_manager,
         }
     }
 }

@@ -29,6 +29,7 @@ use crate::{
         TemplateSubstitution, TernaryExpression, This, True, UnaryExpression, Undefined,
         UpdateExpression, YieldExpression,
     },
+    scope::Reference,
 };
 
 static ARRAY_OR_TYPED_ARRAY_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"Array$"#).unwrap());
@@ -48,6 +49,18 @@ pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
     ]
     .into()
 });
+
+fn is_modifying_reference(reference: &Reference, index: usize, references: &[Reference]) -> bool {
+    let identifier = reference.identifier();
+
+    let modifying_different_identifier = match index {
+        0 => true,
+        index => references[index - 1].identifier() != identifier,
+    };
+
+    // identifier &&
+    reference.init() == Some(false) && reference.is_write() && modifying_different_identifier
+}
 
 fn starts_with_upper_case(str_: &str) -> bool {
     str_.chars().next().matches(|ch| ch.is_uppercase())
@@ -383,6 +396,17 @@ pub static BREAKABLE_TYPE_PATTERN: Lazy<Regex> =
 
 pub fn is_breakable_statement(node: Node) -> bool {
     BREAKABLE_TYPE_PATTERN.is_match(node.kind())
+}
+
+pub fn get_modifying_references<'a, 'b>(
+    references: &[Reference<'a, 'b>],
+) -> Vec<Reference<'a, 'b>> {
+    references
+        .into_iter()
+        .enumerate()
+        .filter(|(index, reference)| is_modifying_reference(reference, *index, references))
+        .map(|(_, reference)| reference.clone())
+        .collect()
 }
 
 pub fn get_precedence(node: Node) -> u32 {

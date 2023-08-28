@@ -7,17 +7,19 @@ mod definition;
 mod pattern_visitor;
 mod reference;
 mod referencer;
+#[allow(clippy::module_inception)]
 mod scope;
 mod scope_manager;
 mod variable;
 
 use referencer::Referencer;
 pub use definition::Definition;
+pub use reference::Reference;
 pub use scope::{ScopeType, Scope};
 pub use scope_manager::{
     EcmaVersion, ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType,
 };
-pub use variable::VariableType;
+pub use variable::{VariableType, Variable};
 
 pub fn analyze<'a>(
     tree: &'a Tree,
