@@ -469,7 +469,7 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     }
 
     fn visit_augmented_assignment_expression(&mut self, node: Node<'tree>) {
-        if is_pattern(node) {
+        if is_pattern(node.field("left")) {
             self.current_scope_mut().__referencing(
                 &mut self.scope_manager.arena.references.borrow_mut(),
                 node.child_by_field_name("left").unwrap(),
@@ -480,9 +480,9 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
                 None,
             );
         } else {
-            self.visit(node.child_by_field_name("left").unwrap());
+            self.visit(node.field("left"));
         }
-        self.visit(node.child_by_field_name("right").unwrap());
+        self.visit(node.field("right"));
     }
 
     fn visit_catch_clause(&mut self, node: Node<'tree>) {

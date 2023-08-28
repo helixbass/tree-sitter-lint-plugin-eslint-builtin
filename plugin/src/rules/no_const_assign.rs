@@ -51,7 +51,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester, instance_provider_factory};
 
     use super::*;
-    use crate::{kind::Identifier, ProvidedTypes};
+    use crate::{kind::{Identifier, ShorthandPropertyIdentifierPattern}, ProvidedTypes};
 
     #[test]
     fn test_no_const_assign_rule() {
@@ -85,7 +85,7 @@ mod tests {
                     },
                     {
                         code => "const x = 0; ({x} = {x: 1});",
-                        errors => [{ message_id => "const_", data => { name => "x" }, type => Identifier }]
+                        errors => [{ message_id => "const_", data => { name => "x" }, type => ShorthandPropertyIdentifierPattern }]
                     },
                     {
                         code => "const x = 0; ({a: x = 1} = {});",
