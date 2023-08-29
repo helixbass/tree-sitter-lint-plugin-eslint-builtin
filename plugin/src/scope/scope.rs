@@ -844,6 +844,10 @@ impl<'a> _Scope<'a> {
         &self.base().set
     }
 
+    pub fn set_mut(&mut self) -> &mut _Set<'a> {
+        &mut self.base_mut().set
+    }
+
     pub fn set_is_strict(&mut self, is_strict: bool) {
         self.base_mut().is_strict = is_strict;
     }
@@ -938,6 +942,10 @@ impl<'a> _Scope<'a> {
 
     pub fn function_expression_scope(&self) -> bool {
         self.base().function_expression_scope
+    }
+
+    pub fn variables_mut(&mut self) -> &mut Vec<Id<_Variable<'a>>> {
+        &mut self.base_mut().variables
     }
 }
 
@@ -1050,6 +1058,10 @@ impl<'a, 'b> Scope<'a, 'b> {
             },
             _ => unreachable!(),
         }
+    }
+
+    pub(crate) fn id(&self) -> Id<_Scope<'a>> {
+        self.scope.id()
     }
 }
 

@@ -1,4 +1,4 @@
-use std::cell::{RefCell, Ref};
+use std::cell::{Ref, RefCell};
 
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
@@ -142,5 +142,9 @@ impl<'a, 'b> Definition<'a, 'b> {
             _Definition::Parameter(value) => value.rest,
             _ => unreachable!(),
         }
+    }
+
+    pub fn node(&self) -> Node<'a> {
+        self.definition.node()
     }
 }

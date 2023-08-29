@@ -9,7 +9,7 @@ use derive_builder::Builder;
 use id_arena::Id;
 use itertools::Either;
 use serde::Deserialize;
-use squalid::{EverythingExt, NonEmpty};
+use squalid::{break_if_none, EverythingExt, NonEmpty};
 use tracing::trace;
 use tree_sitter_lint::{
     better_any::tid, tree_sitter::Node, tree_sitter_grep::RopeOrSlice, FileRunContext,
@@ -25,6 +25,7 @@ use super::{
     variable::{Variable, _Variable},
     Definition,
 };
+use crate::{conf::globals, kind::Program};
 
 pub type NodeId = usize;
 
@@ -76,6 +77,7 @@ pub struct ScopeManager<'a> {
     pub __declared_variables: RefCell<HashMap<NodeId, Vec<Id<_Variable<'a>>>>>,
     pub source_text: RopeOrSlice<'a>,
     __options: ScopeManagerOptions,
+    cached_scopes: RefCell<HashMap<NodeId, Id<_Scope<'a>>>>,
 }
 
 impl<'a> ScopeManager<'a> {
@@ -89,6 +91,7 @@ impl<'a> ScopeManager<'a> {
             __declared_variables: Default::default(),
             source_text,
             __options: options,
+            cached_scopes: Default::default(),
         }
     }
 
@@ -320,6 +323,34 @@ impl<'a> ScopeManager<'a> {
             self,
         )
     }
+
+    pub fn get_scope<'b>(&'b self, mut node: Node<'a>) -> Scope<'a, 'b> {
+        self.borrow_scope(
+            *self
+                .cached_scopes
+                .borrow_mut()
+                .entry(node.id())
+                .or_insert_with(|| {
+                    let inner = node.kind() != Program;
+
+                    loop {
+                        let scope = self.acquire(node, Some(inner));
+
+                        if let Some(scope) = scope {
+                            if scope.type_() == ScopeType::FunctionExpressionName {
+                                return scope.child_scopes().next().unwrap().id();
+                            }
+
+                            return scope.id();
+                        }
+
+                        node = break_if_none!(node.parent());
+                    }
+
+                    self.scopes[0]
+                }),
+        )
+    }
 }
 
 impl<'a> SourceTextProvider<'a> for ScopeManager<'a> {
@@ -336,15 +367,22 @@ tid! { impl<'a> TidAble<'a> for ScopeManager<'a> }
 
 impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
+        let options: ScopeManagerOptions = serde_json::from_value(serde_json::Value::Object(
+            file_run_context.environment.clone(),
+        ))
+        .unwrap();
         let scope_manager = analyze(
             file_run_context.tree,
             file_run_context.file_contents,
-            serde_json::from_value(serde_json::Value::Object(
-                file_run_context.environment.clone(),
-            ))
-            .unwrap(),
+            options,
         );
-        add_declared_globals(&scope_manager);
+
+        let mut configured_globals = get_globals_for_ecma_version(options.ecma_version);
+        if options.source_type == SourceType::CommonJS {
+            configured_globals.extend(&*globals::COMMONJS);
+        }
+        add_declared_globals(&scope_manager, &configured_globals);
+
         scope_manager
     }
 }
@@ -360,6 +398,7 @@ impl<'a> fmt::Debug for ScopeManager<'a> {
             .field("__declared_variables", &self.__declared_variables)
             .field("source_text", &self.source_text)
             .field("__options", &self.__options)
+            // .field("cached_scopes", &self.cached_scopes)
             .finish()
     }
 }
@@ -424,8 +463,34 @@ impl<'a, 'b> DeclaredVariablesPresent<'a, 'b> {
     }
 }
 
-fn add_declared_globals(scope_manager: &ScopeManager) {
+fn add_declared_globals(
+    scope_manager: &ScopeManager,
+    config_globals: &HashMap<&'static str, globals::Visibility>,
+) {
     let global_scope = &mut scope_manager.arena.scopes.borrow_mut()[scope_manager.scopes[0]];
+
+    for (id, value) in config_globals
+        .into_iter()
+        .filter(|(_, value)| !matches!(value, globals::Visibility::Off))
+    {
+        let mut did_insert = false;
+        let global_scope_id = global_scope.id();
+        let variable = *global_scope.set_mut().entry((*id).into()).or_insert_with(|| {
+            did_insert = true;
+            let variable = _Variable::new(
+                &mut scope_manager.arena.variables.borrow_mut(),
+                (*id).into(),
+                global_scope_id,
+            );
+
+            scope_manager.arena.variables.borrow_mut()[variable].writeable = Some(*value == globals::Visibility::Writable);
+            variable
+        });
+        if did_insert {
+            global_scope.variables_mut().push(variable);
+        }
+    }
+
     let through = global_scope.through().to_owned();
     *global_scope.through_mut() = through
         .iter()
@@ -447,4 +512,34 @@ fn add_declared_globals(scope_manager: &ScopeManager) {
         })
         .copied()
         .collect();
+}
+
+fn get_globals_for_ecma_version(
+    ecma_version: EcmaVersion,
+) -> HashMap<&'static str, globals::Visibility> {
+    match ecma_version {
+        3 => globals::ES3.clone(),
+        5 => globals::ES5.clone(),
+        6 => globals::ES2015.clone(),
+        2015 => globals::ES2015.clone(),
+        7 => globals::ES2016.clone(),
+        2016 => globals::ES2016.clone(),
+        8 => globals::ES2017.clone(),
+        2017 => globals::ES2017.clone(),
+        9 => globals::ES2018.clone(),
+        2018 => globals::ES2018.clone(),
+        10 => globals::ES2019.clone(),
+        2019 => globals::ES2019.clone(),
+        11 => globals::ES2020.clone(),
+        2020 => globals::ES2020.clone(),
+        12 => globals::ES2021.clone(),
+        2021 => globals::ES2021.clone(),
+        13 => globals::ES2022.clone(),
+        2022 => globals::ES2022.clone(),
+        14 => globals::ES2023.clone(),
+        2023 => globals::ES2023.clone(),
+        15 => globals::ES2024.clone(),
+        2024 => globals::ES2024.clone(),
+        _ => unreachable!(),
+    }
 }

@@ -6,6 +6,7 @@ use tree_sitter_lint::{
 
 mod ast_helpers;
 mod code_path_analysis;
+mod conf;
 mod directives;
 mod kind;
 mod macros;
@@ -38,6 +39,7 @@ use rules::{
     no_unsafe_finally_rule, no_unsafe_negation_rule, no_unsafe_optional_chaining_rule,
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, yield_star_spacing_rule,
+    no_import_assign_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -114,6 +116,7 @@ pub fn instantiate() -> Plugin {
             no_class_assign_rule(),
             no_ex_assign_rule(),
             no_func_assign_rule(),
+            no_import_assign_rule(),
         ],
     }
 }

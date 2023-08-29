@@ -15,6 +15,7 @@ pub struct _Variable<'a> {
     pub stack: bool,
     pub scope: Id<_Scope<'a>>,
     id: Id<Self>,
+    pub writeable: Option<bool>,
 }
 
 impl<'a> _Variable<'a> {
@@ -28,6 +29,7 @@ impl<'a> _Variable<'a> {
             stack: true,
             scope,
             id,
+            writeable: Default::default(),
         })
     }
 }
@@ -74,6 +76,15 @@ impl<'a, 'b> Eq for Variable<'a, 'b> {}
 impl<'a, 'b> hash::Hash for Variable<'a, 'b> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.variable.id.hash(state);
+    }
+}
+
+impl<'a, 'b> Clone for Variable<'a, 'b> {
+    fn clone(&self) -> Self {
+        Self {
+            variable: Ref::clone(&self.variable),
+            scope_manager: self.scope_manager,
+        }
     }
 }
 
