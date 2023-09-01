@@ -41,6 +41,7 @@ use rules::{
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, yield_star_spacing_rule,
     no_param_reassign_rule,
+    wrap_regex_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -120,6 +121,7 @@ pub fn instantiate() -> Plugin {
             no_import_assign_rule(),
             no_new_object_rule(),
             no_param_reassign_rule(),
+            wrap_regex_rule(),
         ],
     }
 }
