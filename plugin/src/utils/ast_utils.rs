@@ -29,7 +29,7 @@ use crate::{
         TemplateSubstitution, TernaryExpression, This, True, UnaryExpression, Undefined,
         UpdateExpression, YieldExpression,
     },
-    scope::Reference,
+    scope::{Reference, Scope, Variable},
 };
 
 static ARRAY_OR_TYPED_ARRAY_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"Array$"#).unwrap());
@@ -407,6 +407,21 @@ pub fn get_modifying_references<'a, 'b>(
         .filter(|(index, reference)| is_modifying_reference(reference, *index, references))
         .map(|(_, reference)| reference.clone())
         .collect()
+}
+
+pub fn get_variable_by_name<'a, 'b>(
+    init_scope: Scope<'a, 'b>,
+    name: &str,
+) -> Option<Variable<'a, 'b>> {
+    let mut scope = init_scope;
+
+    loop {
+        if let Some(variable) = scope.set().get(name).cloned() {
+            return Some(variable);
+        }
+
+        scope = scope.maybe_upper()?;
+    }
 }
 
 pub fn get_precedence(node: Node) -> u32 {

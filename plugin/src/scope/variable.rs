@@ -63,6 +63,10 @@ impl<'a, 'b> Variable<'a, 'b> {
     pub fn defs(&self) -> impl Iterator<Item = Definition<'a, 'b>> + '_ {
         self.variable.defs.iter().map(|&def| self.scope_manager.borrow_definition(def))
     }
+
+    pub fn identifiers(&self) -> impl Iterator<Item = Node<'a>> + '_ {
+        self.variable.identifiers.iter().copied()
+    }
 }
 
 impl<'a, 'b> PartialEq for Variable<'a, 'b> {
