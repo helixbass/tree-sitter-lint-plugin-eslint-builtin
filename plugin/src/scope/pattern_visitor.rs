@@ -87,7 +87,7 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
         self._visit_identifier(pattern);
     }
 
-    fn visit_pair(&mut self, property: Node<'a>) {
+    fn visit_pair_pattern(&mut self, property: Node<'a>) {
         let key = property.field("key");
         if key.kind() == ComputedPropertyName {
             self.right_hand_nodes.push(key);
