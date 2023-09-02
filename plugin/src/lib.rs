@@ -41,6 +41,7 @@ use rules::{
     no_unsafe_optional_chaining_rule, no_unused_labels_rule, no_useless_call_rule,
     no_useless_catch_rule, no_useless_return_rule, require_yield_rule, sort_keys_rule,
     space_unary_ops_rule, wrap_regex_rule, yield_star_spacing_rule,
+    symbol_description_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -122,6 +123,7 @@ pub fn instantiate() -> Plugin {
             no_param_reassign_rule(),
             wrap_regex_rule(),
             dot_location_rule(),
+            symbol_description_rule(),
         ],
     }
 }
