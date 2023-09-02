@@ -493,6 +493,13 @@ impl<'a> From<Kind> for NodeOrKind<'a> {
     }
 }
 
+static DECIMAL_INTEGER_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"^(?:0|0[0-7]*[89]\d*|[1-9](?:_?\d)*)$"#).unwrap());
+
+pub fn is_decimal_integer_numeric_token(token: Node, context: &QueryMatchContext) -> bool {
+    token.kind() == kind::Number && DECIMAL_INTEGER_PATTERN.is_match(&token.text(context))
+}
+
 pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> String {
     if node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
