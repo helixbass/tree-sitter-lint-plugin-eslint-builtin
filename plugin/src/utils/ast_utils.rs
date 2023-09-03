@@ -6,30 +6,32 @@ use regex::Regex;
 use squalid::{return_default_if_none, CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::{Node, Range},
+    tree_sitter_grep::SupportedLanguage,
     NodeExt, QueryMatchContext,
 };
 
 use crate::{
     assert_kind,
     ast_helpers::{
-        get_first_non_comment_child, get_last_expression_of_sequence_expression,
-        get_method_definition_kind, get_number_literal_string_value, get_prev_non_comment_sibling,
-        is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind,
-        skip_nodes_of_type, MethodDefinitionKind, NodeExtJs,
+        get_call_expression_arguments, get_first_non_comment_child,
+        get_last_expression_of_sequence_expression, get_method_definition_kind,
+        get_number_literal_string_value, get_prev_non_comment_sibling, is_block_comment,
+        is_chain_expression, is_logical_expression, is_punctuation_kind, skip_nodes_of_type,
+        template_string_has_any_literal_characters, MethodDefinitionKind, NodeExtJs, get_number_literal_value, Number,
     },
     kind::{
         self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
-        AwaitExpression, BinaryExpression, CallExpression, ClassStaticBlock, Comment,
+        AwaitExpression, BinaryExpression, CallExpression, Class, ClassStaticBlock, Comment,
         ComputedPropertyName, Decorator, False, FieldDefinition, Function, FunctionDeclaration,
         GeneratorFunction, GeneratorFunctionDeclaration, Identifier, Kind, MemberExpression,
-        MethodDefinition, NewExpression, Null, Number, Pair, PairPattern, ParenthesizedExpression,
-        PrivatePropertyIdentifier, Program, PropertyIdentifier, SequenceExpression,
-        ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, StatementBlock,
-        SubscriptExpression, Super, SwitchCase, SwitchDefault, TemplateString,
+        MethodDefinition, NewExpression, Null, Number, Object, Pair, PairPattern,
+        ParenthesizedExpression, PrivatePropertyIdentifier, Program, PropertyIdentifier,
+        SequenceExpression, ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern,
+        StatementBlock, SubscriptExpression, Super, SwitchCase, SwitchDefault, TemplateString,
         TemplateSubstitution, TernaryExpression, This, True, UnaryExpression, Undefined,
         UpdateExpression, YieldExpression,
     },
-    scope::{Reference, Scope, Variable},
+    scope::{Reference, Scope, Variable, ScopeType},
 };
 
 static ARRAY_OR_TYPED_ARRAY_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"Array$"#).unwrap());
@@ -381,6 +383,153 @@ pub fn equal_tokens<'a>(
 
 pub fn is_coalesce_expression(node: Node) -> bool {
     node.kind() == BinaryExpression && node.field("operator").kind() == "??"
+}
+
+fn get_boolean_value(node: Node, context: &QueryMatchContext) -> bool {
+    match node.kind() {
+        kind::String => node.range().end_byte - node.range().start_byte > 2,
+        kind::Number => match get_number_literal_value(node, context) {
+            Number::NaN => false,
+            Number::Integer(value) => value != 0,
+            Number::Float(value) => value != 0.0,
+        },
+        kind::Regex => true,
+        Null => false,
+        True => true,
+        False => false,
+        _ => unreachable!(),
+    }
+}
+
+fn is_logical_identity(node: Node, operator: &str, context: &QueryMatchContext) -> bool {
+    match node.kind() {
+        kind if is_literal_kind(kind) => {
+            operator == "||" && get_boolean_value(node, context) == true
+                || operator == "&&" && get_boolean_value(node, context) == false
+        }
+        UnaryExpression => operator == "&&" && node.field("operator").kind() == "void",
+        BinaryExpression => {
+            operator == node.field("operator").kind()
+                && (is_logical_identity(node.field("left"), operator, context)
+                    || is_logical_identity(node.field("right"), operator, context))
+        }
+        AugmentedAssignmentExpression => {
+            let node_operator = node.field("operator").kind();
+            ["||=", "&&="].contains(&node_operator)
+                && operator == &node_operator[0..2]
+                && is_logical_identity(node.field("right"), operator, context)
+        }
+        _ => false,
+    }
+}
+
+fn is_reference_to_global_variable(scope: &Scope, node: Node) -> bool {
+    scope.references().find(|ref_| ref_.identifier() == node).and_then(|reference| reference.resolved()).matches(|resolved| {
+        resolved.scope().type_() == ScopeType::Global && resolved.defs().next().is_none()
+    })
+}
+
+pub fn is_constant(
+    scope: &Scope,
+    node: Node,
+    in_boolean_position: bool,
+    context: &QueryMatchContext,
+) -> bool {
+    // if (!node) {
+    //     return true;
+    // }
+    match node.kind() {
+        kind if is_literal_kind(kind) => true,
+        ArrowFunction | Function | Class | Object => true,
+        TemplateString => {
+            in_boolean_position && template_string_has_any_literal_characters(node)
+                || node
+                    .children_of_kind(TemplateSubstitution)
+                    .all(|exp| is_constant(scope, exp, false, context))
+        }
+        Array => {
+            if !in_boolean_position {
+                return node
+                    .non_comment_named_children(SupportedLanguage::Javascript)
+                    .all(|element| is_constant(scope, element, false, context));
+            }
+            true
+        }
+        UnaryExpression => {
+            let operator = node.field("operator").kind();
+            if operator == "void" || operator == "typeof" && in_boolean_position {
+                return true;
+            }
+
+            if operator == "!" {
+                return is_constant(scope, node.field("argument"), true, context);
+            }
+
+            is_constant(scope, node.field("argument"), false, context)
+        }
+        BinaryExpression => {
+            if is_logical_expression(node) {
+                let left = node.field("left");
+                let right = node.field("right");
+                let operator = node.field("operator").kind();
+                let is_left_constant = is_constant(scope, left, in_boolean_position, context);
+                let is_right_constant = is_constant(scope, right, in_boolean_position, context);
+                let is_left_short_circuit = is_left_constant && is_logical_identity(left, operator, context);
+                let is_right_short_circuit = in_boolean_position
+                    && is_right_constant
+                    && is_logical_identity(right, operator, context);
+
+                is_left_constant && is_right_constant
+                    || is_left_short_circuit
+                    || is_right_short_circuit
+            } else {
+                is_constant(scope, node.field("left"), false, context)
+                    && is_constant(scope, node.field("right"), false, context)
+                    && node.field("operator").kind() != "in"
+            }
+        }
+        NewExpression => in_boolean_position,
+        AssignmentExpression => {
+            is_constant(scope, node.field("right"), in_boolean_position, context)
+        }
+        AugmentedAssignmentExpression => {
+            let operator = node.field("operator").kind();
+            if ["||=", "&&="].contains(&operator) && in_boolean_position {
+                return is_logical_identity(node.field("right"), &operator[0..2], context);
+            }
+
+            false
+        }
+        SequenceExpression => is_constant(
+            scope,
+            get_last_expression_of_sequence_expression(node),
+            in_boolean_position,
+            context,
+        ),
+        SpreadElement => is_constant(
+            scope,
+            node.first_non_comment_named_child(SupportedLanguage::Javascript),
+            in_boolean_position,
+            context,
+        ),
+        CallExpression => {
+            let callee = node.field("function");
+            #[allow(clippy::collapsible_if)]
+            if callee.kind() == Identifier && callee.text(context) == "Boolean" {
+                if get_call_expression_arguments(node).matches(|mut arguments| {
+                    match arguments.next() {
+                        None => true,
+                        Some(first_argument) => is_constant(scope, first_argument, true, context),
+                    }
+                }) {
+                    return is_reference_to_global_variable(scope, callee);
+                }
+            }
+            false
+        }
+        Undefined => true,
+        _ => false,
+    }
 }
 
 pub fn is_token_on_same_line(left: Node, right: Node) -> bool {

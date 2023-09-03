@@ -13,7 +13,7 @@ use crate::{
         ExpressionStatement, FieldDefinition, ForInStatement, ImportClause, Kind, MemberExpression,
         MethodDefinition, NewExpression, Object, Pair, ParenthesizedExpression, PropertyIdentifier,
         SequenceExpression, ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
-        UpdateExpression, Identifier, ArrowFunction,
+        UpdateExpression, Identifier, ArrowFunction, TemplateSubstitution,
     },
     return_default_if_none,
 };
@@ -245,10 +245,14 @@ fn is_octal_literal(number_node_text: &str) -> bool {
     number_node_text.starts_with("0o") || number_node_text.starts_with("0O")
 }
 
-pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) -> String {
+pub fn get_number_literal_value(node: Node, context: &QueryMatchContext) -> Number {
     assert_kind!(node, kind::Number);
 
-    match Number::from(&*context.get_node_text(node)) {
+    Number::from(&*context.get_node_text(node))
+}
+
+pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) -> String {
+    match get_number_literal_value(node, context) {
         Number::NaN => unreachable!("I don't know if this should be possible?"),
         Number::Integer(number) => number.to_string(),
         Number::Float(number) => number.to_string(),
@@ -542,4 +546,12 @@ pub fn get_function_params(node: Node) -> impl Iterator<Item = Node> {
         }
     }
     Either::Right(node.field("parameters").non_comment_named_children(SupportedLanguage::Javascript))
+}
+
+pub fn template_string_has_any_literal_characters(node: Node) -> bool {
+    assert_kind!(node, TemplateString);
+
+    node.non_comment_children(SupportedLanguage::Javascript).any(|child| {
+        child.kind() != TemplateSubstitution
+    })
 }

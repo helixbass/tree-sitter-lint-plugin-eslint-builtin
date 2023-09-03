@@ -42,6 +42,7 @@ use rules::{
     no_useless_catch_rule, no_useless_return_rule, require_yield_rule, sort_keys_rule,
     space_unary_ops_rule, wrap_regex_rule, yield_star_spacing_rule,
     symbol_description_rule,
+    no_constant_binary_expression_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -124,6 +125,7 @@ pub fn instantiate() -> Plugin {
             wrap_regex_rule(),
             dot_location_rule(),
             symbol_description_rule(),
+            no_constant_binary_expression_rule(),
         ],
     }
 }
