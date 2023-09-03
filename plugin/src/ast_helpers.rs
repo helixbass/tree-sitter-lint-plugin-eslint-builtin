@@ -13,7 +13,7 @@ use crate::{
         ExpressionStatement, FieldDefinition, ForInStatement, ImportClause, Kind, MemberExpression,
         MethodDefinition, NewExpression, Object, Pair, ParenthesizedExpression, PropertyIdentifier,
         SequenceExpression, ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
-        UpdateExpression, Identifier, ArrowFunction, TemplateSubstitution,
+        UpdateExpression, Identifier, ArrowFunction, EscapeSequence,
     },
     return_default_if_none,
 };
@@ -535,6 +535,7 @@ pub fn maybe_get_directive<'a>(
     })
 }
 
+#[allow(dead_code)]
 pub fn is_default_import(node: Node) -> bool {
     node.kind() == Identifier && node.parent().unwrap().kind() == ImportClause
 }
@@ -551,7 +552,15 @@ pub fn get_function_params(node: Node) -> impl Iterator<Item = Node> {
 pub fn template_string_has_any_literal_characters(node: Node) -> bool {
     assert_kind!(node, TemplateString);
 
+    let mut last_end: Option<usize> = Default::default();
     node.non_comment_children(SupportedLanguage::Javascript).any(|child| {
-        child.kind() != TemplateSubstitution
+        if child.kind() == EscapeSequence {
+            return true;
+        }
+        let ret = last_end.map_or_default(|last_end| {
+            last_end < child.range().start_byte
+        });
+        last_end = Some(child.range().end_byte);
+        ret
     })
 }

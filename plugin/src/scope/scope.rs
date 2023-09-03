@@ -26,7 +26,7 @@ use crate::{
     break_if_none,
     kind::{
         ArrowFunction, Identifier, LexicalDeclaration, Program, ShorthandPropertyIdentifierPattern,
-        StatementBlock,
+        StatementBlock, Undefined,
     },
 };
 
@@ -682,7 +682,7 @@ impl<'a> _Scope<'a> {
         node: Node<'a>,
         def: Id<_Definition<'a>>,
     ) {
-        if [Identifier, ShorthandPropertyIdentifierPattern].contains(&node.kind()) {
+        if [Identifier, ShorthandPropertyIdentifierPattern, Undefined].contains(&node.kind()) {
             self.__define_generic(
                 __declared_variables,
                 variable_arena,
@@ -707,7 +707,7 @@ impl<'a> _Scope<'a> {
         partial: Option<bool>,
         init: Option<bool>,
     ) {
-        if ![Identifier, ShorthandPropertyIdentifierPattern].contains(&node.kind()) {
+        if ![Identifier, ShorthandPropertyIdentifierPattern, Undefined].contains(&node.kind()) {
             trace!(target: "scope_analysis", ?node, ?assign, "not adding reference");
 
             return;

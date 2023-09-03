@@ -541,6 +541,7 @@ pub fn is_constant(
             false
         }
         Undefined => true,
+        ParenthesizedExpression => is_constant(scope, node.first_non_comment_named_child(SupportedLanguage::Javascript), in_boolean_position, context),
         _ => false,
     }
 }

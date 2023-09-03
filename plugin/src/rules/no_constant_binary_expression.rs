@@ -9,7 +9,7 @@ use crate::{
     assert_kind,
     ast_helpers::{
         get_call_expression_arguments, get_comma_separated_optional_non_comment_named_children,
-        get_last_expression_of_sequence_expression, is_logical_expression,
+        get_last_expression_of_sequence_expression, is_logical_expression, NodeExtJs,
     },
     kind::{
         is_literal_kind, Array, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
@@ -32,9 +32,9 @@ static NUMERIC_OR_STRING_BINARY_OPERATORS: Lazy<HashSet<&'static str>> = Lazy::n
     .collect()
 });
 
-fn is_null_or_undefined(_scope: &Scope, node: Node) -> bool {
+fn is_null_or_undefined(scope: &Scope, node: Node) -> bool {
     is_null_literal(node)
-        || node.kind() == Undefined
+        || node.kind() == Undefined && is_reference_to_global_variable(scope, node)
         || node.kind() == UnaryExpression && node.field("operator").kind() == "void"
 }
 
@@ -86,7 +86,7 @@ fn has_constant_nullishness(
             non_nullish,
             context,
         ),
-        Undefined => true,
+        Undefined => is_reference_to_global_variable(scope, node),
         _ => false,
     }
 }
@@ -148,7 +148,7 @@ fn has_constant_loose_boolean_comparison(
         NewExpression => false,
         CallExpression => is_boolean_global_call_with_no_or_constant_argument(scope, node, context),
         kind if is_literal_kind(kind) => true,
-        Undefined => true,
+        Undefined => is_reference_to_global_variable(scope, node),
         TemplateString => node.children_of_kind(TemplateSubstitution).next().is_none(),
         AssignmentExpression => {
             has_constant_loose_boolean_comparison(scope, node.field("right"), context)
@@ -184,7 +184,7 @@ fn has_constant_strict_boolean_comparison(
             get_last_expression_of_sequence_expression(node),
             context,
         ),
-        Undefined => true,
+        Undefined => is_reference_to_global_variable(scope, node),
         AssignmentExpression => {
             has_constant_strict_boolean_comparison(scope, node.field("right"), context)
         }
@@ -284,7 +284,7 @@ pub fn no_constant_binary_expression_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 if is_logical_expression(node) {
                     let operator = node.field("operator").kind();
-                    let left = node.field("left");
+                    let left = node.field("left").skip_parentheses();
                     let scope_manager = context.retrieve::<ScopeManager<'a>>();
                     let scope = scope_manager.get_scope(node);
 
@@ -318,8 +318,8 @@ pub fn no_constant_binary_expression_rule() -> Arc<dyn Rule> {
                 } else {
                     let scope_manager = context.retrieve::<ScopeManager<'a>>();
                     let scope = scope_manager.get_scope(node);
-                    let right = node.field("right");
-                    let left = node.field("left");
+                    let right = node.field("right").skip_parentheses();
+                    let left = node.field("left").skip_parentheses();
                     let operator = node.field("operator").kind();
                     let right_constant_operand = find_binary_expression_constant_operand(&scope, left, right, operator, context);
                     let left_constant_operand = find_binary_expression_constant_operand(&scope, right, left, operator, context);
@@ -379,12 +379,14 @@ mod tests {
     use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTester};
 
-    use crate::get_instance_provider_factory;
+    use crate::{get_instance_provider_factory, tests::helpers::tracing_subscribe};
 
     use super::*;
 
     #[test]
     fn test_no_constant_binary_expression_rule() {
+        tracing_subscribe();
+
         RuleTester::run_with_instance_provider_and_environment(
             no_constant_binary_expression_rule(),
             rule_tests! {

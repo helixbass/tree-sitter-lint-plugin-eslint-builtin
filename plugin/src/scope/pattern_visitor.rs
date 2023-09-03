@@ -6,7 +6,7 @@ use super::scope_manager::ScopeManagerOptions;
 use crate::{
     kind::{
         ArrayPattern, AssignmentPattern, ComputedPropertyName, Identifier, ObjectAssignmentPattern,
-        ObjectPattern, RestPattern, SpreadElement,
+        ObjectPattern, RestPattern, SpreadElement, Undefined
     },
     visit::Visit,
 };
@@ -26,6 +26,7 @@ pub fn is_pattern(node: Node) -> bool {
             | RestPattern
             | AssignmentPattern
             | ObjectAssignmentPattern
+            | Undefined
     )
 }
 
@@ -84,6 +85,10 @@ impl<'a, TCallback: FnMut(Node<'a>, PatternInfo<'a, '_>)> Visit<'a>
     }
 
     fn visit_shorthand_property_identifier_pattern(&mut self, pattern: Node<'a>) {
+        self._visit_identifier(pattern);
+    }
+
+    fn visit_undefined(&mut self, pattern: Node<'a>) {
         self._visit_identifier(pattern);
     }
 

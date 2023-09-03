@@ -429,6 +429,18 @@ impl<'a, 'b> Referencer<'a, 'b> {
             kind,
         );
     }
+
+    fn _visit_identifier(&mut self, node: Node<'a>) {
+        self.current_scope_mut().__referencing(
+            &mut self.scope_manager.arena.references.borrow_mut(),
+            node,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+    }
 }
 
 impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
@@ -543,15 +555,11 @@ impl<'tree: 'a, 'a, 'b> Visit<'tree> for Referencer<'a, 'b> {
     }
 
     fn visit_identifier(&mut self, node: Node<'tree>) {
-        self.current_scope_mut().__referencing(
-            &mut self.scope_manager.arena.references.borrow_mut(),
-            node,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
+        self._visit_identifier(node);
+    }
+
+    fn visit_undefined(&mut self, node: Node<'tree>) {
+        self._visit_identifier(node);
     }
 
     fn visit_private_property_identifier(&mut self, _node: Node<'tree>) {}
