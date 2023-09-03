@@ -15,23 +15,24 @@ use crate::{
     ast_helpers::{
         get_call_expression_arguments, get_first_non_comment_child,
         get_last_expression_of_sequence_expression, get_method_definition_kind,
-        get_number_literal_string_value, get_prev_non_comment_sibling, is_block_comment,
-        is_chain_expression, is_logical_expression, is_punctuation_kind, skip_nodes_of_type,
-        template_string_has_any_literal_characters, MethodDefinitionKind, NodeExtJs, get_number_literal_value, Number,
+        get_number_literal_string_value, get_number_literal_value, get_prev_non_comment_sibling,
+        is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind,
+        skip_nodes_of_type, template_string_has_any_literal_characters, MethodDefinitionKind,
+        NodeExtJs, Number,
     },
     kind::{
-        self, is_literal_kind, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
-        AwaitExpression, BinaryExpression, CallExpression, Class, ClassStaticBlock, Comment,
-        ComputedPropertyName, Decorator, False, FieldDefinition, Function, FunctionDeclaration,
-        GeneratorFunction, GeneratorFunctionDeclaration, Identifier, Kind, MemberExpression,
-        MethodDefinition, NewExpression, Null, Number, Object, Pair, PairPattern,
-        ParenthesizedExpression, PrivatePropertyIdentifier, Program, PropertyIdentifier,
-        SequenceExpression, ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern,
-        StatementBlock, SubscriptExpression, Super, SwitchCase, SwitchDefault, TemplateString,
-        TemplateSubstitution, TernaryExpression, This, True, UnaryExpression, Undefined,
-        UpdateExpression, YieldExpression,
+        self, is_literal_kind, Array, ArrowFunction, AssignmentExpression,
+        AugmentedAssignmentExpression, AwaitExpression, BinaryExpression, CallExpression, Class,
+        ClassStaticBlock, Comment, ComputedPropertyName, Decorator, False, FieldDefinition,
+        Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
+        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Object, Pair,
+        PairPattern, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
+        PropertyIdentifier, SequenceExpression, ShorthandPropertyIdentifier,
+        ShorthandPropertyIdentifierPattern, SpreadElement, StatementBlock, SubscriptExpression,
+        Super, SwitchCase, SwitchDefault, TemplateString, TemplateSubstitution, TernaryExpression,
+        This, True, UnaryExpression, Undefined, UpdateExpression, YieldExpression,
     },
-    scope::{Reference, Scope, Variable, ScopeType},
+    scope::{Reference, Scope, ScopeType, Variable},
 };
 
 static ARRAY_OR_TYPED_ARRAY_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"Array$"#).unwrap());
@@ -385,6 +386,13 @@ pub fn is_coalesce_expression(node: Node) -> bool {
     node.kind() == BinaryExpression && node.field("operator").kind() == "??"
 }
 
+static LOGICAL_ASSIGNMENT_OPERATORS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| ["&&=", "||=", "??="].into_iter().collect());
+
+pub fn is_logical_assignment_operator(operator: &str) -> bool {
+    LOGICAL_ASSIGNMENT_OPERATORS.contains(operator)
+}
+
 fn get_boolean_value(node: Node, context: &QueryMatchContext) -> bool {
     match node.kind() {
         kind::String => node.range().end_byte - node.range().start_byte > 2,
@@ -423,10 +431,14 @@ fn is_logical_identity(node: Node, operator: &str, context: &QueryMatchContext) 
     }
 }
 
-fn is_reference_to_global_variable(scope: &Scope, node: Node) -> bool {
-    scope.references().find(|ref_| ref_.identifier() == node).and_then(|reference| reference.resolved()).matches(|resolved| {
-        resolved.scope().type_() == ScopeType::Global && resolved.defs().next().is_none()
-    })
+pub fn is_reference_to_global_variable(scope: &Scope, node: Node) -> bool {
+    scope
+        .references()
+        .find(|ref_| ref_.identifier() == node)
+        .and_then(|reference| reference.resolved())
+        .matches(|resolved| {
+            resolved.scope().type_() == ScopeType::Global && resolved.defs().next().is_none()
+        })
 }
 
 pub fn is_constant(
@@ -474,7 +486,8 @@ pub fn is_constant(
                 let operator = node.field("operator").kind();
                 let is_left_constant = is_constant(scope, left, in_boolean_position, context);
                 let is_right_constant = is_constant(scope, right, in_boolean_position, context);
-                let is_left_short_circuit = is_left_constant && is_logical_identity(left, operator, context);
+                let is_left_short_circuit =
+                    is_left_constant && is_logical_identity(left, operator, context);
                 let is_right_short_circuit = in_boolean_position
                     && is_right_constant
                     && is_logical_identity(right, operator, context);

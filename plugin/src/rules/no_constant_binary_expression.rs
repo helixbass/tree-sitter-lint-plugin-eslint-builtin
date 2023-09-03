@@ -1,8 +1,272 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+use itertools::Itertools;
+use once_cell::sync::Lazy;
+use squalid::OptionExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
-use crate::{ast_helpers::is_logical_expression, scope::ScopeManager, utils::ast_utils::is_constant};
+use crate::{
+    assert_kind,
+    ast_helpers::{
+        get_call_expression_arguments, get_comma_separated_optional_non_comment_named_children,
+        get_last_expression_of_sequence_expression, is_logical_expression,
+    },
+    kind::{
+        is_literal_kind, Array, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
+        BinaryExpression, CallExpression, Class, False, Function, Identifier, NewExpression,
+        Object, SequenceExpression, SpreadElement, TemplateString, TemplateSubstitution, True,
+        UnaryExpression, Undefined, UpdateExpression, self, TernaryExpression,
+    },
+    scope::{Scope, ScopeManager},
+    utils::ast_utils::{
+        is_constant, is_logical_assignment_operator, is_null_literal,
+        is_reference_to_global_variable,
+    }, conf::globals::BUILTIN,
+};
+
+static NUMERIC_OR_STRING_BINARY_OPERATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    [
+        "+", "-", "*", "/", "%", "|", "^", "&", "**", "<<", ">>", ">>>",
+    ]
+    .into_iter()
+    .collect()
+});
+
+fn is_null_or_undefined(_scope: &Scope, node: Node) -> bool {
+    is_null_literal(node)
+        || node.kind() == Undefined
+        || node.kind() == UnaryExpression && node.field("operator").kind() == "void"
+}
+
+fn has_constant_nullishness(
+    scope: &Scope,
+    node: Node,
+    non_nullish: bool,
+    context: &QueryMatchContext,
+) -> bool {
+    if non_nullish && is_null_or_undefined(scope, node) {
+        return false;
+    }
+
+    match node.kind() {
+        Object | Array | ArrowFunction | Function | Class | NewExpression | TemplateString
+        | UpdateExpression => true,
+        kind if is_literal_kind(kind) => true,
+        CallExpression => {
+            let callee = node.field("function");
+            if callee.kind() != Identifier {
+                return false;
+            }
+            let function_name = callee.text(context);
+
+            matches!(&*function_name, "Boolean" | "String" | "Number")
+                && is_reference_to_global_variable(scope, callee)
+        }
+        BinaryExpression => {
+            if !is_logical_expression(node) {
+                return true;
+            }
+            node.field("operator").kind() == "??"
+                && has_constant_nullishness(scope, node.field("right"), true, context)
+        }
+        AssignmentExpression => {
+            has_constant_nullishness(scope, node.field("right"), non_nullish, context)
+        }
+        AugmentedAssignmentExpression => {
+            if is_logical_assignment_operator(&node.field("operator").text(context)) {
+                return false;
+            }
+
+            true
+        }
+        UnaryExpression => true,
+        SequenceExpression => has_constant_nullishness(
+            scope,
+            get_last_expression_of_sequence_expression(node),
+            non_nullish,
+            context,
+        ),
+        Undefined => true,
+        _ => false,
+    }
+}
+
+fn is_boolean_global_call_with_no_or_constant_argument(
+    scope: &Scope,
+    node: Node,
+    context: &QueryMatchContext,
+) -> bool {
+    assert_kind!(node, CallExpression);
+
+    let callee = node.field("function");
+    callee.kind() == Identifier
+        && callee.text(context) == "Boolean"
+        && is_reference_to_global_variable(scope, callee)
+        && get_call_expression_arguments(node).matches(|mut arguments| match arguments.next() {
+            None => true,
+            Some(first_argument) => is_constant(scope, first_argument, true, context),
+        })
+}
+
+fn is_static_boolean(scope: &Scope, node: Node, context: &QueryMatchContext) -> bool {
+    match node.kind() {
+        True | False => true,
+        CallExpression => is_boolean_global_call_with_no_or_constant_argument(scope, node, context),
+        UnaryExpression => {
+            node.field("operator").kind() == "!"
+                && is_constant(scope, node.field("argument"), true, context)
+        }
+        _ => false,
+    }
+}
+
+fn has_constant_loose_boolean_comparison(
+    scope: &Scope,
+    node: Node,
+    context: &QueryMatchContext,
+) -> bool {
+    match node.kind() {
+        Object | Class => true,
+        Array => {
+            let elements =
+                get_comma_separated_optional_non_comment_named_children(node).collect_vec();
+            if elements.is_empty() {
+                return true;
+            }
+            elements
+                .iter()
+                .filter(|e| e.matches(|e| e.kind() != SpreadElement))
+                .count()
+                > 1
+        }
+        ArrowFunction | Function => true,
+        UnaryExpression => match node.field("operator").kind() {
+            "void" | "typeof" => true,
+            "!" => is_constant(scope, node.field("argument"), true, context),
+            _ => false,
+        },
+        NewExpression => false,
+        CallExpression => is_boolean_global_call_with_no_or_constant_argument(scope, node, context),
+        kind if is_literal_kind(kind) => true,
+        Undefined => true,
+        TemplateString => node.children_of_kind(TemplateSubstitution).next().is_none(),
+        AssignmentExpression => {
+            has_constant_loose_boolean_comparison(scope, node.field("right"), context)
+        }
+        SequenceExpression => has_constant_loose_boolean_comparison(
+            scope,
+            get_last_expression_of_sequence_expression(node),
+            context,
+        ),
+        _ => false,
+    }
+}
+
+fn has_constant_strict_boolean_comparison(
+    scope: &Scope,
+    node: Node,
+    context: &QueryMatchContext,
+) -> bool {
+    match node.kind() {
+        Object | Array | ArrowFunction | Function | Class | NewExpression | TemplateString
+        | UpdateExpression => true,
+        kind if is_literal_kind(kind) => true,
+        BinaryExpression => {
+            NUMERIC_OR_STRING_BINARY_OPERATORS.contains(&node.field("operator").kind())
+        }
+        UnaryExpression => match node.field("operator").kind() {
+            "delete" => false,
+            "!" => is_constant(scope, node.field("argument"), true, context),
+            _ => true,
+        },
+        SequenceExpression => has_constant_strict_boolean_comparison(
+            scope,
+            get_last_expression_of_sequence_expression(node),
+            context,
+        ),
+        Undefined => true,
+        AssignmentExpression => {
+            has_constant_strict_boolean_comparison(scope, node.field("right"), context)
+        }
+        AugmentedAssignmentExpression => {
+            !is_logical_assignment_operator(node.field("operator").kind())
+        }
+        CallExpression => {
+            if is_boolean_global_call_with_no_or_constant_argument(scope, node, context) {
+                return true;
+            }
+            let callee = node.field("function");
+            if callee.kind() != Identifier {
+                return false;
+            }
+            let function_name = callee.text(context);
+
+            if matches!(&*function_name, "String" | "Number")
+                && is_reference_to_global_variable(scope, callee)
+            {
+                return true;
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+fn is_always_new(scope: &Scope, node: Node, context: &QueryMatchContext) -> bool {
+    match node.kind() {
+        Object | Array | ArrowFunction | Function | Class => true,
+        NewExpression => {
+            let callee = node.field("constructor");
+            if callee.kind() != Identifier {
+                return false;
+            }
+
+            BUILTIN.contains_key(&&*callee.text(context))
+                && is_reference_to_global_variable(scope, callee)
+        }
+        kind::Regex => true,
+        SequenceExpression => is_always_new(
+            scope,
+            get_last_expression_of_sequence_expression(node),
+            context,
+        ),
+        AssignmentExpression => is_always_new(scope, node.field("right"), context),
+        TernaryExpression => {
+            is_always_new(scope, node.field("consequence"), context)
+                && is_always_new(scope, node.field("alternative"), context)
+        }
+        _ => false,
+    }
+}
+
+fn find_binary_expression_constant_operand<'a>(
+    scope: &Scope<'a, '_>,
+    a: Node<'a>,
+    b: Node<'a>,
+    operator: &str,
+    context: &QueryMatchContext,
+) -> Option<Node<'a>> {
+    match operator {
+        "==" | "!=" => {
+            if is_null_or_undefined(scope, a) && has_constant_nullishness(scope, b, false, context)
+                || is_static_boolean(scope, a, context)
+                    && has_constant_loose_boolean_comparison(scope, b, context)
+            {
+                return Some(b);
+            }
+        }
+        "===" | "!==" => {
+            if is_null_or_undefined(scope, a) && has_constant_nullishness(scope, b, false, context)
+                || is_static_boolean(scope, a, context)
+                    && has_constant_strict_boolean_comparison(scope, b, context)
+            {
+                return Some(b);
+            }
+        }
+        _ => (),
+    }
+    None
+}
 
 pub fn no_constant_binary_expression_rule() -> Arc<dyn Rule> {
     rule! {
@@ -52,6 +316,58 @@ pub fn no_constant_binary_expression_rule() -> Arc<dyn Rule> {
                         _ => unreachable!()
                     }
                 } else {
+                    let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                    let scope = scope_manager.get_scope(node);
+                    let right = node.field("right");
+                    let left = node.field("left");
+                    let operator = node.field("operator").kind();
+                    let right_constant_operand = find_binary_expression_constant_operand(&scope, left, right, operator, context);
+                    let left_constant_operand = find_binary_expression_constant_operand(&scope, right, left, operator, context);
+
+                    if let Some(right_constant_operand) = right_constant_operand {
+                        context.report(violation! {
+                            node => right_constant_operand,
+                            message_id => "constant_binary_operand",
+                            data => {
+                                operator => operator,
+                                other_side => "left",
+                            }
+                        });
+                    } else if let Some(left_constant_operand) = left_constant_operand {
+                        context.report(violation! {
+                            node => left_constant_operand,
+                            message_id => "constant_binary_operand",
+                            data => {
+                                operator => operator,
+                                other_side => "right",
+                            }
+                        });
+                    } else {
+                        match operator {
+                            "===" | "!==" => {
+                                if is_always_new(&scope, left, context) {
+                                    context.report(violation! {
+                                        node => left,
+                                        message_id => "always_new",
+                                    });
+                                } else if is_always_new(&scope, right, context) {
+                                    context.report(violation! {
+                                        node => right,
+                                        message_id => "always_new",
+                                    });
+                                }
+                            }
+                            "==" | "!=" => {
+                                if is_always_new(&scope, left, context) && is_always_new(&scope, right, context) {
+                                    context.report(violation! {
+                                        node => left,
+                                        message_id => "both_always_new",
+                                    });
+                                }
+                            }
+                            _ => ()
+                        }
+                    }
                 }
             },
         ],
@@ -60,13 +376,16 @@ pub fn no_constant_binary_expression_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
+    use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTester};
+
+    use crate::get_instance_provider_factory;
 
     use super::*;
 
     #[test]
     fn test_no_constant_binary_expression_rule() {
-        RuleTester::run(
+        RuleTester::run_with_instance_provider_and_environment(
             no_constant_binary_expression_rule(),
             rule_tests! {
                 valid => [
@@ -367,6 +686,10 @@ mod tests {
                     { code => "window.abc ?? 'non-nullish' ?? anything", errors => [{ message_id => "constant_short_circuit" }] }
                 ]
             },
+            get_instance_provider_factory(),
+            json_object!({
+                "ecma_version": 2021,
+            }),
         )
     }
 }

@@ -66,7 +66,8 @@ pub static ES3: Lazy<Globals> = Lazy::new(|| {
     .into()
 });
 
-pub static ES5: Lazy<Globals> = Lazy::new(|| ES3.clone().and_extend([("JSON", Visibility::Readonly)]));
+pub static ES5: Lazy<Globals> =
+    Lazy::new(|| ES3.clone().and_extend([("JSON", Visibility::Readonly)]));
 
 pub static ES2015: Lazy<Globals> = Lazy::new(|| {
     ES5.clone().and_extend([
@@ -127,3 +128,5 @@ pub static ES2022: Lazy<Globals> = Lazy::new(|| ES2021.clone());
 pub static ES2023: Lazy<Globals> = Lazy::new(|| ES2022.clone());
 
 pub static ES2024: Lazy<Globals> = Lazy::new(|| ES2023.clone());
+
+pub static BUILTIN: Lazy<Globals> = Lazy::new(|| ES2023.clone());
