@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::NodeExtJs,
@@ -13,7 +13,6 @@ use crate::{
     },
     utils::ast_utils,
 };
-use tree_sitter_lint::QueryMatchContext;
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -76,7 +75,7 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
               (sequence_expression) @c
             "# => |node, context| {
                 let parent = node
-                    .next_ancestor_not_of_types(&[ExpressionStatement, ParenthesizedExpression]);
+                    .next_ancestor_not_of_kinds(&[ExpressionStatement, ParenthesizedExpression]);
                 if parent.kind() == ForStatement
                     && (node
                         == parent
@@ -119,13 +118,12 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::SequenceExpression;
-
-    use super::*;
-
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedError, RuleTestExpectedErrorBuilder, RuleTester,
     };
+
+    use super::*;
+    use crate::kind::SequenceExpression;
 
     fn errors(column: usize) -> Vec<RuleTestExpectedError> {
         vec![RuleTestExpectedErrorBuilder::default()

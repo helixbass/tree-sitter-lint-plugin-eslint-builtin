@@ -19,6 +19,9 @@ rules:
         ast_utils:
           module: crate::utils
           kind: module
+        get_instance_provider_factory:
+          module: crate
+          kind: function
         QueryMatchContext:
           module: tree_sitter_lint
           kind: type
@@ -77,6 +80,9 @@ rules:
           module: squalid
           kind: macro
         run_once:
+          module: squalid
+          kind: macro
+        json_object:
           module: squalid
           kind: macro
         matches:
