@@ -18,6 +18,10 @@ use crate::{
     return_default_if_none,
 };
 
+mod number;
+
+pub use number::{Number, get_number_literal_value, get_number_literal_string_value};
+
 #[macro_export]
 macro_rules! assert_kind {
     ($node:expr, $kind:pat) => {
@@ -186,87 +190,6 @@ pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
         return_default_if_false!(cursor.goto_next_sibling());
     }
     context.get_node_text(cursor.node()) == "static"
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum Number {
-    NaN,
-    Integer(u64),
-    Float(f64),
-}
-
-impl Number {
-    pub fn is_truthy(&self) -> bool {
-        match self {
-            Number::NaN => false,
-            Number::Integer(value) => *value != 0,
-            Number::Float(value) => *value != 0.0,
-        }
-    }
-}
-
-impl From<&str> for Number {
-    fn from(value: &str) -> Self {
-        let mut value = regex!(r#"_"#).replace_all(value, "");
-        let mut is_bigint = false;
-        if is_bigint_literal(&value) {
-            value = value.sliced(..value.len() - 1);
-            is_bigint = true;
-        }
-        if is_hex_literal(&value) {
-            u64::from_str_radix(&value[2..], 16).map_or(Self::NaN, Self::Integer)
-        } else if is_octal_literal(&value) {
-            u64::from_str_radix(&value[2..], 8).map_or(Self::NaN, Self::Integer)
-        } else if is_binary_literal(&value) {
-            u64::from_str_radix(&value[2..], 2).map_or(Self::NaN, Self::Integer)
-        // } else if is_bigint_literal(&value) {
-        //     value[..value.len() - 1]
-        //         .parse::<u64>()
-        //         .map_or(Self::NaN, Self::Integer)
-        } else if let Some(value) = value.strip_prefix('0') {
-            u64::from_str_radix(value, 8).map_or(Self::NaN, Self::Integer)
-        } else {
-            value
-                .parse::<u64>()
-                .map(Self::Integer)
-                .unwrap_or_else(|_| {
-                    if is_bigint {
-                        return Self::NaN;
-                    }
-                    value.parse::<f64>().map_or(Self::NaN, Self::Float)
-                })
-        }
-    }
-}
-
-fn is_bigint_literal(number_node_text: &str) -> bool {
-    number_node_text.ends_with('n')
-}
-
-fn is_hex_literal(number_node_text: &str) -> bool {
-    number_node_text.starts_with("0x") || number_node_text.starts_with("0X")
-}
-
-fn is_binary_literal(number_node_text: &str) -> bool {
-    number_node_text.starts_with("0b") || number_node_text.starts_with("0B")
-}
-
-fn is_octal_literal(number_node_text: &str) -> bool {
-    number_node_text.starts_with("0o") || number_node_text.starts_with("0O")
-}
-
-pub fn get_number_literal_value(node: Node, context: &QueryMatchContext) -> Number {
-    assert_kind!(node, kind::Number);
-
-    Number::from(&*context.get_node_text(node))
-}
-
-pub fn get_number_literal_string_value(node: Node, context: &QueryMatchContext) -> String {
-    match get_number_literal_value(node, context) {
-        Number::NaN => unreachable!("I don't know if this should be possible?"),
-        Number::Integer(number) => number.to_string(),
-        Number::Float(number) => number.to_string(),
-    }
 }
 
 pub fn is_logical_and(node: Node) -> bool {

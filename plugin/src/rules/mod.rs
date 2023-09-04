@@ -72,6 +72,7 @@ mod sort_keys;
 mod space_unary_ops;
 mod symbol_description;
 mod wrap_regex;
+mod yoda;
 mod yield_star_spacing;
 
 pub use array_bracket_newline::array_bracket_newline_rule;
@@ -148,4 +149,5 @@ pub use sort_keys::sort_keys_rule;
 pub use space_unary_ops::space_unary_ops_rule;
 pub use symbol_description::symbol_description_rule;
 pub use wrap_regex::wrap_regex_rule;
+pub use yoda::yoda_rule;
 pub use yield_star_spacing::yield_star_spacing_rule;

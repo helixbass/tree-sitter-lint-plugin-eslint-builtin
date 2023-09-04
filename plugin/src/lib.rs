@@ -43,6 +43,7 @@ use rules::{
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, symbol_description_rule,
     wrap_regex_rule, yield_star_spacing_rule,
     no_dupe_args_rule,
+    yoda_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -128,6 +129,7 @@ pub fn instantiate() -> Plugin {
             no_constant_binary_expression_rule(),
             no_constant_condition_rule(),
             no_dupe_args_rule(),
+            yoda_rule(),
         ],
     }
 }
