@@ -71,9 +71,10 @@ mod require_yield;
 mod sort_keys;
 mod space_unary_ops;
 mod symbol_description;
+mod vars_on_top;
 mod wrap_regex;
-mod yoda;
 mod yield_star_spacing;
+mod yoda;
 
 pub use array_bracket_newline::array_bracket_newline_rule;
 pub use array_callback_return::array_callback_return_rule;
@@ -148,6 +149,8 @@ pub use require_yield::require_yield_rule;
 pub use sort_keys::sort_keys_rule;
 pub use space_unary_ops::space_unary_ops_rule;
 pub use symbol_description::symbol_description_rule;
+pub use vars_on_top::vars_on_top_rule;
 pub use wrap_regex::wrap_regex_rule;
-pub use yoda::yoda_rule;
 pub use yield_star_spacing::yield_star_spacing_rule;
+pub use yoda::yoda_rule;
+
