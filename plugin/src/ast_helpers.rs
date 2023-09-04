@@ -9,11 +9,11 @@ use tree_sitter_lint::{
 
 use crate::{
     kind::{
-        self, Arguments, BinaryExpression, CallExpression, Comment, ComputedPropertyName,
-        ExpressionStatement, FieldDefinition, ForInStatement, ImportClause, Kind, MemberExpression,
-        MethodDefinition, NewExpression, Object, Pair, ParenthesizedExpression, PropertyIdentifier,
-        SequenceExpression, ShorthandPropertyIdentifier, SubscriptExpression, TemplateString,
-        UpdateExpression, Identifier, ArrowFunction, EscapeSequence,
+        self, Arguments, ArrowFunction, BinaryExpression, CallExpression, Comment,
+        ComputedPropertyName, EscapeSequence, ExpressionStatement, FieldDefinition, ForInStatement,
+        Identifier, ImportClause, Kind, MemberExpression, MethodDefinition, NewExpression, Object,
+        Pair, ParenthesizedExpression, PropertyIdentifier, SequenceExpression,
+        ShorthandPropertyIdentifier, SubscriptExpression, TemplateString, UpdateExpression,
     },
     return_default_if_none,
 };
@@ -207,24 +207,34 @@ impl Number {
 
 impl From<&str> for Number {
     fn from(value: &str) -> Self {
-        let value = regex!(r#"_"#).replace_all(value, "");
+        let mut value = regex!(r#"_"#).replace_all(value, "");
+        let mut is_bigint = false;
+        if is_bigint_literal(&value) {
+            value = value.sliced(..value.len() - 1);
+            is_bigint = true;
+        }
         if is_hex_literal(&value) {
             u64::from_str_radix(&value[2..], 16).map_or(Self::NaN, Self::Integer)
         } else if is_octal_literal(&value) {
             u64::from_str_radix(&value[2..], 8).map_or(Self::NaN, Self::Integer)
         } else if is_binary_literal(&value) {
             u64::from_str_radix(&value[2..], 2).map_or(Self::NaN, Self::Integer)
-        } else if is_bigint_literal(&value) {
-            value[..value.len() - 1]
-                .parse::<u64>()
-                .map_or(Self::NaN, Self::Integer)
+        // } else if is_bigint_literal(&value) {
+        //     value[..value.len() - 1]
+        //         .parse::<u64>()
+        //         .map_or(Self::NaN, Self::Integer)
         } else if let Some(value) = value.strip_prefix('0') {
             u64::from_str_radix(value, 8).map_or(Self::NaN, Self::Integer)
         } else {
             value
                 .parse::<u64>()
                 .map(Self::Integer)
-                .unwrap_or_else(|_| value.parse::<f64>().map_or(Self::NaN, Self::Float))
+                .unwrap_or_else(|_| {
+                    if is_bigint {
+                        return Self::NaN;
+                    }
+                    value.parse::<f64>().map_or(Self::NaN, Self::Float)
+                })
         }
     }
 }
@@ -546,21 +556,37 @@ pub fn get_function_params(node: Node) -> impl Iterator<Item = Node> {
             return Either::Left(iter::once(parameter));
         }
     }
-    Either::Right(node.field("parameters").non_comment_named_children(SupportedLanguage::Javascript))
+    Either::Right(
+        node.field("parameters")
+            .non_comment_named_children(SupportedLanguage::Javascript),
+    )
 }
 
-pub fn template_string_has_any_literal_characters(node: Node) -> bool {
+pub fn template_string_has_any_cooked_literal_characters(
+    node: Node,
+    context: &QueryMatchContext,
+) -> bool {
     assert_kind!(node, TemplateString);
 
     let mut last_end: Option<usize> = Default::default();
-    node.non_comment_children(SupportedLanguage::Javascript).any(|child| {
-        if child.kind() == EscapeSequence {
-            return true;
-        }
-        let ret = last_end.map_or_default(|last_end| {
-            last_end < child.range().start_byte
-        });
-        last_end = Some(child.range().end_byte);
-        ret
-    })
+    node.non_comment_children(SupportedLanguage::Javascript)
+        .any(|child| {
+            if child.kind() == EscapeSequence && !get_cooked_value(&child.text(context)).is_empty()
+            {
+                return true;
+            }
+            let quasi = last_end.map(|last_end| context.slice(last_end..child.range().start_byte));
+            last_end = Some(child.range().end_byte);
+            let Some(quasi) = quasi else {
+                return false;
+            };
+            if quasi.is_empty() {
+                return false;
+            }
+            !get_cooked_value(&quasi).is_empty()
+        })
+}
+
+fn get_cooked_value(quasi: &str) -> Cow<'_, str> {
+    regex!(r#"\\\n"#).replace_all(quasi, "")
 }

@@ -17,8 +17,8 @@ use crate::{
         get_last_expression_of_sequence_expression, get_method_definition_kind,
         get_number_literal_string_value, get_number_literal_value, get_prev_non_comment_sibling,
         is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind,
-        skip_nodes_of_type, template_string_has_any_literal_characters, MethodDefinitionKind,
-        NodeExtJs, Number,
+        skip_nodes_of_type, template_string_has_any_cooked_literal_characters,
+        MethodDefinitionKind, NodeExtJs, Number,
     },
     kind::{
         self, is_literal_kind, Array, ArrowFunction, AssignmentExpression,
@@ -410,7 +410,9 @@ fn get_boolean_value(node: Node, context: &QueryMatchContext) -> bool {
 }
 
 fn is_logical_identity(node: Node, operator: &str, context: &QueryMatchContext) -> bool {
+    let node = node.skip_parentheses();
     match node.kind() {
+        #[allow(clippy::bool_comparison)]
         kind if is_literal_kind(kind) => {
             operator == "||" && get_boolean_value(node, context) == true
                 || operator == "&&" && get_boolean_value(node, context) == false
@@ -454,10 +456,15 @@ pub fn is_constant(
         kind if is_literal_kind(kind) => true,
         ArrowFunction | Function | Class | Object => true,
         TemplateString => {
-            in_boolean_position && template_string_has_any_literal_characters(node)
-                || node
-                    .children_of_kind(TemplateSubstitution)
-                    .all(|exp| is_constant(scope, exp, false, context))
+            in_boolean_position && template_string_has_any_cooked_literal_characters(node, context)
+                || node.children_of_kind(TemplateSubstitution).all(|exp| {
+                    is_constant(
+                        scope,
+                        exp.first_non_comment_named_child(SupportedLanguage::Javascript),
+                        false,
+                        context,
+                    )
+                })
         }
         Array => {
             if !in_boolean_position {
@@ -540,8 +547,13 @@ pub fn is_constant(
             }
             false
         }
-        Undefined => true,
-        ParenthesizedExpression => is_constant(scope, node.first_non_comment_named_child(SupportedLanguage::Javascript), in_boolean_position, context),
+        Undefined => is_reference_to_global_variable(scope, node),
+        ParenthesizedExpression => is_constant(
+            scope,
+            node.first_non_comment_named_child(SupportedLanguage::Javascript),
+            in_boolean_position,
+            context,
+        ),
         _ => false,
     }
 }

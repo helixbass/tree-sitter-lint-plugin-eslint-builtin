@@ -9,7 +9,8 @@ use crate::{
     kind::{
         ArrowFunction, CatchClause, Class, ClassDeclaration, ForInStatement, Function,
         FunctionDeclaration, Identifier, ImportSpecifier, ImportStatement, Kind,
-        LexicalDeclaration, ObjectPattern, VariableDeclaration, VariableDeclarator, NamespaceImport,
+        LexicalDeclaration, NamespaceImport, ObjectPattern, VariableDeclaration,
+        VariableDeclarator,
     },
     scope::{analyze, ScopeManager, ScopeManagerOptionsBuilder, SourceType},
     tests::helpers::{parse, tracing_subscribe},
@@ -37,7 +38,6 @@ impl<'a, 'b> TreeEnterLeaveVisitor<'a> for VerifyEnterLeaveVisitor<'a, 'b> {
             if expected.is_empty() {
                 assert_that!(&actual).is_empty();
             } else {
-                // println!("actual: {actual:#?}, node: {node:#?}, expected: {expected:#?}");
                 assert_that!(&actual).has_length(expected.len());
                 for (i, actual_item) in actual.into_iter().enumerate() {
                     assert_that!(&actual_item.name()).is_equal_to(expected[i]);
@@ -370,13 +370,7 @@ fn test_namespace_import() {
     "#;
     let ast = parse(code);
 
-    verify(
-        &ast,
-        code,
-        [NamespaceImport],
-        [vec!["a"]],
-        None,
-    );
+    verify(&ast, code, [NamespaceImport], [vec!["a"]], None);
 }
 
 #[test]
@@ -388,11 +382,5 @@ fn test_duplicate() {
     "#;
     let ast = parse(code);
 
-    verify(
-        &ast,
-        code,
-        [VariableDeclaration],
-        [vec!["a"]],
-        None,
-    );
+    verify(&ast, code, [VariableDeclaration], [vec!["a"]], None);
 }
