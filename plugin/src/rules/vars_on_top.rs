@@ -34,7 +34,11 @@ fn is_variable_declaration(node: Node) -> bool {
                 })
 }
 
-fn is_var_on_top<'a>(node: Node<'a>, statements: impl Iterator<Item = Node<'a>>, is_static_block: bool) -> bool {
+fn is_var_on_top<'a>(
+    node: Node<'a>,
+    statements: impl Iterator<Item = Node<'a>>,
+    is_static_block: bool,
+) -> bool {
     let statements = match is_static_block {
         true => Either::Left(statements),
         _ => Either::Right(statements.skip_while(|&statement| {
@@ -137,7 +141,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
     use super::*;
-    use crate::kind::{VariableDeclaration, Identifier};
+    use crate::kind::{Identifier, VariableDeclaration};
 
     #[test]
     fn test_vars_on_top_rule() {

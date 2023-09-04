@@ -10,61 +10,31 @@ rules:
     level: error
     options:
       known_imports:
+        ClassStaticBlock:
+          module: crate::kind
+          kind: static
+        upper_case_first:
+          module: crate::string_utils
+          kind: function
+        ast_utils:
+          module: crate::utils
+          kind: module
         QueryMatchContext:
           module: tree_sitter_lint
-          kind: type_identifier
-        TreeCursor:
-          module: tree_sitter
-          kind: type_identifier
-        Node:
-          module: tree_sitter
-          kind: type_identifier
-        SupportedLanguage:
-          module: tree_sitter_lint::tree_sitter_grep
-          kind: type_identifier
+          kind: type
+        Rule:
+          module: tree_sitter_lint
+          kind: type
+        rule:
+          module: tree_sitter_lint
+          kind: macro
+        violation:
+          module: tree_sitter_lint
+          kind: macro
         has_child_of_kind:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
-        Deserialize:
-          module: serde
-          kind: type_identifier
-        HashMap:
-          module: std::collections
-          kind: type_identifier
-        matches:
-          module: squalid
-          kind: trait_method
-          trait: OptionExt
-        return_default_if_none:
-          module: squalid
-          kind: macro
-        then_and:
-          module: squalid
-          kind: trait_method
-          trait: BoolExt
-        collect_vec:
-          module: itertools
-          kind: trait_method
-          trait: Itertools
-        thrush:
-          module: squalid
-          kind: trait_method
-          trait: EverythingExt
-        return_if_none:
-          module: squalid
-          kind: macro
-        as_double_deref:
-          module: squalid
-          kind: trait_method
-          trait: OptionExtDeref
-        non_empty:
-          module: squalid
-          kind: trait_method
-          trait: NonEmpty
-        Either:
-          module: itertools
-          kind: type_identifier
         first_non_comment_named_child:
           module: tree_sitter_lint
           kind: trait_method
@@ -73,35 +43,90 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        text:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        tokens:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        num_non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        TreeCursor:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
+        Node:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
         Tree:
           module: tree_sitter_lint::tree_sitter
-          kind: type_identifier
-        Ref:
-          module: std::cell
-          kind: type_identifier
+          kind: type
+        SupportedLanguage:
+          module: tree_sitter_lint::tree_sitter_grep
+          kind: type
+        Deserialize:
+          module: serde
+          kind: type
+        return_default_if_none:
+          module: squalid
+          kind: macro
+        return_if_none:
+          module: squalid
+          kind: macro
+        run_once:
+          module: squalid
+          kind: macro
+        matches:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
+        then_and:
+          module: squalid
+          kind: trait_method
+          trait: BoolExt
+        thrush:
+          module: squalid
+          kind: trait_method
+          trait: EverythingExt
+        as_double_deref:
+          module: squalid
+          kind: trait_method
+          trait: OptionExtDeref
+        sorted:
+          module: squalid
+          kind: trait_method
+          trait: SliceExtCloneOrd
+        non_empty:
+          module: squalid
+          kind: trait_method
+          trait: NonEmpty
+        Either:
+          module: itertools
+          kind: type
+        collect_vec:
+          module: itertools
+          kind: trait_method
+          trait: Itertools
         instrument:
           module: tracing
           kind: attribute
         trace:
           module: tracing
           kind: macro
-        run_once:
-          module: squalid
-          kind: macro
-        text:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
-        sorted:
-          module: squalid
-          kind: trait_method
-          trait: SliceExtCloneOrd
+        Ref:
+          module: std::cell
+          kind: type
         HashSet:
           module: std::collections
-          kind: type_identifier
-        tokens:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
+          kind: type
+        HashMap:
+          module: std::collections
+          kind: type
+        Arc:
+          module: std::sync
+          kind: type
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

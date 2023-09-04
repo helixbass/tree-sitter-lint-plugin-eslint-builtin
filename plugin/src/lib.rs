@@ -25,10 +25,11 @@ use rules::{
     array_bracket_newline_rule, array_callback_return_rule, complexity_rule,
     consistent_return_rule, constructor_super_rule, default_case_last_rule, default_case_rule,
     dot_location_rule, for_direction_rule, getter_return_rule, max_nested_callbacks_rule,
-    max_params_rule, no_array_constructor_rule, no_async_promise_executor_rule,
-    no_await_in_loop_rule, no_class_assign_rule, no_compare_neg_zero_rule, no_cond_assign_rule,
-    no_const_assign_rule, no_constant_binary_expression_rule, no_constant_condition_rule,
-    no_constructor_return_rule, no_debugger_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
+    max_params_rule, max_statements_rule, no_array_constructor_rule,
+    no_async_promise_executor_rule, no_await_in_loop_rule, no_class_assign_rule,
+    no_compare_neg_zero_rule, no_cond_assign_rule, no_const_assign_rule,
+    no_constant_binary_expression_rule, no_constant_condition_rule, no_constructor_return_rule,
+    no_debugger_rule, no_dupe_args_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
     no_dupe_keys_rule, no_duplicate_case_rule, no_empty_pattern_rule, no_eq_null_rule,
     no_ex_assign_rule, no_extra_bind_rule, no_extra_label_rule, no_fallthrough_rule,
     no_func_assign_rule, no_import_assign_rule, no_labels_rule, no_lonely_if_rule,
@@ -41,9 +42,7 @@ use rules::{
     no_unsafe_finally_rule, no_unsafe_negation_rule, no_unsafe_optional_chaining_rule,
     no_unused_labels_rule, no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
     require_yield_rule, sort_keys_rule, space_unary_ops_rule, symbol_description_rule,
-    wrap_regex_rule, yield_star_spacing_rule,
-    no_dupe_args_rule,
-    yoda_rule, vars_on_top_rule,
+    vars_on_top_rule, wrap_regex_rule, yield_star_spacing_rule, yoda_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -131,6 +130,7 @@ pub fn instantiate() -> Plugin {
             no_dupe_args_rule(),
             yoda_rule(),
             vars_on_top_rule(),
+            max_statements_rule(),
         ],
     }
 }
