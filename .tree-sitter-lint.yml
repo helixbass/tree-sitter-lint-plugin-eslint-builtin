@@ -22,6 +22,9 @@ rules:
         Identifier:
           module: crate::kind
           kind: static
+        SubscriptExpression:
+          module: crate::kind
+          kind: static
         upper_case_first:
           module: crate::string_utils
           kind: function
@@ -37,6 +40,10 @@ rules:
         ScopeType:
           module: crate::scope
           kind: type
+        skip_parentheses:
+          module: crate::ast_helpers
+          kind: trait_method
+          trait: NodeExtJs
         QueryMatchContext:
           module: tree_sitter_lint
           kind: type
