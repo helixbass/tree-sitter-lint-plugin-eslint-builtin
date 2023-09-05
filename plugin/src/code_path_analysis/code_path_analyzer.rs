@@ -20,8 +20,7 @@ use super::{
 };
 use crate::{
     ast_helpers::{
-        get_num_call_expression_arguments, is_for_of, is_outermost_chain_expression, NodeExtJs,
-        Number,
+        get_num_call_expression_arguments, is_outermost_chain_expression, NodeExtJs, Number,
     },
     kind::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
@@ -577,7 +576,6 @@ impl<'a> CodePathAnalyzer<'a> {
                         &mut self.fork_context_arena,
                         node.kind(),
                         get_label(node, &self.file_contents).map(Cow::into_owned),
-                        is_for_of(node, &self.file_contents),
                     );
             }
             LabeledStatement => {

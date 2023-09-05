@@ -5,13 +5,12 @@ use once_cell::sync::Lazy;
 use squalid::{continue_if_none, NonEmpty, OptionExt};
 use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
 
-use crate::kind::{self, Identifier, PropertyIdentifier};
-
 use super::{
     code_path::CodePath,
     code_path_segment::{CodePathSegment, EnterOrExit},
     code_path_state::CodePathState,
 };
+use crate::kind::{self, Identifier, PropertyIdentifier};
 
 static ENABLED: Lazy<bool> = Lazy::new(|| env::var("DEBUG_CODE_PATH").ok().is_non_empty());
 
@@ -168,7 +167,7 @@ initial[label="",shape=circle,style=filled,fillcolor=black,width=0.25,height=0.2
 
 pub fn make_dot_arrows<'a>(
     code_path_segment_arena: &Arena<CodePathSegment<'a>>,
-    code_path: &CodePath<'a>, /*, traceMap*/
+    code_path: &CodePath<'a>, /* , traceMap */
     trace_map: Option<&mut HashSet<Id<CodePathSegment<'a>>>>,
 ) -> String {
     let mut stack = vec![(code_path.initial_segment(), 0)];
@@ -184,9 +183,7 @@ pub fn make_dot_arrows<'a>(
         code_path_segment_arena[code_path.initial_segment()].id
     );
 
-    while !stack.is_empty() {
-        let (segment, index) = stack.pop().unwrap();
-
+    while let Some((segment, index)) = stack.pop() {
         if done.contains(&segment) && index == 0 {
             continue;
         }

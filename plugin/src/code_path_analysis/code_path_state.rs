@@ -1,10 +1,9 @@
+use std::{iter, rc::Rc};
+
 use id_arena::{Arena, Id};
 use itertools::Itertools;
 use squalid::{return_if_none, VecExt};
-use std::{iter, rc::Rc};
 use tree_sitter_lint::tree_sitter::Node;
-
-use crate::kind::{DoStatement, ForInStatement, ForStatement, Kind, WhileStatement};
 
 use super::{
     code_path_analyzer::OnLooped,
@@ -12,6 +11,7 @@ use super::{
     fork_context::{ForkContext, SingleOrSplitSegment, SplitSegment},
     id_generator::IdGenerator,
 };
+use crate::kind::{DoStatement, ForInStatement, ForStatement, Kind, WhileStatement};
 
 fn add_to_returned_or_thrown<'a>(
     dest: &mut Vec<Id<CodePathSegment<'a>>>,
@@ -924,7 +924,6 @@ impl<'a> CodePathState<'a> {
         arena: &mut Arena<ForkContext<'a>>,
         type_: Kind,
         label: Option<String>,
-        is_for_of: bool,
     ) {
         let fork_context = self.fork_context;
         let break_context_broken_fork_context = self.push_break_context(arena, true, label.clone());
@@ -969,7 +968,6 @@ impl<'a> CodePathState<'a> {
             ForInStatement => {
                 self.loop_context = Some(LoopContext::ForIn(ForInLoopContext {
                     upper: self.loop_context.take().map(Box::new),
-                    is_for_of,
                     label,
                     prev_segments: Default::default(),
                     left_segments: Default::default(),
@@ -1729,6 +1727,7 @@ struct DoLoopContext<'a> {
     test: Option<bool>,
     entry_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     continue_fork_context: Id<ForkContext<'a>>,
+    #[allow(dead_code)]
     broken_fork_context: Id<ForkContext<'a>>,
 }
 
@@ -1747,7 +1746,6 @@ struct ForLoopContext<'a> {
 
 struct ForInLoopContext<'a> {
     upper: Option<Box<LoopContext<'a>>>,
-    is_for_of: bool,
     label: Option<String>,
     prev_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
     left_segments: Option<Rc<SingleOrSplitSegment<'a>>>,
