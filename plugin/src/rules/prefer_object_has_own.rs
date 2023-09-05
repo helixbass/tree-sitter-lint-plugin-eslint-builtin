@@ -1,6 +1,39 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::OptionExt;
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation, NodeExt,
+    QueryMatchContext, Rule, SkipOptionsBuilder,
+};
+
+use crate::{
+    kind::{Identifier, MemberExpression, Object},
+    scope::{ScopeManager, ScopeType},
+    utils::ast_utils,
+};
+
+fn has_left_hand_object(node: Node, context: &QueryMatchContext) -> bool {
+    let object = node.field("object");
+    if object.kind() == Object
+        && !object.has_non_comment_named_children(SupportedLanguage::Javascript)
+    {
+        return true;
+    }
+
+    let object_node_to_check = if object.kind() == MemberExpression
+        && ast_utils::get_static_property_name(object, context).as_deref() == Some("prototype")
+    {
+        object.field("object")
+    } else {
+        object
+    };
+
+    if object_node_to_check.kind() == Identifier && object_node_to_check.text(context) == "Object" {
+        return true;
+    }
+
+    false
+}
 
 pub fn prefer_object_has_own_rule() -> Arc<dyn Rule> {
     rule! {
@@ -11,13 +44,51 @@ pub fn prefer_object_has_own_rule() -> Arc<dyn Rule> {
         ],
         fixable => true,
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (call_expression
+                function: (member_expression
+                  object: (member_expression)
+                )
+              ) @c
+            "# => |node, context| {
+                let callee = node.field("function");
+                let callee_property_name = ast_utils::get_static_property_name(callee, context);
+                let callee_object = callee.field("object");
+                let object_property_name = ast_utils::get_static_property_name(callee_object, context);
+                let is_object = has_left_hand_object(callee_object, context);
+
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                let scope = scope_manager.get_scope(node);
+                let variable = ast_utils::get_variable_by_name(scope, "Object");
+
+                if callee_property_name.as_deref() == Some("call") &&
+                    object_property_name.as_deref() == Some("hasOwnProperty") &&
+                    is_object && variable.matches(|variable| variable.scope().type_() == ScopeType::Global)
+                {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "use_has_own",
+                        fix => |fixer| {
+                            if context.get_comments_inside(callee).count() > 0 {
+                                return;
+                            }
+
+                            if context.maybe_get_token_before(
+                                callee,
+                                Some(SkipOptionsBuilder::<fn(Node) -> bool>::default()
+                                    .include_comments(true)
+                                    .build().unwrap())
+                            ).matches(|token_just_before_node| {
+                                token_just_before_node.range().end_byte == callee.range().start_byte &&
+                                    !ast_utils::can_tokens_be_adjacent(token_just_before_node, "Object.hasOwn", context)
+                            }) {
+                                fixer.replace_text(callee, " Object.hasOwn");
+                            } else {
+                                fixer.replace_text(callee, "Object.hasOwn");
+                            }
+                        }
+                    });
+                }
             },
         ],
     }

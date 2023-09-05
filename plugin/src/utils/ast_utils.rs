@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use squalid::{return_default_if_none, CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
-    tree_sitter::{Node, Range},
+    tree_sitter::{Node, Range, Tree},
     tree_sitter_grep::SupportedLanguage,
     NodeExt, QueryMatchContext,
 };
@@ -16,7 +16,7 @@ use crate::{
         get_call_expression_arguments, get_first_non_comment_child,
         get_last_expression_of_sequence_expression, get_method_definition_kind,
         get_number_literal_string_value, get_number_literal_value, get_prev_non_comment_sibling,
-        is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind,
+        is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind, parse,
         skip_nodes_of_type, template_string_has_any_cooked_literal_characters,
         MethodDefinitionKind, NodeExtJs, Number,
     },
@@ -909,11 +909,22 @@ pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
     }
 }
 
-pub fn can_tokens_be_adjacent(
+pub fn can_tokens_be_adjacent<'a>(
     left_value: Node,
-    right_value: Node,
+    right_value: impl Into<NodeOrStr<'a>>,
     context: &QueryMatchContext,
 ) -> bool {
+    let right_value = right_value.into();
+
+    let right_value_tree: Option<Tree>;
+    let right_value = match right_value {
+        NodeOrStr::Node(right_value) => right_value,
+        NodeOrStr::Str(right_value) => {
+            right_value_tree = Some(parse(right_value));
+            right_value_tree.as_ref().unwrap().root_node().tokens().next().unwrap()
+        }
+    };
+
     match (left_value.kind(), right_value.kind()) {
         (left_kind, right_kind)
             if is_punctuation_kind(left_kind) && is_punctuation_kind(right_kind) =>
@@ -939,6 +950,23 @@ pub fn can_tokens_be_adjacent(
         (Comment, _) if is_block_comment(left_value, context) => true,
         (_, Comment | PrivatePropertyIdentifier) => true,
         _ => false,
+    }
+}
+
+pub enum NodeOrStr<'a> {
+    Node(Node<'a>),
+    Str(&'a str),
+}
+
+impl<'a> From<Node<'a>> for NodeOrStr<'a> {
+    fn from(value: Node<'a>) -> Self {
+        Self::Node(value)
+    }
+}
+
+impl<'a> From<&'a str> for NodeOrStr<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::Str(value)
     }
 }
 

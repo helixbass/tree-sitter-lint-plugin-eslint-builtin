@@ -13,6 +13,15 @@ rules:
         ClassStaticBlock:
           module: crate::kind
           kind: static
+        Object:
+          module: crate::kind
+          kind: static
+        MemberExpression:
+          module: crate::kind
+          kind: static
+        Identifier:
+          module: crate::kind
+          kind: static
         upper_case_first:
           module: crate::string_utils
           kind: function
@@ -22,10 +31,19 @@ rules:
         get_instance_provider_factory:
           module: crate
           kind: function
+        ScopeManager:
+          module: crate::scope
+          kind: type
+        ScopeType:
+          module: crate::scope
+          kind: type
         QueryMatchContext:
           module: tree_sitter_lint
           kind: type
         Rule:
+          module: tree_sitter_lint
+          kind: type
+        SkipOptionsBuilder:
           module: tree_sitter_lint
           kind: type
         rule:

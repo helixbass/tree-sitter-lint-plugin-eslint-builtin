@@ -3,7 +3,7 @@ use std::{borrow::Cow, iter};
 use itertools::Either;
 use squalid::{BoolExt, CowStrExt, OptionExt};
 use tree_sitter_lint::{
-    regex, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, NodeExt, NonCommentChildren,
+    regex, tree_sitter::{Node, Parser}, tree_sitter_grep::SupportedLanguage, NodeExt, NonCommentChildren,
     QueryMatchContext, SourceTextProvider,
 };
 
@@ -20,7 +20,8 @@ use crate::{
 
 mod number;
 
-pub use number::{Number, get_number_literal_value, get_number_literal_string_value};
+pub use number::{get_number_literal_string_value, get_number_literal_value, Number};
+use tree_sitter_lint::tree_sitter::Tree;
 
 #[macro_export]
 macro_rules! assert_kind {
@@ -512,4 +513,12 @@ pub fn template_string_has_any_cooked_literal_characters(
 
 fn get_cooked_value(quasi: &str) -> Cow<'_, str> {
     regex!(r#"\\\n"#).replace_all(quasi, "")
+}
+
+pub fn parse(source_text: &str) -> Tree {
+    let mut parser = Parser::new();
+    parser
+        .set_language(SupportedLanguage::Javascript.language())
+        .unwrap();
+    parser.parse(source_text, None).unwrap()
 }
