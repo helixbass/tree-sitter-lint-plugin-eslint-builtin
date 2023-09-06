@@ -25,6 +25,9 @@ rules:
         SubscriptExpression:
           module: crate::kind
           kind: static
+        Comment:
+          module: crate::kind
+          kind: static
         upper_case_first:
           module: crate::string_utils
           kind: function
@@ -39,6 +42,15 @@ rules:
           kind: type
         ScopeType:
           module: crate::scope
+          kind: type
+        get_comment_type:
+          module: crate::ast_helpers
+          kind: function
+        get_comment_contents:
+          module: crate::ast_helpers
+          kind: function
+        CommentType:
+          module: crate::ast_helpers
           kind: type
         skip_parentheses:
           module: crate::ast_helpers
@@ -110,6 +122,9 @@ rules:
         json_object:
           module: squalid
           kind: macro
+        regex:
+          module: squalid
+          kind: macro
         matches:
           module: squalid
           kind: trait_method
@@ -134,6 +149,9 @@ rules:
           module: squalid
           kind: trait_method
           trait: NonEmpty
+        Regex:
+          module: regex
+          kind: type
         Either:
           module: itertools
           kind: type

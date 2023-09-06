@@ -42,6 +42,11 @@ pub const LINE_BREAK_PATTERN_STR: &str = r#"\r\n|[\r\n\u2028\u2029]"#;
 pub static LINE_BREAK_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(LINE_BREAK_PATTERN_STR).unwrap());
 
+pub static COMMENTS_IGNORE_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"^\s*(?:eslint|jshint\s+|jslint\s+|istanbul\s+|globals?\s+|exported\s+|jscs)"#)
+        .unwrap()
+});
+
 pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
     [
         Program,
@@ -921,7 +926,13 @@ pub fn can_tokens_be_adjacent<'a>(
         NodeOrStr::Node(right_value) => right_value,
         NodeOrStr::Str(right_value) => {
             right_value_tree = Some(parse(right_value));
-            right_value_tree.as_ref().unwrap().root_node().tokens().next().unwrap()
+            right_value_tree
+                .as_ref()
+                .unwrap()
+                .root_node()
+                .tokens()
+                .next()
+                .unwrap()
         }
     };
 
