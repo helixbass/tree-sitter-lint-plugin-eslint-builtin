@@ -24,10 +24,10 @@ pub use code_path_analysis::{
 use rules::{
     array_bracket_newline_rule, array_callback_return_rule, complexity_rule,
     consistent_return_rule, constructor_super_rule, default_case_last_rule, default_case_rule,
-    dot_location_rule, for_direction_rule, getter_return_rule, line_comment_position_rule,
-    max_nested_callbacks_rule, max_params_rule, max_statements_rule, no_array_constructor_rule,
-    no_async_promise_executor_rule, no_await_in_loop_rule, no_class_assign_rule,
-    no_compare_neg_zero_rule, no_cond_assign_rule, no_const_assign_rule,
+    dot_location_rule, for_direction_rule, getter_return_rule, guard_for_in_rule,
+    line_comment_position_rule, max_nested_callbacks_rule, max_params_rule, max_statements_rule,
+    no_array_constructor_rule, no_async_promise_executor_rule, no_await_in_loop_rule,
+    no_class_assign_rule, no_compare_neg_zero_rule, no_cond_assign_rule, no_const_assign_rule,
     no_constant_binary_expression_rule, no_constant_condition_rule, no_constructor_return_rule,
     no_debugger_rule, no_dupe_args_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
     no_dupe_keys_rule, no_duplicate_case_rule, no_empty_pattern_rule, no_eq_null_rule,
@@ -133,6 +133,7 @@ pub fn instantiate() -> Plugin {
             max_statements_rule(),
             prefer_object_has_own_rule(),
             line_comment_position_rule(),
+            guard_for_in_rule(),
         ],
     }
 }

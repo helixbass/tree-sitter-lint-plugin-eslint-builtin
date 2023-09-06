@@ -13,19 +13,34 @@ rules:
         ClassStaticBlock:
           module: crate::kind
           kind: static
-        Object:
+        Comment:
           module: crate::kind
           kind: static
-        MemberExpression:
+        ContinueStatement:
+          module: crate::kind
+          kind: static
+        EmptyStatement:
+          module: crate::kind
+          kind: static
+        ForInStatement:
           module: crate::kind
           kind: static
         Identifier:
           module: crate::kind
           kind: static
-        SubscriptExpression:
+        IfStatement:
           module: crate::kind
           kind: static
-        Comment:
+        MemberExpression:
+          module: crate::kind
+          kind: static
+        Object:
+          module: crate::kind
+          kind: static
+        StatementBlock:
+          module: crate::kind
+          kind: static
+        SubscriptExpression:
           module: crate::kind
           kind: static
         upper_case_first:
@@ -62,6 +77,9 @@ rules:
         Rule:
           module: tree_sitter_lint
           kind: type
+        RuleTestExpectedErrorBuilder:
+          module: tree_sitter_lint
+          kind: type
         SkipOptionsBuilder:
           module: tree_sitter_lint
           kind: type
@@ -92,6 +110,10 @@ rules:
           kind: trait_method
           trait: NodeExt
         num_non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        field:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
