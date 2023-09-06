@@ -10,6 +10,9 @@ rules:
     level: error
     options:
       known_imports:
+        ArrowFunction:
+          module: crate::kind
+          kind: static
         ClassStaticBlock:
           module: crate::kind
           kind: static
@@ -22,7 +25,22 @@ rules:
         EmptyStatement:
           module: crate::kind
           kind: static
+        ExportStatement:
+          module: crate::kind
+          kind: static
         ForInStatement:
+          module: crate::kind
+          kind: static
+        Function:
+          module: crate::kind
+          kind: static
+        FunctionDeclaration:
+          module: crate::kind
+          kind: static
+        GeneratorFunction:
+          module: crate::kind
+          kind: static
+        GeneratorFunctionDeclaration:
           module: crate::kind
           kind: static
         Identifier:
@@ -34,7 +52,13 @@ rules:
         MemberExpression:
           module: crate::kind
           kind: static
+        MethodDefinition:
+          module: crate::kind
+          kind: static
         Object:
+          module: crate::kind
+          kind: static
+        Program:
           module: crate::kind
           kind: static
         StatementBlock:
@@ -43,6 +67,12 @@ rules:
         SubscriptExpression:
           module: crate::kind
           kind: static
+        VariableDeclaration:
+          module: crate::kind
+          kind: static
+        Kind:
+          module: crate::kind
+          kind: type
         upper_case_first:
           module: crate::string_utils
           kind: function
@@ -187,6 +217,9 @@ rules:
         trace:
           module: tracing
           kind: macro
+        Lazy:
+          module: once_cell::sync
+          kind: type
         Ref:
           module: std::cell
           kind: type
