@@ -67,6 +67,9 @@ rules:
         SubscriptExpression:
           module: crate::kind
           kind: static
+        UnaryExpression:
+          module: crate::kind
+          kind: static
         VariableDeclaration:
           module: crate::kind
           kind: static
@@ -156,6 +159,9 @@ rules:
         Tree:
           module: tree_sitter_lint::tree_sitter
           kind: type
+        RopeOrSlice:
+          module: tree_sitter_lint::tree_sitter_grep
+          kind: type
         SupportedLanguage:
           module: tree_sitter_lint::tree_sitter_grep
           kind: type
@@ -231,6 +237,9 @@ rules:
           kind: type
         Arc:
           module: std::sync
+          kind: type
+        Cow:
+          module: std::borrow
           kind: type
 tree-sitter-lint-dependency:
   path: ../tree-sitter-lint

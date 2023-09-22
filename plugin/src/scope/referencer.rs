@@ -199,7 +199,7 @@ impl<'a, 'b> Referencer<'a, 'b> {
         let options = options.unwrap_or_default();
 
         traverse_identifier_in_pattern(
-            self.options,
+            self.options.clone(),
             node,
             self,
             options.process_right_hand_nodes,

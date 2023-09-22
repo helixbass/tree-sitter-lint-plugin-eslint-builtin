@@ -1,9 +1,13 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap, fmt};
 
 use once_cell::sync::Lazy;
+use serde::{
+    de::{self, Unexpected},
+    Deserialize, Deserializer,
+};
 use squalid::HashMapExt;
 
-type Globals = HashMap<&'static str, Visibility>;
+pub type Globals = HashMap<Cow<'static, str>, Visibility>;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Visibility {
@@ -13,83 +17,125 @@ pub enum Visibility {
     Off,
 }
 
+impl<'de> Deserialize<'de> for Visibility {
+    fn deserialize<TDeserializer>(deserializer: TDeserializer) -> Result<Self, TDeserializer::Error>
+    where
+        TDeserializer: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(VisibilityDeserializeVisitor)
+    }
+}
+
+struct VisibilityDeserializeVisitor;
+
+impl<'de> de::Visitor<'de> for VisibilityDeserializeVisitor {
+    type Value = Visibility;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("true/false/\"readonly\"/\"writable\"/\"readable\"/\"writeable\"")
+    }
+
+    fn visit_bool<TError>(self, value: bool) -> Result<Self::Value, TError>
+    where
+        TError: de::Error,
+    {
+        Ok(match value {
+            true => Visibility::Writable,
+            false => Visibility::Readonly,
+        })
+    }
+
+    fn visit_str<TError>(self, value: &str) -> Result<Self::Value, TError>
+    where
+        TError: de::Error,
+    {
+        match value {
+            "readonly" | "readable" => Ok(Visibility::Readonly),
+            "writable" | "writeable" => Ok(Visibility::Writable),
+            value => Err(de::Error::invalid_value(Unexpected::Str(value), &self)),
+        }
+    }
+}
+
 pub static COMMONJS: Lazy<Globals> = Lazy::new(|| {
     [
-        ("exports", Visibility::Writable),
-        ("global", Visibility::Readonly),
-        ("module", Visibility::Readonly),
-        ("require", Visibility::Readonly),
+        (Cow::Borrowed("exports"), Visibility::Writable),
+        (Cow::Borrowed("global"), Visibility::Readonly),
+        (Cow::Borrowed("module"), Visibility::Readonly),
+        (Cow::Borrowed("require"), Visibility::Readonly),
     ]
     .into()
 });
 
 pub static ES3: Lazy<Globals> = Lazy::new(|| {
     [
-        ("Array", Visibility::Readonly),
-        ("Boolean", Visibility::Readonly),
-        ("constructor", Visibility::Readonly),
-        ("Date", Visibility::Readonly),
-        ("decodeURI", Visibility::Readonly),
-        ("decodeURIComponent", Visibility::Readonly),
-        ("encodeURI", Visibility::Readonly),
-        ("encodeURIComponent", Visibility::Readonly),
-        ("Error", Visibility::Readonly),
-        ("escape", Visibility::Readonly),
-        ("eval", Visibility::Readonly),
-        ("EvalError", Visibility::Readonly),
-        ("Function", Visibility::Readonly),
-        ("hasOwnProperty", Visibility::Readonly),
-        ("Infinity", Visibility::Readonly),
-        ("isFinite", Visibility::Readonly),
-        ("isNaN", Visibility::Readonly),
-        ("isPrototypeOf", Visibility::Readonly),
-        ("Math", Visibility::Readonly),
-        ("NaN", Visibility::Readonly),
-        ("Number", Visibility::Readonly),
-        ("Object", Visibility::Readonly),
-        ("parseFloat", Visibility::Readonly),
-        ("parseInt", Visibility::Readonly),
-        ("propertyIsEnumerable", Visibility::Readonly),
-        ("RangeError", Visibility::Readonly),
-        ("ReferenceError", Visibility::Readonly),
-        ("RegExp", Visibility::Readonly),
-        ("String", Visibility::Readonly),
-        ("SyntaxError", Visibility::Readonly),
-        ("toLocaleString", Visibility::Readonly),
-        ("toString", Visibility::Readonly),
-        ("TypeError", Visibility::Readonly),
-        ("undefined", Visibility::Readonly),
-        ("unescape", Visibility::Readonly),
-        ("URIError", Visibility::Readonly),
-        ("valueOf", Visibility::Readonly),
+        (Cow::Borrowed("Array"), Visibility::Readonly),
+        (Cow::Borrowed("Boolean"), Visibility::Readonly),
+        (Cow::Borrowed("constructor"), Visibility::Readonly),
+        (Cow::Borrowed("Date"), Visibility::Readonly),
+        (Cow::Borrowed("decodeURI"), Visibility::Readonly),
+        (Cow::Borrowed("decodeURIComponent"), Visibility::Readonly),
+        (Cow::Borrowed("encodeURI"), Visibility::Readonly),
+        (Cow::Borrowed("encodeURIComponent"), Visibility::Readonly),
+        (Cow::Borrowed("Error"), Visibility::Readonly),
+        (Cow::Borrowed("escape"), Visibility::Readonly),
+        (Cow::Borrowed("eval"), Visibility::Readonly),
+        (Cow::Borrowed("EvalError"), Visibility::Readonly),
+        (Cow::Borrowed("Function"), Visibility::Readonly),
+        (Cow::Borrowed("hasOwnProperty"), Visibility::Readonly),
+        (Cow::Borrowed("Infinity"), Visibility::Readonly),
+        (Cow::Borrowed("isFinite"), Visibility::Readonly),
+        (Cow::Borrowed("isNaN"), Visibility::Readonly),
+        (Cow::Borrowed("isPrototypeOf"), Visibility::Readonly),
+        (Cow::Borrowed("Math"), Visibility::Readonly),
+        (Cow::Borrowed("NaN"), Visibility::Readonly),
+        (Cow::Borrowed("Number"), Visibility::Readonly),
+        (Cow::Borrowed("Object"), Visibility::Readonly),
+        (Cow::Borrowed("parseFloat"), Visibility::Readonly),
+        (Cow::Borrowed("parseInt"), Visibility::Readonly),
+        (Cow::Borrowed("propertyIsEnumerable"), Visibility::Readonly),
+        (Cow::Borrowed("RangeError"), Visibility::Readonly),
+        (Cow::Borrowed("ReferenceError"), Visibility::Readonly),
+        (Cow::Borrowed("RegExp"), Visibility::Readonly),
+        (Cow::Borrowed("String"), Visibility::Readonly),
+        (Cow::Borrowed("SyntaxError"), Visibility::Readonly),
+        (Cow::Borrowed("toLocaleString"), Visibility::Readonly),
+        (Cow::Borrowed("toString"), Visibility::Readonly),
+        (Cow::Borrowed("TypeError"), Visibility::Readonly),
+        (Cow::Borrowed("undefined"), Visibility::Readonly),
+        (Cow::Borrowed("unescape"), Visibility::Readonly),
+        (Cow::Borrowed("URIError"), Visibility::Readonly),
+        (Cow::Borrowed("valueOf"), Visibility::Readonly),
     ]
     .into()
 });
 
-pub static ES5: Lazy<Globals> =
-    Lazy::new(|| ES3.clone().and_extend([("JSON", Visibility::Readonly)]));
+pub static ES5: Lazy<Globals> = Lazy::new(|| {
+    ES3.clone()
+        .and_extend([(Cow::Borrowed("JSON"), Visibility::Readonly)])
+});
 
 pub static ES2015: Lazy<Globals> = Lazy::new(|| {
     ES5.clone().and_extend([
-        ("ArrayBuffer", Visibility::Readonly),
-        ("DataView", Visibility::Readonly),
-        ("Float32Array", Visibility::Readonly),
-        ("Float64Array", Visibility::Readonly),
-        ("Int16Array", Visibility::Readonly),
-        ("Int32Array", Visibility::Readonly),
-        ("Int8Array", Visibility::Readonly),
-        ("Map", Visibility::Readonly),
-        ("Promise", Visibility::Readonly),
-        ("Proxy", Visibility::Readonly),
-        ("Reflect", Visibility::Readonly),
-        ("Set", Visibility::Readonly),
-        ("Symbol", Visibility::Readonly),
-        ("Uint16Array", Visibility::Readonly),
-        ("Uint32Array", Visibility::Readonly),
-        ("Uint8Array", Visibility::Readonly),
-        ("Uint8ClampedArray", Visibility::Readonly),
-        ("WeakMap", Visibility::Readonly),
-        ("WeakSet", Visibility::Readonly),
+        (Cow::Borrowed("ArrayBuffer"), Visibility::Readonly),
+        (Cow::Borrowed("DataView"), Visibility::Readonly),
+        (Cow::Borrowed("Float32Array"), Visibility::Readonly),
+        (Cow::Borrowed("Float64Array"), Visibility::Readonly),
+        (Cow::Borrowed("Int16Array"), Visibility::Readonly),
+        (Cow::Borrowed("Int32Array"), Visibility::Readonly),
+        (Cow::Borrowed("Int8Array"), Visibility::Readonly),
+        (Cow::Borrowed("Map"), Visibility::Readonly),
+        (Cow::Borrowed("Promise"), Visibility::Readonly),
+        (Cow::Borrowed("Proxy"), Visibility::Readonly),
+        (Cow::Borrowed("Reflect"), Visibility::Readonly),
+        (Cow::Borrowed("Set"), Visibility::Readonly),
+        (Cow::Borrowed("Symbol"), Visibility::Readonly),
+        (Cow::Borrowed("Uint16Array"), Visibility::Readonly),
+        (Cow::Borrowed("Uint32Array"), Visibility::Readonly),
+        (Cow::Borrowed("Uint8Array"), Visibility::Readonly),
+        (Cow::Borrowed("Uint8ClampedArray"), Visibility::Readonly),
+        (Cow::Borrowed("WeakMap"), Visibility::Readonly),
+        (Cow::Borrowed("WeakSet"), Visibility::Readonly),
     ])
 });
 
@@ -97,8 +143,8 @@ pub static ES2016: Lazy<Globals> = Lazy::new(|| ES2015.clone());
 
 pub static ES2017: Lazy<Globals> = Lazy::new(|| {
     ES2016.clone().and_extend([
-        ("Atomics", Visibility::Readonly),
-        ("SharedArrayBuffer", Visibility::Readonly),
+        (Cow::Borrowed("Atomics"), Visibility::Readonly),
+        (Cow::Borrowed("SharedArrayBuffer"), Visibility::Readonly),
     ])
 });
 
@@ -108,18 +154,18 @@ pub static ES2019: Lazy<Globals> = Lazy::new(|| ES2018.clone());
 
 pub static ES2020: Lazy<Globals> = Lazy::new(|| {
     ES2019.clone().and_extend([
-        ("BigInt", Visibility::Readonly),
-        ("BigInt64Array", Visibility::Readonly),
-        ("BigUint64Array", Visibility::Readonly),
-        ("globalThis", Visibility::Readonly),
+        (Cow::Borrowed("BigInt"), Visibility::Readonly),
+        (Cow::Borrowed("BigInt64Array"), Visibility::Readonly),
+        (Cow::Borrowed("BigUint64Array"), Visibility::Readonly),
+        (Cow::Borrowed("globalThis"), Visibility::Readonly),
     ])
 });
 
 pub static ES2021: Lazy<Globals> = Lazy::new(|| {
     ES2020.clone().and_extend([
-        ("AggregateError", Visibility::Readonly),
-        ("FinalizationRegistry", Visibility::Readonly),
-        ("WeakRef", Visibility::Readonly),
+        (Cow::Borrowed("AggregateError"), Visibility::Readonly),
+        (Cow::Borrowed("FinalizationRegistry"), Visibility::Readonly),
+        (Cow::Borrowed("WeakRef"), Visibility::Readonly),
     ])
 });
 

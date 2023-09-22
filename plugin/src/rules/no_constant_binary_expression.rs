@@ -11,17 +11,19 @@ use crate::{
         get_call_expression_arguments, get_comma_separated_optional_non_comment_named_children,
         get_last_expression_of_sequence_expression, is_logical_expression, NodeExtJs,
     },
+    conf::globals::BUILTIN,
     kind::{
-        is_literal_kind, Array, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
-        BinaryExpression, CallExpression, Class, False, Function, Identifier, NewExpression,
-        Object, SequenceExpression, SpreadElement, TemplateString, TemplateSubstitution, True,
-        UnaryExpression, Undefined, UpdateExpression, self, TernaryExpression,
+        self, is_literal_kind, Array, ArrowFunction, AssignmentExpression,
+        AugmentedAssignmentExpression, BinaryExpression, CallExpression, Class, False, Function,
+        Identifier, NewExpression, Object, SequenceExpression, SpreadElement, TemplateString,
+        TemplateSubstitution, TernaryExpression, True, UnaryExpression, Undefined,
+        UpdateExpression,
     },
     scope::{Scope, ScopeManager},
     utils::ast_utils::{
         is_constant, is_logical_assignment_operator, is_null_literal,
         is_reference_to_global_variable,
-    }, conf::globals::BUILTIN,
+    },
 };
 
 static NUMERIC_OR_STRING_BINARY_OPERATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
@@ -221,7 +223,7 @@ fn is_always_new(scope: &Scope, node: Node, context: &QueryMatchContext) -> bool
                 return false;
             }
 
-            BUILTIN.contains_key(&&*callee.text(context))
+            BUILTIN.contains_key(&callee.text(context))
                 && is_reference_to_global_variable(scope, callee)
         }
         kind::Regex => true,
@@ -379,9 +381,8 @@ mod tests {
     use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTester};
 
-    use crate::{get_instance_provider_factory, tests::helpers::tracing_subscribe};
-
     use super::*;
+    use crate::{get_instance_provider_factory, tests::helpers::tracing_subscribe};
 
     #[test]
     fn test_no_constant_binary_expression_rule() {

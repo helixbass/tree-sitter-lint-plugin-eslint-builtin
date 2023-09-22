@@ -6,7 +6,7 @@ use super::scope_manager::ScopeManagerOptions;
 use crate::{
     kind::{
         ArrayPattern, AssignmentPattern, ComputedPropertyName, Identifier, ObjectAssignmentPattern,
-        ObjectPattern, RestPattern, SpreadElement, Undefined
+        ObjectPattern, RestPattern, SpreadElement, Undefined,
     },
     visit::Visit,
 };

@@ -25,7 +25,7 @@ use super::{
     variable::{Variable, _Variable},
     Definition,
 };
-use crate::{conf::globals, kind::Program};
+use crate::{conf::globals::{self, Globals}, kind::Program};
 
 pub type NodeId = usize;
 
@@ -39,7 +39,7 @@ pub enum SourceType {
 
 pub type EcmaVersion = u32;
 
-#[derive(Builder, Copy, Clone, Debug, Deserialize)]
+#[derive(Builder, Clone, Debug, Deserialize)]
 #[builder(default, setter(strip_option))]
 #[serde(default)]
 pub struct ScopeManagerOptions {
@@ -50,6 +50,7 @@ pub struct ScopeManagerOptions {
     implied_strict: bool,
     source_type: SourceType,
     ecma_version: EcmaVersion,
+    globals: HashMap<Cow<'static, str>, globals::Visibility>,
     // child_visitor_keys: Option<HashMap<String, Vec<String>>>,
     // fallback:
 }
@@ -64,6 +65,7 @@ impl Default for ScopeManagerOptions {
             source_type: SourceType::Script,
             ecma_version: 5,
             ignore_eval: Default::default(),
+            globals: Default::default(),
         }
     }
 }
@@ -374,13 +376,14 @@ impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
         let scope_manager = analyze(
             file_run_context.tree,
             file_run_context.file_contents,
-            options,
+            options.clone(),
         );
 
         let mut configured_globals = get_globals_for_ecma_version(options.ecma_version);
         if options.source_type == SourceType::CommonJS {
-            configured_globals.extend(&*globals::COMMONJS);
+            configured_globals.extend(globals::COMMONJS.clone());
         }
+        configured_globals.extend(options.globals.clone());
         add_declared_globals(&scope_manager, &configured_globals);
 
         scope_manager
@@ -463,10 +466,7 @@ impl<'a, 'b> DeclaredVariablesPresent<'a, 'b> {
     }
 }
 
-fn add_declared_globals(
-    scope_manager: &ScopeManager,
-    config_globals: &HashMap<&'static str, globals::Visibility>,
-) {
+fn add_declared_globals(scope_manager: &ScopeManager, config_globals: &Globals) {
     let global_scope = &mut scope_manager.arena.scopes.borrow_mut()[scope_manager.scopes[0]];
 
     for (id, value) in config_globals
@@ -475,17 +475,21 @@ fn add_declared_globals(
     {
         let mut did_insert = false;
         let global_scope_id = global_scope.id();
-        let variable = *global_scope.set_mut().entry((*id).into()).or_insert_with(|| {
-            did_insert = true;
-            let variable = _Variable::new(
-                &mut scope_manager.arena.variables.borrow_mut(),
-                (*id).into(),
-                global_scope_id,
-            );
+        let variable = *global_scope
+            .set_mut()
+            .entry(id.clone())
+            .or_insert_with(|| {
+                did_insert = true;
+                let variable = _Variable::new(
+                    &mut scope_manager.arena.variables.borrow_mut(),
+                    id.clone(),
+                    global_scope_id,
+                );
 
-            scope_manager.arena.variables.borrow_mut()[variable].writeable = Some(*value == globals::Visibility::Writable);
-            variable
-        });
+                scope_manager.arena.variables.borrow_mut()[variable].writeable =
+                    Some(*value == globals::Visibility::Writable);
+                variable
+            });
         if did_insert {
             global_scope.variables_mut().push(variable);
         }
@@ -514,9 +518,7 @@ fn add_declared_globals(
         .collect();
 }
 
-fn get_globals_for_ecma_version(
-    ecma_version: EcmaVersion,
-) -> HashMap<&'static str, globals::Visibility> {
+fn get_globals_for_ecma_version(ecma_version: EcmaVersion) -> Globals {
     match ecma_version {
         3 => globals::ES3.clone(),
         5 => globals::ES5.clone(),

@@ -28,7 +28,7 @@ pub fn analyze<'a>(
 ) -> ScopeManager<'a> {
     let source_text = source_text.into();
 
-    let mut scope_manager = ScopeManager::new(source_text, options);
+    let mut scope_manager = ScopeManager::new(source_text, options.clone());
     let mut referencer = Referencer::new(options, &mut scope_manager);
 
     referencer.visit(tree.root_node());
