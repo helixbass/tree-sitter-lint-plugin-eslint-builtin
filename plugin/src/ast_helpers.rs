@@ -3,8 +3,10 @@ use std::{borrow::Cow, iter};
 use itertools::Either;
 use squalid::{BoolExt, CowStrExt, OptionExt};
 use tree_sitter_lint::{
-    regex, tree_sitter::{Node, Parser}, tree_sitter_grep::SupportedLanguage, NodeExt, NonCommentChildren,
-    QueryMatchContext, SourceTextProvider,
+    regex,
+    tree_sitter::{Node, Parser},
+    tree_sitter_grep::SupportedLanguage,
+    NodeExt, NonCommentChildren, QueryMatchContext, SourceTextProvider,
 };
 
 use crate::{
@@ -329,10 +331,10 @@ pub fn get_object_property_key(node: Node) -> Node {
 
 pub fn get_comment_contents<'a>(
     comment: Node,
-    context: &QueryMatchContext<'a, '_>,
+    source_text_provider: &impl SourceTextProvider<'a>,
 ) -> Cow<'a, str> {
     assert_kind!(comment, Comment);
-    let text = comment.text(context);
+    let text = comment.text(source_text_provider);
     if text.starts_with("//") {
         text.sliced(2..)
     } else {

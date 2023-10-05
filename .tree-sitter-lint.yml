@@ -207,6 +207,9 @@ rules:
           module: squalid
           kind: trait_method
           trait: NonEmpty
+        Captures:
+          module: regex
+          kind: type
         Regex:
           module: regex
           kind: type

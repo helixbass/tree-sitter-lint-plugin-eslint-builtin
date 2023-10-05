@@ -3,6 +3,7 @@ use tree_sitter_lint::{tree_sitter::Tree, tree_sitter_grep::RopeOrSlice};
 use crate::visit::Visit;
 
 mod arena;
+mod config_comment_parser;
 mod definition;
 mod pattern_visitor;
 mod reference;
@@ -12,14 +13,14 @@ mod scope;
 mod scope_manager;
 mod variable;
 
-use referencer::Referencer;
 pub use definition::Definition;
 pub use reference::Reference;
-pub use scope::{ScopeType, Scope};
+use referencer::Referencer;
+pub use scope::{Scope, ScopeType};
 pub use scope_manager::{
     EcmaVersion, ScopeManager, ScopeManagerOptions, ScopeManagerOptionsBuilder, SourceType,
 };
-pub use variable::{VariableType, Variable};
+pub use variable::{Variable, VariableType};
 
 pub fn analyze<'a>(
     tree: &'a Tree,
