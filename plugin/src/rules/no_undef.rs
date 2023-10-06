@@ -4,7 +4,7 @@ use serde::Deserialize;
 use squalid::OptionExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
-use crate::{ast_helpers::NodeExtJs, conf::globals, kind::UnaryExpression, scope::ScopeManager};
+use crate::{ast_helpers::NodeExtJs, kind::UnaryExpression, scope::ScopeManager};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]

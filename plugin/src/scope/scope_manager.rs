@@ -375,10 +375,11 @@ tid! { impl<'a> TidAble<'a> for ScopeManager<'a> }
 
 impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
-        let options: ScopeManagerOptions = serde_json::from_value(serde_json::Value::Object(
+        let mut options: ScopeManagerOptions = serde_json::from_value(serde_json::Value::Object(
             file_run_context.environment.clone(),
         ))
         .unwrap();
+        options.ignore_eval = true;
         let scope_manager = analyze(
             file_run_context.tree,
             file_run_context.file_contents,
