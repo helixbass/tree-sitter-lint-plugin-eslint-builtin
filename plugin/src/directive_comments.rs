@@ -50,10 +50,10 @@ impl<'a> FromFileRunContext<'a> for DirectiveComments<'a> {
                             config_comment_parser::parse_string_config(directive_value, comment)
                         {
                             let normalized_value = match serde_json::from_str::<globals::Visibility>(
-                                string_config.value.as_deref().unwrap_or("readonly")
+                                string_config.value.as_deref().unwrap_or(r#""readonly""#)
                             ) {
                                 Ok(visibility) => visibility,
-                                Err(_) => unimplemented!(),
+                                Err(_) => unimplemented!("{:?}", string_config),
                             };
 
                             let enabled_global = enabled_globals.entry(id).or_insert_with(|| {

@@ -25,15 +25,17 @@ mod number;
 pub use number::{get_number_literal_string_value, get_number_literal_value, Number};
 use tree_sitter_lint::tree_sitter::Tree;
 
+use crate::kind::{JsxOpeningElement, JsxSelfClosingElement};
+
 #[macro_export]
 macro_rules! assert_kind {
     ($node:expr, $kind:pat) => {
         assert!(
-            matches!($node.kind(), $kind),
-            "Expected kind {:?}, got: {:?}",
-            stringify!($kind),
-            $node.kind()
-        );
+                                                                    matches!($node.kind(), $kind),
+                                                                    "Expected kind {:?}, got: {:?}",
+                                                                    stringify!($kind),
+                                                                    $node.kind()
+                                                                );
     };
 }
 
@@ -41,8 +43,8 @@ macro_rules! assert_kind {
 macro_rules! return_default_if_false {
     ($expr:expr) => {
         if !$expr {
-            return Default::default();
-        }
+                                                            return Default::default();
+                                                        }
     };
 }
 
@@ -523,4 +525,11 @@ pub fn parse(source_text: &str) -> Tree {
         .set_language(SupportedLanguage::Javascript.language())
         .unwrap();
     parser.parse(source_text, None).unwrap()
+}
+
+pub fn is_jsx_tag_name(node: Node) -> bool {
+    node.parent().matches(|parent| {
+        matches!(parent.kind(), JsxOpeningElement | JsxSelfClosingElement)
+            && parent.field("name") == node
+    })
 }

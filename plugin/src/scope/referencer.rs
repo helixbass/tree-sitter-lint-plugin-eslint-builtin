@@ -18,7 +18,7 @@ use super::{
     variable::VariableType,
 };
 use crate::{
-    ast_helpers::{get_first_child_of_kind, get_function_params},
+    ast_helpers::{get_first_child_of_kind, get_function_params, is_jsx_tag_name},
     kind::{
         ClassBody, ClassDeclaration, ClassHeritage, ComputedPropertyName, ExportClause, Function,
         FunctionDeclaration, Identifier, ImportClause, LexicalDeclaration, StatementBlock,
@@ -431,6 +431,10 @@ impl<'a, 'b> Referencer<'a, 'b> {
     }
 
     fn _visit_identifier(&mut self, node: Node<'a>) {
+        if is_jsx_tag_name(node) {
+            return;
+        }
+
         self.current_scope_mut().__referencing(
             &mut self.scope_manager.arena.references.borrow_mut(),
             node,

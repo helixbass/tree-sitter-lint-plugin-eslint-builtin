@@ -22,9 +22,16 @@ rules:
         get_comment_contents:
           module: crate::ast_helpers
           kind: function
+        is_jsx_tag_name:
+          module: crate::ast_helpers
+          kind: function
         CommentType:
           module: crate::ast_helpers
           kind: type
+        next_non_parentheses_ancestor:
+          module: crate::ast_helpers
+          kind: trait_method
+          trait: NodeExtJs
         skip_parentheses:
           module: crate::ast_helpers
           kind: trait_method
@@ -75,6 +82,12 @@ rules:
           module: crate::kind
           kind: static
         IfStatement:
+          module: crate::kind
+          kind: static
+        JsxOpeningElement:
+          module: crate::kind
+          kind: static
+        JsxSelfClosingElement:
           module: crate::kind
           kind: static
         MemberExpression:

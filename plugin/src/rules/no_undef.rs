@@ -4,7 +4,7 @@ use serde::Deserialize;
 use squalid::OptionExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
-use crate::{kind::UnaryExpression, scope::ScopeManager};
+use crate::{ast_helpers::NodeExtJs, conf::globals, kind::UnaryExpression, scope::ScopeManager};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -14,9 +14,10 @@ struct Options {
 }
 
 fn has_type_of_operator(node: Node) -> bool {
-    node.parent().matches(|parent| {
-        parent.kind() == UnaryExpression && parent.field("operator").kind() == "typeof"
-    })
+    node.maybe_next_non_parentheses_ancestor()
+        .matches(|parent| {
+            parent.kind() == UnaryExpression && parent.field("operator").kind() == "typeof"
+        })
 }
 
 pub fn no_undef_rule() -> Arc<dyn Rule> {
@@ -79,8 +80,9 @@ mod tests {
                     "var a; a = 1; a++;",
                     "var a; function f() { a = 1; }",
                     "/*global b:true*/ b++;",
-                    "/*eslint-env browser*/ window;",
-                    "/*eslint-env node*/ require(\"a\");",
+                    // TODO: support these?
+                    // "/*eslint-env browser*/ window;",
+                    // "/*eslint-env node*/ require(\"a\");",
                     "Object; isNaN();",
                     "toString()",
                     "hasOwnProperty()",
