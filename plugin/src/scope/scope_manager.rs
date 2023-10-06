@@ -7,7 +7,7 @@ use std::{
 
 use derive_builder::Builder;
 use id_arena::Id;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use serde::Deserialize;
 use squalid::{break_if_none, EverythingExt, NonEmpty};
 use tracing::trace;
@@ -55,6 +55,7 @@ pub struct ScopeManagerOptions {
     source_type: SourceType,
     ecma_version: EcmaVersion,
     globals: HashMap<Cow<'static, str>, globals::Visibility>,
+    env: HashMap<String, bool>,
     // child_visitor_keys: Option<HashMap<String, Vec<String>>>,
     // fallback:
 }
@@ -70,6 +71,7 @@ impl Default for ScopeManagerOptions {
             ecma_version: 5,
             ignore_eval: Default::default(),
             globals: Default::default(),
+            env: Default::default(),
         }
     }
 }
@@ -388,6 +390,15 @@ impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
         if options.source_type == SourceType::CommonJS {
             configured_globals.extend(globals::COMMONJS.clone());
         }
+        let resolved_env_config = &options.env;
+        let enabled_envs = resolved_env_config
+            .keys()
+            .filter(|&env_name| resolved_env_config[env_name])
+            .filter_map(|env_name| get_env(env_name))
+            .collect_vec();
+        for enabled_env in enabled_envs {
+            configured_globals.extend(enabled_env.into_iter().map(|(global_name, visibility)| (global_name.clone(), *visibility)));
+        }
         configured_globals.extend(options.globals.clone());
         add_declared_globals(&scope_manager, &configured_globals, comment_directives);
 
@@ -484,7 +495,10 @@ fn add_declared_globals(
         keys.insert(&**key);
     }
     for id in keys {
-        let value = enabled_globals.get(id).map(|enabled_global| enabled_global.value).unwrap_or_else(|| config_globals[id]);
+        let value = enabled_globals
+            .get(id)
+            .map(|enabled_global| enabled_global.value)
+            .unwrap_or_else(|| config_globals[id]);
         if value == globals::Visibility::Off {
             continue;
         }
@@ -494,18 +508,21 @@ fn add_declared_globals(
         let variable = if global_scope.set().contains_key(id) {
             *global_scope.set().get(id).unwrap()
         } else {
-            *global_scope.set_mut().entry(Cow::Owned(id.to_owned())).or_insert_with(|| {
-                did_insert = true;
-                let variable = _Variable::new(
-                    &mut scope_manager.arena.variables.borrow_mut(),
-                    Cow::Owned(id.to_owned()),
-                    global_scope_id,
-                );
+            *global_scope
+                .set_mut()
+                .entry(Cow::Owned(id.to_owned()))
+                .or_insert_with(|| {
+                    did_insert = true;
+                    let variable = _Variable::new(
+                        &mut scope_manager.arena.variables.borrow_mut(),
+                        Cow::Owned(id.to_owned()),
+                        global_scope_id,
+                    );
 
-                scope_manager.arena.variables.borrow_mut()[variable].writeable =
-                    Some(value == globals::Visibility::Writable);
-                variable
-            })
+                    scope_manager.arena.variables.borrow_mut()[variable].writeable =
+                        Some(value == globals::Visibility::Writable);
+                    variable
+                })
         };
         if did_insert {
             global_scope.variables_mut().push(variable);
@@ -560,5 +577,24 @@ fn get_globals_for_ecma_version(ecma_version: EcmaVersion) -> Globals {
         15 => globals::ES2024.clone(),
         2024 => globals::ES2024.clone(),
         _ => unreachable!(),
+    }
+}
+
+fn get_env(env_name: &str) -> Option<&'static Globals> {
+    match env_name {
+        "builtin" => Some(&globals::ES5),
+        "es6" => Some(&globals::ES2015),
+        "es2015" => Some(&globals::ES2015),
+        "es2016" => Some(&globals::ES2016),
+        "es2017" => Some(&globals::ES2017),
+        "es2018" => Some(&globals::ES2018),
+        "es2019" => Some(&globals::ES2019),
+        "es2020" => Some(&globals::ES2020),
+        "es2021" => Some(&globals::ES2021),
+        "es2022" => Some(&globals::ES2022),
+        "es2023" => Some(&globals::ES2023),
+        "es2024" => Some(&globals::ES2024),
+        "browser" => Some(&globals::BROWSER),
+        _ => None,
     }
 }
