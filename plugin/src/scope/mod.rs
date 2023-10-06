@@ -3,7 +3,7 @@ use tree_sitter_lint::{tree_sitter::Tree, tree_sitter_grep::RopeOrSlice};
 use crate::visit::Visit;
 
 mod arena;
-mod config_comment_parser;
+pub mod config_comment_parser;
 mod definition;
 mod pattern_visitor;
 mod reference;

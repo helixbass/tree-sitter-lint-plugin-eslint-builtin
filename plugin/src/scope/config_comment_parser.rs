@@ -30,8 +30,8 @@ pub fn parse_string_config<'a>(
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StringConfig<'a> {
-    value: Option<String>,
-    comment: Node<'a>,
+    pub value: Option<String>,
+    pub comment: Node<'a>,
 }
 
 #[cfg(test)]

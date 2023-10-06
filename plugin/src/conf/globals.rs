@@ -50,10 +50,18 @@ impl<'de> de::Visitor<'de> for VisibilityDeserializeVisitor {
         TError: de::Error,
     {
         match value {
-            "readonly" | "readable" => Ok(Visibility::Readonly),
-            "writable" | "writeable" => Ok(Visibility::Writable),
+            "readonly" | "readable" | "false" => Ok(Visibility::Readonly),
+            "writable" | "writeable" | "true" => Ok(Visibility::Writable),
+            "off" => Ok(Visibility::Off),
             value => Err(de::Error::invalid_value(Unexpected::Str(value), &self)),
         }
+    }
+
+    fn visit_unit<TError>(self) -> Result<Self::Value, TError>
+    where
+        TError: de::Error,
+    {
+        Ok(Visibility::Readonly)
     }
 }
 
@@ -176,3 +184,33 @@ pub static ES2023: Lazy<Globals> = Lazy::new(|| ES2022.clone());
 pub static ES2024: Lazy<Globals> = Lazy::new(|| ES2023.clone());
 
 pub static BUILTIN: Lazy<Globals> = Lazy::new(|| ES2023.clone());
+
+#[cfg(test)]
+mod tests {
+    use speculoos::prelude::*;
+
+    use super::*;
+
+    #[test]
+    fn test_deserialize_visibility() {
+        [
+            (r#""off""#, Visibility::Off),
+            (r#"true"#, Visibility::Writable),
+            (r#""true""#, Visibility::Writable),
+            (r#"false"#, Visibility::Readonly),
+            (r#""false""#, Visibility::Readonly),
+            (r#"null"#, Visibility::Readonly),
+            (r#""writeable""#, Visibility::Writable),
+            (r#""writable""#, Visibility::Writable),
+            (r#""readable""#, Visibility::Readonly),
+            (r#""readonly""#, Visibility::Readonly),
+            (r#""writable""#, Visibility::Writable)
+        ].into_iter().for_each(|(input, output)| {
+            let deserialized: Visibility = serde_json::from_str(input).unwrap();
+            assert_that!(&deserialized).is_equal_to(output);
+        });
+
+        let deserialized: Result<Visibility, _> = serde_json::from_str("something else");
+        assert_that!(&deserialized).is_err();
+    }
+}

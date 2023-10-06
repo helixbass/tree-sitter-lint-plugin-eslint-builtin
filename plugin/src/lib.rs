@@ -4,9 +4,11 @@ use tree_sitter_lint::{
     instance_provider_factory, FromFileRunContextInstanceProviderFactory, Plugin,
 };
 
+mod all_comments;
 mod ast_helpers;
 mod code_path_analysis;
 mod conf;
+mod directive_comments;
 mod directives;
 mod kind;
 mod macros;
@@ -48,7 +50,14 @@ use rules::{
 use scope::ScopeManager;
 pub use visit::Visit;
 
-pub type ProvidedTypes<'a> = (CodePathAnalyzer<'a>, ScopeManager<'a>);
+use crate::{all_comments::AllComments, directive_comments::DirectiveComments};
+
+pub type ProvidedTypes<'a> = (
+    CodePathAnalyzer<'a>,
+    ScopeManager<'a>,
+    AllComments<'a>,
+    DirectiveComments<'a>,
+);
 
 pub fn instantiate() -> Plugin {
     Plugin {

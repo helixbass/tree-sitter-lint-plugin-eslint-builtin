@@ -10,6 +10,34 @@ rules:
     level: error
     options:
       known_imports:
+        get_instance_provider_factory:
+          module: crate
+          kind: function
+        AllComments:
+          module: crate::all_comments
+          kind: type
+        get_comment_type:
+          module: crate::ast_helpers
+          kind: function
+        get_comment_contents:
+          module: crate::ast_helpers
+          kind: function
+        CommentType:
+          module: crate::ast_helpers
+          kind: type
+        skip_parentheses:
+          module: crate::ast_helpers
+          kind: trait_method
+          trait: NodeExtJs
+        globals:
+          module: crate::conf
+          kind: module
+        DirectiveComments:
+          module: crate::directive_comments
+          kind: type
+        directives_pattern:
+          module: crate::directives
+          kind: static
         ArrowFunction:
           module: crate::kind
           kind: static
@@ -76,34 +104,27 @@ rules:
         Kind:
           module: crate::kind
           kind: type
-        upper_case_first:
-          module: crate::string_utils
-          kind: function
-        ast_utils:
-          module: crate::utils
-          kind: module
-        get_instance_provider_factory:
-          module: crate
-          kind: function
+        config_comment_parser:
+          module: crate::scope
+          kind: type
         ScopeManager:
           module: crate::scope
           kind: type
         ScopeType:
           module: crate::scope
           kind: type
-        get_comment_type:
-          module: crate::ast_helpers
+        upper_case_first:
+          module: crate::string_utils
           kind: function
-        get_comment_contents:
-          module: crate::ast_helpers
-          kind: function
-        CommentType:
-          module: crate::ast_helpers
+        ast_utils:
+          module: crate::utils
+          kind: module
+        FileRunContext:
+          module: tree_sitter_lint
           kind: type
-        skip_parentheses:
-          module: crate::ast_helpers
-          kind: trait_method
-          trait: NodeExtJs
+        FromFileRunContext:
+          module: tree_sitter_lint
+          kind: type
         QueryMatchContext:
           module: tree_sitter_lint
           kind: type
@@ -150,6 +171,9 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        tid:
+          module: tree_sitter_lint::better_any
+          kind: macro
         TreeCursor:
           module: tree_sitter_lint::tree_sitter
           kind: type

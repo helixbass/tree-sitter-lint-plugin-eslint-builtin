@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cell::{Ref, RefCell, RefMut},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt, ops,
 };
 
@@ -25,7 +25,11 @@ use super::{
     variable::{Variable, _Variable},
     Definition,
 };
-use crate::{conf::globals::{self, Globals}, kind::Program};
+use crate::{
+    conf::globals::{self, Globals},
+    directive_comments::DirectiveComments,
+    kind::Program,
+};
 
 pub type NodeId = usize;
 
@@ -379,12 +383,13 @@ impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
             options.clone(),
         );
 
+        let comment_directives = file_run_context.retrieve::<DirectiveComments<'a>>();
         let mut configured_globals = get_globals_for_ecma_version(options.ecma_version);
         if options.source_type == SourceType::CommonJS {
             configured_globals.extend(globals::COMMONJS.clone());
         }
         configured_globals.extend(options.globals.clone());
-        add_declared_globals(&scope_manager, &configured_globals);
+        add_declared_globals(&scope_manager, &configured_globals, comment_directives);
 
         scope_manager
     }
@@ -466,30 +471,42 @@ impl<'a, 'b> DeclaredVariablesPresent<'a, 'b> {
     }
 }
 
-fn add_declared_globals(scope_manager: &ScopeManager, config_globals: &Globals) {
+fn add_declared_globals(
+    scope_manager: &ScopeManager,
+    config_globals: &Globals,
+    comment_directives: &DirectiveComments,
+) {
+    let enabled_globals = &comment_directives.enabled_globals;
     let global_scope = &mut scope_manager.arena.scopes.borrow_mut()[scope_manager.scopes[0]];
 
-    for (id, value) in config_globals
-        .into_iter()
-        .filter(|(_, value)| !matches!(value, globals::Visibility::Off))
-    {
+    let mut keys: HashSet<&str> = config_globals.keys().map(|key| &**key).collect();
+    for key in enabled_globals.keys() {
+        keys.insert(&**key);
+    }
+    for id in keys {
+        let value = enabled_globals.get(id).map(|enabled_global| enabled_global.value).unwrap_or_else(|| config_globals[id]);
+        if value == globals::Visibility::Off {
+            continue;
+        }
+
         let mut did_insert = false;
         let global_scope_id = global_scope.id();
-        let variable = *global_scope
-            .set_mut()
-            .entry(id.clone())
-            .or_insert_with(|| {
+        let variable = if global_scope.set().contains_key(id) {
+            *global_scope.set().get(id).unwrap()
+        } else {
+            *global_scope.set_mut().entry(Cow::Owned(id.to_owned())).or_insert_with(|| {
                 did_insert = true;
                 let variable = _Variable::new(
                     &mut scope_manager.arena.variables.borrow_mut(),
-                    id.clone(),
+                    Cow::Owned(id.to_owned()),
                     global_scope_id,
                 );
 
                 scope_manager.arena.variables.borrow_mut()[variable].writeable =
-                    Some(*value == globals::Visibility::Writable);
+                    Some(value == globals::Visibility::Writable);
                 variable
-            });
+            })
+        };
         if did_insert {
             global_scope.variables_mut().push(variable);
         }
