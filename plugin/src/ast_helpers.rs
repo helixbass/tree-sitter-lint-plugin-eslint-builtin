@@ -43,8 +43,8 @@ macro_rules! assert_kind {
 macro_rules! return_default_if_false {
     ($expr:expr) => {
         if !$expr {
-                                                            return Default::default();
-                                                        }
+                                                                    return Default::default();
+                                                                }
     };
 }
 
@@ -195,7 +195,10 @@ pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
     while cursor.field_name() == Some("decorator") {
         return_default_if_false!(cursor.goto_next_sibling());
     }
-    context.get_node_text(cursor.node()) == "static"
+    matches!(
+        &*context.get_node_text(cursor.node()),
+        "static" | "static get"
+    )
 }
 
 pub fn is_logical_and(node: Node) -> bool {

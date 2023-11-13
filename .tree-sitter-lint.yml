@@ -28,6 +28,9 @@ rules:
         get_method_definition_kind:
           module: crate::ast_helpers
           kind: function
+        is_class_member_static:
+          module: crate::ast_helpers
+          kind: function
         is_jsx_tag_name:
           module: crate::ast_helpers
           kind: function

@@ -8,7 +8,7 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
+    ast_helpers::{get_method_definition_kind, is_class_member_static, MethodDefinitionKind},
     kind::{MethodDefinition, Object},
     utils::ast_utils,
 };
@@ -197,7 +197,37 @@ fn check_object_literal<'a>(
         check_set_without_get,
         check_get_without_set,
         context,
-    )
+    );
+}
+
+fn check_class_body<'a>(
+    node: Node<'a>,
+    check_set_without_get: bool,
+    check_get_without_set: bool,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    let method_definitions = node
+        .non_comment_named_children(SupportedLanguage::Javascript)
+        .filter(|child| child.kind() == MethodDefinition)
+        .collect_vec();
+    check_list(
+        method_definitions
+            .iter()
+            .filter(|&&m| is_class_member_static(m, context))
+            .copied(),
+        check_set_without_get,
+        check_get_without_set,
+        context,
+    );
+    check_list(
+        method_definitions
+            .iter()
+            .filter(|&&m| !is_class_member_static(m, context))
+            .copied(),
+        check_set_without_get,
+        check_get_without_set,
+        context,
+    );
 }
 
 pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
@@ -223,7 +253,18 @@ pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
             r#"
               (object) @c
             "# => |node, context| {
+                if !(self.check_set_without_get || self.check_get_without_set) {
+                    return;
+                }
                 check_object_literal(node, self.check_set_without_get, self.check_get_without_set, context);
+            },
+            r#"
+              (class_body) @c
+            "# => |node, context| {
+                if !self.enforce_for_class_members {
+                    return;
+                }
+                check_class_body(node, self.check_set_without_get, self.check_get_without_set, context);
             },
         ],
     }
