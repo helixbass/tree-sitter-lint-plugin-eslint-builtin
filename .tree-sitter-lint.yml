@@ -16,16 +16,22 @@ rules:
         AllComments:
           module: crate::all_comments
           kind: type
+        CommentType:
+          module: crate::ast_helpers
+          kind: type
         get_comment_type:
           module: crate::ast_helpers
           kind: function
         get_comment_contents:
           module: crate::ast_helpers
           kind: function
+        get_method_definition_kind:
+          module: crate::ast_helpers
+          kind: function
         is_jsx_tag_name:
           module: crate::ast_helpers
           kind: function
-        CommentType:
+        MethodDefinitionKind:
           module: crate::ast_helpers
           kind: type
         next_non_parentheses_ancestor:
@@ -266,6 +272,9 @@ rules:
         Lazy:
           module: once_cell::sync
           kind: type
+        iter:
+          module: std
+          kind: module
         Ref:
           module: std::cell
           kind: type

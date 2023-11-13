@@ -146,6 +146,7 @@ pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> Me
         .as_deref()
     {
         Some("get") => MethodDefinitionKind::Get,
+        Some("static get") => MethodDefinitionKind::Get,
         Some("set") => MethodDefinitionKind::Set,
         _ => MethodDefinitionKind::Method,
     }

@@ -24,7 +24,7 @@ pub use code_path_analysis::{
     CodePath, CodePathAnalyzer, CodePathOrigin, CodePathSegment, EnterOrExit,
 };
 use rules::{
-    array_bracket_newline_rule, array_callback_return_rule, complexity_rule,
+    accessor_pairs_rule, array_bracket_newline_rule, array_callback_return_rule, complexity_rule,
     consistent_return_rule, constructor_super_rule, default_case_last_rule, default_case_rule,
     dot_location_rule, for_direction_rule, getter_return_rule, guard_for_in_rule,
     line_comment_position_rule, max_nested_callbacks_rule, max_params_rule, max_statements_rule,
@@ -146,6 +146,7 @@ pub fn instantiate() -> Plugin {
             guard_for_in_rule(),
             no_inner_declarations_rule(),
             no_undef_rule(),
+            accessor_pairs_rule(),
         ],
     }
 }

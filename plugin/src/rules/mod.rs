@@ -1,3 +1,4 @@
+mod accessor_pairs;
 mod array_bracket_newline;
 mod array_callback_return;
 mod complexity;
@@ -82,6 +83,7 @@ mod wrap_regex;
 mod yield_star_spacing;
 mod yoda;
 
+pub use accessor_pairs::accessor_pairs_rule;
 pub use array_bracket_newline::array_bracket_newline_rule;
 pub use array_callback_return::array_callback_return_rule;
 pub use complexity::complexity_rule;
