@@ -1,15 +1,22 @@
-use std::{borrow::Cow, iter, sync::Arc};
+use std::{borrow::Cow, collections::HashSet, iter, sync::Arc};
 
 use itertools::Itertools;
 use serde::Deserialize;
+use squalid::{BoolExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation, NodeExt,
     QueryMatchContext, Rule,
 };
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, is_class_member_static, MethodDefinitionKind},
-    kind::{MethodDefinition, Object},
+    ast_helpers::{
+        get_call_expression_arguments, get_method_definition_kind, is_class_member_static,
+        MethodDefinitionKind, NodeExtJs,
+    },
+    kind::{
+        Arguments, CallExpression, ComputedPropertyName, MethodDefinition, Object, Pair,
+        PropertyIdentifier,
+    },
     utils::ast_utils,
 };
 
@@ -31,6 +38,7 @@ impl Default for Options {
     }
 }
 
+#[derive(Debug)]
 enum CowStrOrVecNode<'a> {
     CowStr(Cow<'a, str>),
     VecNode(Vec<Node<'a>>),
@@ -71,6 +79,44 @@ fn are_equal_keys(a: &CowStrOrVecNode, b: &CowStrOrVecNode, context: &QueryMatch
         }
         _ => false,
     }
+}
+
+fn is_argument_of_method_call(
+    node: Node,
+    index: usize,
+    object: &str,
+    property: &str,
+    context: &QueryMatchContext,
+) -> bool {
+    let parent = node.parent().unwrap();
+    if parent.kind() != Arguments {
+        return false;
+    }
+    let grandparent = parent.parent().unwrap();
+
+    grandparent.kind() == CallExpression
+        && ast_utils::is_specific_member_access(
+            grandparent.field("function"),
+            Some(object),
+            Some(property),
+            context,
+        )
+        && get_call_expression_arguments(grandparent)
+            .matches(|mut arguments| arguments.nth(index) == Some(node))
+}
+
+fn is_property_descriptor(node: Node, context: &QueryMatchContext) -> bool {
+    if is_argument_of_method_call(node, 2, "Object", "defineProperty", context)
+        || is_argument_of_method_call(node, 2, "Reflect", "defineProperty", context)
+    {
+        return true;
+    }
+
+    let grandparent = node.parent().unwrap().parent().unwrap();
+
+    grandparent.kind() == Object
+        && (is_argument_of_method_call(grandparent, 1, "Object", "create", context)
+            || is_argument_of_method_call(grandparent, 1, "Object", "defineProperties", context))
 }
 
 fn report(node: Node, message_kind: &str, context: &QueryMatchContext) {
@@ -149,7 +195,15 @@ fn check_list<'a>(
         let key: CowStrOrVecNode<'a> = name.map_or_else(
             || {
                 context
-                    .get_tokens(node.field("name"), Option::<fn(Node) -> bool>::None)
+                    .get_tokens(
+                        node.field("name").thrush(|name| match name.kind() {
+                            ComputedPropertyName => name
+                                .first_non_comment_named_child(SupportedLanguage::Javascript)
+                                .skip_parentheses(),
+                            _ => name,
+                        }),
+                        Option::<fn(Node) -> bool>::None,
+                    )
                     .collect_vec()
                     .into()
             },
@@ -200,6 +254,35 @@ fn check_object_literal<'a>(
     );
 }
 
+fn check_property_descriptor<'a>(
+    node: Node<'a>,
+    check_set_without_get: bool,
+    check_get_without_set: bool,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    let names_to_check: HashSet<Cow<'_, str>> = node
+        .non_comment_named_children(SupportedLanguage::Javascript)
+        .filter_map(|child| {
+            (child.kind() == Pair).then_and(|| {
+                child
+                    .field("key")
+                    .when(|key| key.kind() == PropertyIdentifier)
+                    .map(|key| key.text(context))
+            })
+        })
+        .collect();
+
+    let has_getter = names_to_check.contains("get");
+    let has_setter = names_to_check.contains("set");
+
+    if check_set_without_get && has_setter && !has_getter {
+        report(node, "missing_getter", context);
+    }
+    if check_get_without_set && has_getter && !has_setter {
+        report(node, "missing_setter", context);
+    }
+}
+
 fn check_class_body<'a>(
     node: Node<'a>,
     check_set_without_get: bool,
@@ -230,6 +313,18 @@ fn check_class_body<'a>(
     );
 }
 
+fn check_object_expression<'a>(
+    node: Node<'a>,
+    check_set_without_get: bool,
+    check_get_without_set: bool,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    check_object_literal(node, check_set_without_get, check_get_without_set, context);
+    if is_property_descriptor(node, context) {
+        check_property_descriptor(node, check_set_without_get, check_get_without_set, context);
+    }
+}
+
 pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
     rule! {
         name => "accessor-pairs",
@@ -256,7 +351,7 @@ pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
                 if !(self.check_set_without_get || self.check_get_without_set) {
                     return;
                 }
-                check_object_literal(node, self.check_set_without_get, self.check_get_without_set, context);
+                check_object_expression(node, self.check_set_without_get, self.check_get_without_set, context);
             },
             r#"
               (class_body) @c
@@ -450,7 +545,7 @@ mod tests {
                     {
                         code => "var o = { get [a]() {}, set [(a)](foo) {} };",
                         options => { set_without_get => true, get_without_set => true },
-                        environment => { ecma_version => 6 }
+                        environment => { ecma_version => 6 },
                     },
                     {
                         code => "var o = { get [(a)]() {}, set [a](foo) {} };",
@@ -1130,15 +1225,16 @@ mod tests {
                             { message => "Getter is not present for setter.", type => MethodDefinition, column => 29 }
                         ]
                     },
-                    {
-                        code => "var o = { get [`${0} `]() {}, set [`${0}`](foo) {} };",
-                        options => { set_without_get => true, get_without_set => true },
-                        environment => { ecma_version => 6 },
-                        errors => [
-                            { message => "Setter is not present for getter.", type => MethodDefinition, column => 11 },
-                            { message => "Getter is not present for setter.", type => MethodDefinition, column => 31 }
-                        ]
-                    },
+                    // TODO: uncomment if https://github.com/tree-sitter/tree-sitter-javascript/issues/275 gets resolved?
+                    // {
+                    //     code => "var o = { get [`abc${0}wro`]() {}, set [`${0}`](foo) {} };",
+                    //     options => { set_without_get => true, get_without_set => true },
+                    //     environment => { ecma_version => 6 },
+                    //     errors => [
+                    //         { message => "Setter is not present for getter.", type => MethodDefinition, column => 11 },
+                    //         { message => "Getter is not present for setter.", type => MethodDefinition, column => 31 }
+                    //     ],
+                    // },
 
                     // Multiple invalid of same and different kinds
                     {
@@ -1338,59 +1434,59 @@ mod tests {
 
                     {
                         code => "var o = {d: 1};\n Object.defineProperty(o, 'c', \n{set: function(value) {\n val = value; \n} \n});",
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }],
                     },
                     {
                         code => "Reflect.defineProperty(obj, 'foo', {set: function(value) {}});",
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "Object.defineProperties(obj, {foo: {set: function(value) {}}});",
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "Object.create(null, {foo: {set: function(value) {}}});",
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "var o = {d: 1};\n Object?.defineProperty(o, 'c', \n{set: function(value) {\n val = value; \n} \n});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "Reflect?.defineProperty(obj, 'foo', {set: function(value) {}});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "Object?.defineProperties(obj, {foo: {set: function(value) {}}});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "Object?.create(null, {foo: {set: function(value) {}}});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "var o = {d: 1};\n (Object?.defineProperty)(o, 'c', \n{set: function(value) {\n val = value; \n} \n});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "(Reflect?.defineProperty)(obj, 'foo', {set: function(value) {}});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "(Object?.defineProperties)(obj, {foo: {set: function(value) {}}});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
                     {
                         code => "(Object?.create)(null, {foo: {set: function(value) {}}});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => "ObjectExpression" }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
                     },
 
                     //------------------------------------------------------------------------------

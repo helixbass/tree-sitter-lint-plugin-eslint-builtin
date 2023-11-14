@@ -19,6 +19,9 @@ rules:
         CommentType:
           module: crate::ast_helpers
           kind: type
+        get_call_expression_arguments:
+          module: crate::ast_helpers
+          kind: function
         get_comment_type:
           module: crate::ast_helpers
           kind: function
@@ -54,13 +57,22 @@ rules:
         directives_pattern:
           module: crate::directives
           kind: static
+        Arguments:
+          module: crate::kind
+          kind: static
         ArrowFunction:
+          module: crate::kind
+          kind: static
+        CallExpression:
           module: crate::kind
           kind: static
         ClassStaticBlock:
           module: crate::kind
           kind: static
         Comment:
+          module: crate::kind
+          kind: static
+        ComputedPropertyName:
           module: crate::kind
           kind: static
         ContinueStatement:
@@ -108,7 +120,13 @@ rules:
         Object:
           module: crate::kind
           kind: static
+        Pair:
+          module: crate::kind
+          kind: static
         Program:
+          module: crate::kind
+          kind: static
+        PropertyIdentifier:
           module: crate::kind
           kind: static
         StatementBlock:
@@ -238,6 +256,10 @@ rules:
           kind: trait_method
           trait: BoolExt
         thrush:
+          module: squalid
+          kind: trait_method
+          trait: EverythingExt
+        when:
           module: squalid
           kind: trait_method
           trait: EverythingExt
