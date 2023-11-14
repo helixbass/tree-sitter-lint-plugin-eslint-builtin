@@ -96,7 +96,7 @@ fn is_argument_of_method_call(
 
     grandparent.kind() == CallExpression
         && ast_utils::is_specific_member_access(
-            grandparent.field("function"),
+            grandparent.field("function").skip_parentheses(),
             Some(object),
             Some(property),
             context,
@@ -1451,7 +1451,7 @@ mod tests {
                     {
                         code => "var o = {d: 1};\n Object?.defineProperty(o, 'c', \n{set: function(value) {\n val = value; \n} \n});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }],
                     },
                     {
                         code => "Reflect?.defineProperty(obj, 'foo', {set: function(value) {}});",
@@ -1471,7 +1471,7 @@ mod tests {
                     {
                         code => "var o = {d: 1};\n (Object?.defineProperty)(o, 'c', \n{set: function(value) {\n val = value; \n} \n});",
                         environment => { ecma_version => 2020 },
-                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }]
+                        errors => [{ message => "Getter is not present in property descriptor.", type => Object }],
                     },
                     {
                         code => "(Reflect?.defineProperty)(obj, 'foo', {set: function(value) {}});",
