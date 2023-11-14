@@ -171,6 +171,9 @@ rules:
         Rule:
           module: tree_sitter_lint
           kind: type
+        RuleTestExpectedError:
+          module: tree_sitter_lint
+          kind: type
         RuleTestExpectedErrorBuilder:
           module: tree_sitter_lint
           kind: type
