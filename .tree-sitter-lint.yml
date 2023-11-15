@@ -60,6 +60,9 @@ rules:
         Arguments:
           module: crate::kind
           kind: static
+        ArrayPattern:
+          module: crate::kind
+          kind: static
         ArrowFunction:
           module: crate::kind
           kind: static
@@ -147,10 +150,19 @@ rules:
         config_comment_parser:
           module: crate::scope
           kind: type
+        Scope:
+          module: crate::scope
+          kind: type
         ScopeManager:
           module: crate::scope
           kind: type
         ScopeType:
+          module: crate::scope
+          kind: type
+        Variable:
+          module: crate::scope
+          kind: type
+        VariableType:
           module: crate::scope
           kind: type
         upper_case_first:
@@ -178,6 +190,9 @@ rules:
           module: tree_sitter_lint
           kind: type
         SkipOptionsBuilder:
+          module: tree_sitter_lint
+          kind: type
+        ViolationData:
           module: tree_sitter_lint
           kind: type
         rule:

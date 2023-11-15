@@ -1,8 +1,17 @@
 use std::sync::Arc;
 
+use itertools::Itertools;
 use regex::Regex;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::{EverythingExt, OptionExt};
+use tree_sitter_lint::{rule, violation, NodeExt, QueryMatchContext, Rule, ViolationData};
+
+use crate::{
+    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
+    kind::{ArrayPattern, MethodDefinition},
+    scope::{Scope, ScopeManager, ScopeType, Variable, VariableType},
+    utils::ast_utils,
+};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,6 +141,197 @@ impl Default for Options {
     }
 }
 
+fn get_defined_message_data(
+    unused_var: Variable,
+    caught_errors_ignore_pattern: Option<&Regex>,
+    args_ignore_pattern: Option<&Regex>,
+    vars_ignore_pattern: Option<&Regex>,
+) -> ViolationData {
+    let def_type = unused_var.defs().next().map(|def| def.type_());
+    let (type_, pattern) =
+        if def_type == Some(VariableType::CatchClause) && caught_errors_ignore_pattern.is_some() {
+            (
+                Some("args"),
+                caught_errors_ignore_pattern.map(Regex::as_str),
+            )
+        } else if def_type == Some(VariableType::Parameter) && args_ignore_pattern.is_some() {
+            (Some("args"), args_ignore_pattern.map(Regex::as_str))
+        } else if def_type != Some(VariableType::Parameter) && vars_ignore_pattern.is_some() {
+            (Some("vars"), vars_ignore_pattern.map(Regex::as_str))
+        } else {
+            (None, None)
+        };
+
+    let additional = match (type_, pattern) {
+        (Some(type_), Some(pattern)) => format!(". Allowed unused {type_} must match {pattern}"),
+        _ => Default::default(),
+    };
+
+    [
+        ("var_name".to_owned(), unused_var.name().to_owned()),
+        ("action".to_owned(), "defined".to_owned()),
+        ("additional".to_owned(), additional),
+    ]
+    .into()
+}
+
+fn get_assigned_message_data(
+    unused_var: Variable,
+    destructured_array_ignore_pattern: Option<&Regex>,
+    vars_ignore_pattern: Option<&Regex>,
+) -> ViolationData {
+    let def = unused_var.defs().next();
+    let additional = if let Some(destructured_array_ignore_pattern) =
+        destructured_array_ignore_pattern
+            .filter(|_| def.matches(|def| def.name().parent().unwrap().kind() == ArrayPattern))
+    {
+        format!(
+            ". Allowed unused elements of array destructuring patterns must match {}",
+            destructured_array_ignore_pattern.as_str()
+        )
+    } else if let Some(vars_ignore_pattern) = vars_ignore_pattern {
+        format!(
+            ". Allowed unused vars must match {}",
+            vars_ignore_pattern.as_str()
+        )
+    } else {
+        Default::default()
+    };
+
+    [
+        ("var_name".to_owned(), unused_var.name().to_owned()),
+        ("action".to_owned(), "assigned a value".to_owned()),
+        ("additional".to_owned(), additional),
+    ]
+    .into()
+}
+
+fn is_after_last_used_arg<'a>(
+    variable: Variable<'a, '_>,
+    scope_manager: &ScopeManager<'a>,
+) -> bool {
+    let def = variable.defs().next().unwrap();
+    let params = scope_manager
+        .get_declared_variables(def.node())
+        .collect_vec();
+    let posterior_params = &params[{
+        params
+            .iter()
+            .position(|param| *param == variable)
+            .map_or_default(|index| index + 1)
+    }..];
+
+    !posterior_params.iter().any(
+        |v| v.references().next().is_some(), /* || v.eslintUsed */
+    )
+}
+
+fn collect_unused_variables<'a>(
+    scope: Scope<'a, '_>,
+    unused_vars: &mut Vec<Variable<'a, '_>>,
+    vars: Vars,
+    destructured_array_ignore_pattern: Option<&Regex>,
+    caught_errors: CaughtErrors,
+    caught_errors_ignore_pattern: Option<&Regex>,
+    args: Args,
+    args_ignore_pattern: Option<&Regex>,
+    vars_ignore_pattern: Option<&Regex>,
+    context: &QueryMatchContext,
+    scope_manager: &ScopeManager<'a>,
+) {
+    if scope.type_() != ScopeType::Global || vars == Vars::All {
+        for variable in scope
+            .variables()
+            .filter(|variable| !(
+                scope.type_() == ScopeType::Class && scope.block().child_by_field_name("name") == variable.identifiers().next() ||
+                scope.function_expression_scope() ||
+                // variable.eslintUsed ||
+                scope.type_() == ScopeType::Function && variable.name() == "arguments" && variable.identifiers().next().is_none()
+            ))
+        {
+            let def = variable.defs().next();
+
+            if let Some(def) = def {
+                let type_ = def.type_();
+                let ref_used_in_array_patterns = variable.references().any(|ref_| ref_.identifier().parent().unwrap().kind() == ArrayPattern);
+
+                if def.name().parent().unwrap().kind() == ArrayPattern ||
+                    ref_used_in_array_patterns && destructured_array_ignore_pattern.matches(|destructured_array_ignore_pattern| {
+                        destructured_array_ignore_pattern.is_match(&def.name().text(context))
+                    })
+                {
+                    continue;
+                }
+
+                if type_ == VariableType::CatchClause {
+                    if caught_errors == CaughtErrors::None {
+                        continue;
+                    }
+
+                    if caught_errors_ignore_pattern.matches(|caught_errors_ignore_pattern| {
+                        caught_errors_ignore_pattern.is_match(&def.name().text(context))
+                    }) {
+                        continue;
+                    }
+                }
+
+                #[allow(clippy::collapsible_else_if)]
+                if type_ == VariableType::Parameter {
+                    if def.node().parent().unwrap().thrush(|def_node_parent| {
+                        def_node_parent.kind() == MethodDefinition &&
+                            get_method_definition_kind(def_node_parent, context) == MethodDefinitionKind::Set
+                    }) {
+                        continue;
+                    }
+
+                    if args == Args::None {
+                        continue;
+                    }
+
+                    if args_ignore_pattern.matches(|args_ignore_pattern| {
+                        args_ignore_pattern.is_match(&def.name().text(context))
+                    }) {
+                        continue;
+                    }
+
+                    if args == Args::AfterUsed &&
+                        ast_utils::is_function(def.name().parent().unwrap()) &&
+                        !is_after_last_used_arg(variable, scope_manager)
+                    {
+                        continue;
+                    }
+                } else {
+                    if vars_ignore_pattern.matches(|vars_ignore_pattern| {
+                        vars_ignore_pattern.is_match(&def.name().text(context))
+                    }) {
+                        continue;
+                    }
+                }
+            }
+
+            if !is_used_variable(variable) && !is_exported(variable) && !has_rest_spread_sibling(variable) {
+                unused_vars.push(variable);
+            }
+        }
+    }
+
+    for child_scope in scope.child_scopes() {
+        collect_unused_variables(
+            child_scope,
+            unused_vars,
+            vars,
+            destructured_array_ignore_pattern,
+            caught_errors,
+            caught_errors_ignore_pattern,
+            args,
+            args_ignore_pattern,
+            vars_ignore_pattern,
+            context,
+            scope_manager,
+        );
+    }
+}
+
 pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-unused-vars",
@@ -152,13 +352,53 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
             destructured_array_ignore_pattern: Option<Regex> = options.destructured_array_ignore_pattern(),
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"program:exit"# => |node, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                let mut unused_vars: Vec<Variable<'a, '_>> = Default::default();
+                collect_unused_variables(
+                    scope_manager.get_scope(node),
+                    &mut unused_vars,
+                    self.vars,
+                    self.destructured_array_ignore_pattern.as_ref(),
+                    self.caught_errors,
+                    self.caught_errors_ignore_pattern.as_ref(),
+                    self.args,
+                    self.args_ignore_pattern.as_ref(),
+                    self.vars_ignore_pattern.as_ref(),
+                    context,
+                    scope_manager,
+                );
+
+                for unused_var in unused_vars {
+                    if unused_var.defs().next().is_some() {
+                        let write_references = unused_var.references().filter(|ref_| {
+                            ref_.is_write() && ref_.from().variable_scope() == unused_var.scope().variable_scope()
+                        });
+
+                        let reference_to_report = write_references.last();
+
+                        context.report(violation! {
+                            node => reference_to_report.map(|reference_to_report| {
+                                reference_to_report.identifier()
+                            }).unwrap_or_else(|| unused_var.identifiers().next().unwrap()),
+                            message_id => "unused_var",
+                            data => if unused_var.references().any(|ref_| ref_.is_write()) {
+                                get_assigned_message_data(
+                                    unused_var,
+                                    self.destructured_array_ignore_pattern.as_ref(),
+                                    self.vars_ignore_pattern.as_ref(),
+                                )
+                            } else {
+                                get_defined_message_data(
+                                    unused_var,
+                                    self.caught_errors_ignore_pattern.as_ref(),
+                                    self.args_ignore_pattern.as_ref(),
+                                    self.vars_ignore_pattern.as_ref(),
+                                )
+                            },
+                        });
+                    }
+                }
             },
         ],
     }
