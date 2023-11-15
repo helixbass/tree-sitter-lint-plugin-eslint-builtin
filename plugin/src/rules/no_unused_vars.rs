@@ -3,13 +3,21 @@ use std::sync::Arc;
 use itertools::Itertools;
 use regex::Regex;
 use serde::Deserialize;
-use squalid::{EverythingExt, OptionExt};
-use tree_sitter_lint::{rule, violation, NodeExt, QueryMatchContext, Rule, ViolationData};
+use squalid::{return_default_if_none, EverythingExt, OptionExt};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation, NodeExt,
+    QueryMatchContext, Rule, ViolationData,
+};
 
 use crate::{
     ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
-    kind::{ArrayPattern, MethodDefinition},
-    scope::{Scope, ScopeManager, ScopeType, Variable, VariableType},
+    kind::{
+        ArrayPattern, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
+        EmptyStatement, ForInStatement, Function, MethodDefinition, ObjectPattern, PairPattern,
+        RestPattern, ReturnStatement, ShorthandPropertyIdentifierPattern, StatementBlock,
+        UpdateExpression, VariableDeclarator,
+    },
+    scope::{Reference, Scope, ScopeManager, ScopeType, Variable, VariableType},
     utils::ast_utils,
 };
 
@@ -206,6 +214,142 @@ fn get_assigned_message_data(
     .into()
 }
 
+fn is_exported(variable: Variable) -> bool {
+    let Some(definition) = variable.defs().next() else {
+        return false;
+    };
+
+    let mut node = definition.node();
+
+    if node.kind() == VariableDeclarator {
+        node = node.parent().unwrap();
+    } else if definition.type_() == VariableType::Parameter {
+        return false;
+    }
+
+    node.parent().unwrap().kind().starts_with("export")
+}
+
+fn has_rest_sibling(node: Node) -> bool {
+    matches!(
+        node.kind(),
+        PairPattern | ShorthandPropertyIdentifierPattern
+    ) && node.parent().unwrap().thrush(|node_parent| {
+        node_parent.kind() == ObjectPattern
+            && node_parent
+                .non_comment_named_children(SupportedLanguage::Javascript)
+                .last()
+                .unwrap()
+                .kind()
+                == RestPattern
+    })
+}
+
+fn has_rest_spread_sibling(variable: Variable, ignore_rest_siblings: bool) -> bool {
+    if ignore_rest_siblings {
+        let has_rest_sibling_definition = variable
+            .defs()
+            .any(|def| has_rest_sibling(def.name().parent().unwrap()));
+        let has_rest_sibling_reference = variable
+            .references()
+            .any(|ref_| has_rest_sibling(ref_.identifier().parent().unwrap()));
+
+        return has_rest_sibling_definition || has_rest_sibling_reference;
+    }
+
+    false
+}
+
+fn is_read_ref(ref_: Reference) -> bool {
+    ref_.is_read()
+}
+
+fn get_function_definitions<'a>(variable: Variable<'a, '_>) -> Vec<Node<'a>> {
+    let mut function_definitions: Vec<Node> = Default::default();
+
+    variable.defs().for_each(|def| {
+        let type_ = def.type_();
+        let node = def.node();
+
+        if type_ == VariableType::FunctionName {
+            function_definitions.push(node);
+        }
+
+        if type_ == VariableType::Variable {
+            if let Some(node_init) = node
+                .child_by_field_name("value")
+                .filter(|node_init| matches!(node_init.kind(), Function | ArrowFunction))
+            {
+                function_definitions.push(node_init);
+            }
+        }
+    });
+
+    function_definitions
+}
+
+fn is_inside(inner: Node, outer: Node) -> bool {
+    inner.start_byte() >= outer.start_byte() && inner.end_byte() <= outer.end_byte()
+}
+
+fn is_read_for_itself(ref_: Reference, rhs_node: Option<Node>) -> bool {
+    let id = ref_.identifier();
+    let parent = id.parent().unwrap();
+
+    ref_.is_read()
+        && (((matches!(
+            parent.kind(),
+            AssignmentExpression | AugmentedAssignmentExpression
+        ) && parent.field("left") == id
+            && is_unused_expression(parent)
+            && !(parent.kind() == AugmentedAssignmentExpression
+                && ast_utils::is_logical_assignment_operator(parent.field("operator").kind())))
+            || (parent.kind() == UpdateExpression && is_unused_expression(parent)))
+            || (rhs_node.matches(|rhs_node| {
+                is_inside(id, rhs_node) && !is_inside_of_storable_function(id, rhs_node)
+            })))
+}
+
+fn is_for_in_of_ref(ref_: Reference) -> bool {
+    let mut target = ref_.identifier().parent().unwrap();
+
+    if target.kind() != ForInStatement {
+        return false;
+    }
+
+    target = return_default_if_none!(target.field("body").thrush(|target_body| {
+        match target_body.kind() {
+            EmptyStatement => None,
+            StatementBlock => target_body
+                .non_comment_named_children(SupportedLanguage::Javascript)
+                .next(),
+            _ => Some(target_body),
+        }
+    }));
+
+    target.kind() == ReturnStatement
+}
+
+fn is_used_variable(variable: Variable) -> bool {
+    let function_nodes = get_function_definitions(variable);
+    let is_function_definition = !function_nodes.is_empty();
+    let mut rhs_node: Option<Node> = Default::default();
+
+    variable.references().any(|ref_| {
+        if is_for_in_of_ref(ref_) {
+            return true;
+        }
+
+        let for_itself = is_read_for_itself(ref_, rhs_node);
+
+        rhs_node = get_rhs_node(ref_, rhs_node);
+
+        is_read_ref(ref_)
+            && !for_itself
+            && !(is_function_definition && is_self_reference(ref_, &function_nodes))
+    })
+}
+
 fn is_after_last_used_arg<'a>(
     variable: Variable<'a, '_>,
     scope_manager: &ScopeManager<'a>,
@@ -236,6 +380,7 @@ fn collect_unused_variables<'a>(
     args: Args,
     args_ignore_pattern: Option<&Regex>,
     vars_ignore_pattern: Option<&Regex>,
+    ignore_rest_siblings: bool,
     context: &QueryMatchContext,
     scope_manager: &ScopeManager<'a>,
 ) {
@@ -309,7 +454,7 @@ fn collect_unused_variables<'a>(
                 }
             }
 
-            if !is_used_variable(variable) && !is_exported(variable) && !has_rest_spread_sibling(variable) {
+            if !is_used_variable(variable) && !is_exported(variable) && !has_rest_spread_sibling(variable, ignore_rest_siblings) {
                 unused_vars.push(variable);
             }
         }
@@ -326,6 +471,7 @@ fn collect_unused_variables<'a>(
             args,
             args_ignore_pattern,
             vars_ignore_pattern,
+            ignore_rest_siblings,
             context,
             scope_manager,
         );

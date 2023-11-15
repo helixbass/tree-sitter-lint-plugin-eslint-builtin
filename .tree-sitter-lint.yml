@@ -66,6 +66,12 @@ rules:
         ArrowFunction:
           module: crate::kind
           kind: static
+        AssignmentExpression:
+          module: crate::kind
+          kind: static
+        AugmentedAssignmentExpression:
+          module: crate::kind
+          kind: static
         CallExpression:
           module: crate::kind
           kind: static
@@ -123,7 +129,13 @@ rules:
         Object:
           module: crate::kind
           kind: static
+        ObjectPattern:
+          module: crate::kind
+          kind: static
         Pair:
+          module: crate::kind
+          kind: static
+        PairPattern:
           module: crate::kind
           kind: static
         Program:
@@ -132,10 +144,22 @@ rules:
         PropertyIdentifier:
           module: crate::kind
           kind: static
+        RestPattern:
+          module: crate::kind
+          kind: static
+        ReturnStatement:
+          module: crate::kind
+          kind: static
+        ShorthandPropertyIdentifierPattern:
+          module: crate::kind
+          kind: static
         StatementBlock:
           module: crate::kind
           kind: static
         SubscriptExpression:
+          module: crate::kind
+          kind: static
+        UpdateExpression:
           module: crate::kind
           kind: static
         UnaryExpression:
@@ -144,10 +168,16 @@ rules:
         VariableDeclaration:
           module: crate::kind
           kind: static
+        VariableDeclarator:
+          module: crate::kind
+          kind: static
         Kind:
           module: crate::kind
           kind: type
         config_comment_parser:
+          module: crate::scope
+          kind: type
+        Reference:
           module: crate::scope
           kind: type
         Scope:
