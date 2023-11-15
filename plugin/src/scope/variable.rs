@@ -3,7 +3,12 @@ use std::{borrow::Cow, cell::Ref, hash};
 use id_arena::{Arena, Id};
 use tree_sitter_lint::tree_sitter::Node;
 
-use super::{definition::_Definition, reference::{_Reference, Reference}, scope::{_Scope, Scope}, ScopeManager, Definition};
+use super::{
+    definition::_Definition,
+    reference::{Reference, _Reference},
+    scope::{Scope, _Scope},
+    Definition, ScopeManager,
+};
 
 #[derive(Debug)]
 pub struct _Variable<'a> {
@@ -16,6 +21,7 @@ pub struct _Variable<'a> {
     pub scope: Id<_Scope<'a>>,
     id: Id<Self>,
     pub writeable: Option<bool>,
+    pub explicit_global_comments: Option<Vec<Node<'a>>>,
 }
 
 impl<'a> _Variable<'a> {
@@ -30,6 +36,7 @@ impl<'a> _Variable<'a> {
             scope,
             id,
             writeable: Default::default(),
+            explicit_global_comments: Default::default(),
         })
     }
 }
@@ -57,15 +64,28 @@ impl<'a, 'b> Variable<'a, 'b> {
     }
 
     pub fn references(&self) -> impl Iterator<Item = Reference<'a, 'b>> + '_ {
-        self.variable.references.iter().map(|&reference| self.scope_manager.borrow_reference(reference))
+        self.variable
+            .references
+            .iter()
+            .map(|&reference| self.scope_manager.borrow_reference(reference))
     }
 
     pub fn defs(&self) -> impl Iterator<Item = Definition<'a, 'b>> + '_ {
-        self.variable.defs.iter().map(|&def| self.scope_manager.borrow_definition(def))
+        self.variable
+            .defs
+            .iter()
+            .map(|&def| self.scope_manager.borrow_definition(def))
     }
 
     pub fn identifiers(&self) -> impl Iterator<Item = Node<'a>> + '_ {
         self.variable.identifiers.iter().copied()
+    }
+
+    pub fn explicit_global_comments(&self) -> Option<impl Iterator<Item = Node<'a>> + '_> {
+        self.variable
+            .explicit_global_comments
+            .as_ref()
+            .map(|explicit_global_comments| explicit_global_comments.iter().copied())
     }
 }
 

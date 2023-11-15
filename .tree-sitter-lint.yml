@@ -484,13 +484,16 @@ rules:
         tid:
           module: tree_sitter_lint::better_any
           kind: macro
-        TreeCursor:
-          module: tree_sitter_lint::tree_sitter
-          kind: type
         Node:
           module: tree_sitter_lint::tree_sitter
           kind: type
+        Point:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
         Tree:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
+        TreeCursor:
           module: tree_sitter_lint::tree_sitter
           kind: type
         RopeOrSlice:

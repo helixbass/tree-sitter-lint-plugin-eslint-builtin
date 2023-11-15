@@ -487,10 +487,10 @@ impl<'a, 'b> DeclaredVariablesPresent<'a, 'b> {
     }
 }
 
-fn add_declared_globals(
-    scope_manager: &ScopeManager,
+fn add_declared_globals<'a>(
+    scope_manager: &ScopeManager<'a>,
     config_globals: &Globals,
-    comment_directives: &DirectiveComments,
+    comment_directives: &DirectiveComments<'a>,
 ) {
     let enabled_globals = &comment_directives.enabled_globals;
     let global_scope = &mut scope_manager.arena.scopes.borrow_mut()[scope_manager.scopes[0]];
@@ -504,6 +504,10 @@ fn add_declared_globals(
             .get(id)
             .map(|enabled_global| enabled_global.value)
             .unwrap_or_else(|| config_globals[id]);
+        let source_comments = enabled_globals
+            .get(id)
+            .map(|enabled_global| &enabled_global.comments);
+
         if value == globals::Visibility::Off {
             continue;
         }
@@ -524,8 +528,11 @@ fn add_declared_globals(
                         global_scope_id,
                     );
 
-                    scope_manager.arena.variables.borrow_mut()[variable].writeable =
-                        Some(value == globals::Visibility::Writable);
+                    {
+                        let variable = &mut scope_manager.arena.variables.borrow_mut()[variable];
+                        variable.explicit_global_comments = source_comments.cloned();
+                        variable.writeable = Some(value == globals::Visibility::Writable);
+                    }
                     variable
                 })
         };

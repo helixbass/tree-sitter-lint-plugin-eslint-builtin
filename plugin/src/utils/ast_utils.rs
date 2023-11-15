@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use squalid::{return_default_if_none, CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
-    tree_sitter::{Node, Range, Tree},
+    tree_sitter::{Node, Point, Range, Tree},
     tree_sitter_grep::SupportedLanguage,
     NodeExt, QueryMatchContext,
 };
@@ -961,6 +961,49 @@ pub fn can_tokens_be_adjacent<'a>(
         (Comment, _) if is_block_comment(left_value, context) => true,
         (_, Comment | PrivatePropertyIdentifier) => true,
         _ => false,
+    }
+}
+
+pub fn get_name_location_in_global_directive_comment(
+    context: &QueryMatchContext,
+    comment: Node,
+    name: &str,
+) -> Range {
+    let name_pattern =
+        Regex::new(&format!(r#"[\s,]{}(?:$|[\s,:*])"#, regex::escape(name))).unwrap();
+
+    let comment_text = comment.text(context);
+    let start_index = comment_text.find("global").unwrap() + 6;
+
+    let match_ = name_pattern.find(&comment_text[start_index..]);
+
+    let start_offset = match_.map_or_default(|match_| match_.start() + start_index + 1);
+    let start_byte = comment.start_byte() + start_offset;
+    // TODO: this doesn't handle multi-line comments,
+    // I was avoiding the fact that currently don't appear
+    // to have the equivalent of .lines/.lineStartIndices
+    // in order to eg implement the equivalent of getLocFromIndex()
+    // on FileRunContext
+    let start_point = Point {
+        row: comment.start_position().row,
+        column: comment.start_position().column + start_offset,
+    };
+    let end_offset = start_offset
+        + match match_ {
+            Some(_) => name.len(),
+            None => 1,
+        };
+    let end_byte = comment.start_byte() + end_offset;
+    let end_point = Point {
+        row: comment.start_position().row,
+        column: comment.start_position().column + end_offset,
+    };
+
+    Range {
+        start_byte,
+        start_point,
+        end_byte,
+        end_point,
     }
 }
 

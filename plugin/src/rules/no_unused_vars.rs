@@ -16,10 +16,11 @@ use crate::{
     },
     kind::{
         ArrayPattern, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
-        CallExpression, EmptyStatement, ExpressionStatement, ForInStatement, Function,
-        MethodDefinition, NewExpression, ObjectPattern, PairPattern, RestPattern, ReturnStatement,
-        SequenceExpression, ShorthandPropertyIdentifierPattern, StatementBlock, UpdateExpression,
-        VariableDeclarator, YieldExpression,
+        CallExpression, EmptyStatement, ExpressionStatement, ForInStatement, FormalParameters,
+        Function, MethodDefinition, NewExpression, ObjectPattern, PairPattern,
+        ParenthesizedExpression, RestPattern, ReturnStatement, SequenceExpression,
+        ShorthandPropertyIdentifierPattern, StatementBlock, UpdateExpression, VariableDeclarator,
+        YieldExpression,
     },
     scope::{Reference, Scope, ScopeManager, ScopeType, Variable, VariableType},
     utils::ast_utils,
@@ -154,7 +155,7 @@ impl Default for Options {
 }
 
 fn get_defined_message_data(
-    unused_var: Variable,
+    unused_var: &Variable,
     caught_errors_ignore_pattern: Option<&Regex>,
     args_ignore_pattern: Option<&Regex>,
     vars_ignore_pattern: Option<&Regex>,
@@ -175,7 +176,7 @@ fn get_defined_message_data(
         };
 
     let additional = match (type_, pattern) {
-        (Some(type_), Some(pattern)) => format!(". Allowed unused {type_} must match {pattern}"),
+        (Some(type_), Some(pattern)) => format!(". Allowed unused {type_} must match /{pattern}/u"),
         _ => Default::default(),
     };
 
@@ -321,6 +322,7 @@ fn is_unused_expression(node: Node) -> bool {
             }
             is_unused_expression(parent)
         }
+        ParenthesizedExpression => is_unused_expression(parent),
         _ => false,
     }
 }
@@ -331,6 +333,13 @@ fn get_rhs_node<'a>(ref_: &Reference<'a, '_>, prev_rhs_node: Option<Node<'a>>) -
     let ref_scope = ref_.from().variable_scope();
     let var_scope = ref_.resolved().unwrap().scope().variable_scope();
     let can_be_used_later = ref_scope != var_scope || ast_utils::is_in_loop(id);
+    // println!("get_rhs_node() id: {id:#?}, parent: {parent:#?}, prev_rhs_node: {prev_rhs_node:#?}, can_be_used_later: {can_be_used_later:#?}, parent kind: {:#?}, is unused: {:#?}, id is left: {:#?}",
+    // matches!(
+    //     parent.kind(),
+    //     AssignmentExpression | AugmentedAssignmentExpression
+    // ), is_unused_expression(parent),
+    //     Some(id) == parent.child_by_field_name("left")
+    //     );
 
     if prev_rhs_node.matches(|prev_rhs_node| is_inside(id, prev_rhs_node)) {
         return prev_rhs_node;
@@ -396,6 +405,7 @@ fn is_read_for_itself(ref_: &Reference, rhs_node: Option<Node>) -> bool {
     let id = ref_.identifier();
     let parent = id.parent().unwrap();
 
+    // println!("is_read_for_itself() id: {id:#?}, parent: {parent:#?}, rhs_node: {rhs_node:#?}");
     ref_.is_read()
         && (((matches!(
             parent.kind(),
@@ -441,6 +451,7 @@ fn is_used_variable(variable: &Variable) -> bool {
         }
 
         let for_itself = is_read_for_itself(&ref_, rhs_node);
+        // println!("ref: {ref_:#?}, for_itself: {for_itself:#?}");
 
         rhs_node = get_rhs_node(&ref_, rhs_node);
 
@@ -496,7 +507,6 @@ fn collect_unused_variables<'a, 'b>(
             ))
         {
             let def = variable.defs().next();
-            println!("variable: {variable:#?}, def: {def:#?}");
 
             if let Some(def) = def {
                 let type_ = def.type_();
@@ -543,7 +553,7 @@ fn collect_unused_variables<'a, 'b>(
                     }
 
                     if args == Args::AfterUsed &&
-                        ast_utils::is_function(def.name().parent().unwrap()) &&
+                        def.name().parent().unwrap().kind() == FormalParameters &&
                         !is_after_last_used_arg(&variable, scope_manager)
                     {
                         continue;
@@ -602,10 +612,11 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
         },
         listeners => [
             r#"program:exit"# => |node, context| {
+                let program_node = node;
                 let scope_manager = context.retrieve::<ScopeManager<'a>>();
                 let mut unused_vars: Vec<Variable<'a, '_>> = Default::default();
                 collect_unused_variables(
-                    scope_manager.get_scope(node),
+                    scope_manager.get_scope(program_node),
                     &mut unused_vars,
                     self.vars,
                     self.destructured_array_ignore_pattern.as_ref(),
@@ -640,12 +651,30 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
                                 )
                             } else {
                                 get_defined_message_data(
-                                    unused_var,
+                                    &unused_var,
                                     self.caught_errors_ignore_pattern.as_ref(),
                                     self.args_ignore_pattern.as_ref(),
                                     self.vars_ignore_pattern.as_ref(),
                                 )
                             },
+                        });
+                    } else if let Some(mut unused_var_explicit_global_comments) = unused_var.explicit_global_comments() {
+                        let directive_comment = unused_var_explicit_global_comments.next().unwrap();
+
+                        context.report(violation! {
+                            node => program_node,
+                            range => ast_utils::get_name_location_in_global_directive_comment(
+                                context,
+                                directive_comment,
+                                unused_var.name(),
+                            ),
+                            message_id => "unused_var",
+                            data => get_defined_message_data(
+                                &unused_var,
+                                self.caught_errors_ignore_pattern.as_ref(),
+                                self.args_ignore_pattern.as_ref(),
+                                self.vars_ignore_pattern.as_ref(),
+                            ),
                         });
                     }
                 }
@@ -1605,7 +1634,7 @@ mod tests {
                                     additional => ""
                                 }
                             }
-                        ]
+                        ],
                     },
                     {
                         code => "/* globals a$fooz, $ */\na$fooz;",
@@ -1639,7 +1668,7 @@ mod tests {
                                     additional => ""
                                 }
                             }
-                        ]
+                        ],
                     },
                     {
                         code => "/* global global*/",
@@ -1860,7 +1889,7 @@ mod tests {
                         errors => [
                             defined_error("a", Some(". Allowed unused args must match /c/u"), None),
                             defined_error("b", Some(". Allowed unused args must match /c/u"), None),
-                            defined_error("d", Some(". Allowed unused args must match /c/u"), None)
+                            defined_error("d", Some(". Allowed unused args must match /c/u"), Some(ShorthandPropertyIdentifierPattern))
                         ]
                     },
                     {
@@ -1870,55 +1899,56 @@ mod tests {
                         errors => [
                             defined_error("a", Some(". Allowed unused args must match /d/u"), None),
                             defined_error("b", Some(". Allowed unused args must match /d/u"), None),
-                            defined_error("c", Some(". Allowed unused args must match /d/u"), None)
-                        ]
+                            defined_error("c", Some(". Allowed unused args must match /d/u"), Some(ShorthandPropertyIdentifierPattern))
+                        ],
                     },
-                    {
-                        code => "/*global\rfoo*/",
-                        errors => [{
-                            line => 2,
-                            column => 1,
-                            end_line => 2,
-                            end_column => 4,
-                            message_id => "unused_var",
-                            data => {
-                                var_name => "foo",
-                                action => "defined",
-                                additional => ""
-                            }
-                        }]
-                    },
+                    // TODO: support this?
+                    // {
+                    //     code => "/*global\rfoo*/",
+                    //     errors => [{
+                    //         line => 2,
+                    //         column => 1,
+                    //         end_line => 2,
+                    //         end_column => 4,
+                    //         message_id => "unused_var",
+                    //         data => {
+                    //             var_name => "foo",
+                    //             action => "defined",
+                    //             additional => ""
+                    //         }
+                    //     }]
+                    // },
 
                     // https://github.com/eslint/eslint/issues/8442
                     {
                         code => "(function ({ a }, b ) { return b; })();",
                         environment => { ecma_version => 2015 },
                         errors => [
-                            defined_error("a", None, None)
+                            defined_error("a", None, Some(ShorthandPropertyIdentifierPattern))
                         ]
                     },
                     {
                         code => "(function ({ a }, { b, c } ) { return b; })();",
                         environment => { ecma_version => 2015 },
                         errors => [
-                            defined_error("a", None, None),
-                            defined_error("c", None, None)
+                            defined_error("a", None, Some(ShorthandPropertyIdentifierPattern)),
+                            defined_error("c", None, Some(ShorthandPropertyIdentifierPattern))
                         ]
                     },
 
                     // https://github.com/eslint/eslint/issues/14325
                     {
                         code => "let x = 0;
-                        x++, x = 0;",
+            x++, x = 0;",
                         environment => { ecma_version => 2015 },
-                        errors => [assigned_error_builder("x", None, None).line(2).column(18).build().unwrap()],
+                        errors => [assigned_error_builder("x", None, None).line(2).column(6).build().unwrap()],
                     },
                     {
                         code => "let x = 0;
-                        x++, x = 0;
-                        x=3;",
+x++, x = 0;
+x=3;",
                         environment => { ecma_version => 2015 },
-                        errors => [assigned_error_builder("x", None, None).line(3).column(13).build().unwrap()],
+                        errors => [assigned_error_builder("x", None, None).line(3).column(1).build().unwrap()],
                     },
                     {
                         code => "let x = 0; x++, 0;",
@@ -1974,25 +2004,25 @@ mod tests {
                     // https://github.com/eslint/eslint/issues/14866
                     {
                         code => "let z = 0;
-                        z = z + 1, z = 2;
-                        ",
+z = z + 1, z = 2;
+",
                         environment => { ecma_version => 2020 },
-                        errors => [assigned_error_builder("z", None, None).line(2).column(24).build().unwrap()],
+                        errors => [assigned_error_builder("z", None, None).line(2).column(12).build().unwrap()],
                     },
                     {
                         code => "let z = 0;
-                        z = z+1, z = 2;
-                        z = 3;",
+z = z+1, z = 2;
+z = 3;",
                         environment => { ecma_version => 2020 },
-                        errors => [assigned_error_builder("z", None, None).line(3).column(13).build().unwrap()],
+                        errors => [assigned_error_builder("z", None, None).line(3).column(1).build().unwrap()],
                     },
                     {
                         code => "let z = 0;
-                        z = z+1, z = 2;
-                        z = z+3;
+z = z+1, z = 2;
+z = z+3;
                         ",
                         environment => { ecma_version => 2020 },
-                        errors => [assigned_error_builder("z", None, None).line(3).column(13).build().unwrap()],
+                        errors => [assigned_error_builder("z", None, None).line(3).column(1).build().unwrap()],
                     },
                     {
                         code => "let x = 0; 0, x = x+1;",

@@ -74,6 +74,7 @@ impl<'a> FromFileRunContext<'a> for DirectiveComments<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct EnabledGlobal<'a> {
     pub comments: Vec<Node<'a>>,
     pub value: globals::Visibility,
