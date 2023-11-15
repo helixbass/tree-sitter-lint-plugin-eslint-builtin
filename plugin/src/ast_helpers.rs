@@ -537,3 +537,7 @@ pub fn is_jsx_tag_name(node: Node) -> bool {
             && parent.field("name") == node
     })
 }
+
+pub fn is_tagged_template_expression(node: Node) -> bool {
+    node.kind() == CallExpression && node.field("arguments").kind() == TemplateString
+}

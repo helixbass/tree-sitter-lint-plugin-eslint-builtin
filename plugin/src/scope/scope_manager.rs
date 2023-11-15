@@ -398,7 +398,11 @@ impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
             .filter_map(|env_name| get_env(env_name))
             .collect_vec();
         for enabled_env in enabled_envs {
-            configured_globals.extend(enabled_env.into_iter().map(|(global_name, visibility)| (global_name.clone(), *visibility)));
+            configured_globals.extend(
+                enabled_env
+                    .into_iter()
+                    .map(|(global_name, visibility)| (global_name.clone(), *visibility)),
+            );
         }
         configured_globals.extend(options.globals.clone());
         add_declared_globals(&scope_manager, &configured_globals, comment_directives);

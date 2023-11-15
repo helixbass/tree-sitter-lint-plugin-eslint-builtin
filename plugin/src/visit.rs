@@ -2,7 +2,28 @@ use squalid::OptionExt;
 use tracing::trace;
 use tree_sitter_lint::tree_sitter::{Node, Tree};
 
-use crate::kind::{self, *};
+use crate::kind::{
+    self, Arguments, Array, ArrayPattern, ArrowFunction, AssignmentExpression, AssignmentPattern,
+    AugmentedAssignmentExpression, AwaitExpression, BinaryExpression, BreakStatement,
+    CallExpression, CatchClause, Class, ClassBody, ClassDeclaration, ClassHeritage,
+    ClassStaticBlock, Comment, ComputedPropertyName, ContinueStatement, DebuggerStatement,
+    Decorator, DoStatement, ElseClause, EmptyStatement, EscapeSequence, ExportClause,
+    ExportSpecifier, ExportStatement, ExpressionStatement, False, FieldDefinition, FinallyClause,
+    ForInStatement, ForStatement, FormalParameters, Function, FunctionDeclaration,
+    GeneratorFunction, GeneratorFunctionDeclaration, GlimmerClosingTag, GlimmerOpeningTag,
+    GlimmerTemplate, HashBangLine, Identifier, IfStatement, Import, ImportClause, ImportSpecifier,
+    ImportStatement, JsxAttribute, JsxClosingElement, JsxElement, JsxExpression, JsxNamespaceName,
+    JsxOpeningElement, JsxSelfClosingElement, JsxText, LabeledStatement, LexicalDeclaration,
+    MemberExpression, MetaProperty, MethodDefinition, NamedImports, NamespaceExport,
+    NamespaceImport, NewExpression, Null, Object, ObjectAssignmentPattern, ObjectPattern,
+    OptionalChain, Pair, PairPattern, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
+    PropertyIdentifier, RegexFlags, RegexPattern, RestPattern, ReturnStatement, SequenceExpression,
+    ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern, SpreadElement, StatementBlock,
+    StatementIdentifier, StringFragment, SubscriptExpression, Super, SwitchBody, SwitchCase,
+    SwitchDefault, SwitchStatement, TemplateString, TemplateSubstitution, TernaryExpression, This,
+    ThrowStatement, True, TryStatement, UnaryExpression, Undefined, UpdateExpression,
+    VariableDeclaration, VariableDeclarator, WhileStatement, WithStatement, YieldExpression,
+};
 
 pub trait Visit<'a> {
     fn visit(&mut self, node: Node<'a>) {

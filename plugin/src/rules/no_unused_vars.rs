@@ -3,19 +3,23 @@ use std::sync::Arc;
 use itertools::Itertools;
 use regex::Regex;
 use serde::Deserialize;
-use squalid::{return_default_if_none, EverythingExt, OptionExt};
+use squalid::{regex, return_default_if_none, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation, NodeExt,
     QueryMatchContext, Rule, ViolationData,
 };
 
 use crate::{
-    ast_helpers::{get_method_definition_kind, MethodDefinitionKind},
+    ast_helpers::{
+        get_last_expression_of_sequence_expression, get_method_definition_kind,
+        is_tagged_template_expression, MethodDefinitionKind,
+    },
     kind::{
         ArrayPattern, ArrowFunction, AssignmentExpression, AugmentedAssignmentExpression,
-        EmptyStatement, ForInStatement, Function, MethodDefinition, ObjectPattern, PairPattern,
-        RestPattern, ReturnStatement, ShorthandPropertyIdentifierPattern, StatementBlock,
-        UpdateExpression, VariableDeclarator,
+        CallExpression, EmptyStatement, ExpressionStatement, ForInStatement, Function,
+        MethodDefinition, NewExpression, ObjectPattern, PairPattern, RestPattern, ReturnStatement,
+        SequenceExpression, ShorthandPropertyIdentifierPattern, StatementBlock, UpdateExpression,
+        VariableDeclarator, YieldExpression,
     },
     scope::{Reference, Scope, ScopeManager, ScopeType, Variable, VariableType},
     utils::ast_utils,
@@ -214,7 +218,7 @@ fn get_assigned_message_data(
     .into()
 }
 
-fn is_exported(variable: Variable) -> bool {
+fn is_exported(variable: &Variable) -> bool {
     let Some(definition) = variable.defs().next() else {
         return false;
     };
@@ -245,7 +249,7 @@ fn has_rest_sibling(node: Node) -> bool {
     })
 }
 
-fn has_rest_spread_sibling(variable: Variable, ignore_rest_siblings: bool) -> bool {
+fn has_rest_spread_sibling(variable: &Variable, ignore_rest_siblings: bool) -> bool {
     if ignore_rest_siblings {
         let has_rest_sibling_definition = variable
             .defs()
@@ -260,11 +264,23 @@ fn has_rest_spread_sibling(variable: Variable, ignore_rest_siblings: bool) -> bo
     false
 }
 
-fn is_read_ref(ref_: Reference) -> bool {
+fn is_read_ref(ref_: &Reference) -> bool {
     ref_.is_read()
 }
 
-fn get_function_definitions<'a>(variable: Variable<'a, '_>) -> Vec<Node<'a>> {
+fn is_self_reference(ref_: &Reference, nodes: &[Node]) -> bool {
+    let mut scope = ref_.from();
+
+    loop {
+        if nodes.contains(&scope.block()) {
+            return true;
+        }
+
+        scope = return_default_if_none!(scope.maybe_upper());
+    }
+}
+
+fn get_function_definitions<'a>(variable: &Variable<'a, '_>) -> Vec<Node<'a>> {
     let mut function_definitions: Vec<Node> = Default::default();
 
     variable.defs().for_each(|def| {
@@ -292,7 +308,91 @@ fn is_inside(inner: Node, outer: Node) -> bool {
     inner.start_byte() >= outer.start_byte() && inner.end_byte() <= outer.end_byte()
 }
 
-fn is_read_for_itself(ref_: Reference, rhs_node: Option<Node>) -> bool {
+fn is_unused_expression(node: Node) -> bool {
+    let parent = node.parent().unwrap();
+
+    match parent.kind() {
+        ExpressionStatement => true,
+        SequenceExpression => {
+            let is_last_expression = get_last_expression_of_sequence_expression(parent) == node;
+
+            if !is_last_expression {
+                return true;
+            }
+            is_unused_expression(parent)
+        }
+        _ => false,
+    }
+}
+
+fn get_rhs_node<'a>(ref_: &Reference<'a, '_>, prev_rhs_node: Option<Node<'a>>) -> Option<Node<'a>> {
+    let id = ref_.identifier();
+    let parent = id.parent().unwrap();
+    let ref_scope = ref_.from().variable_scope();
+    let var_scope = ref_.resolved().unwrap().scope().variable_scope();
+    let can_be_used_later = ref_scope != var_scope || ast_utils::is_in_loop(id);
+
+    if prev_rhs_node.matches(|prev_rhs_node| is_inside(id, prev_rhs_node)) {
+        return prev_rhs_node;
+    }
+
+    if matches!(
+        parent.kind(),
+        AssignmentExpression | AugmentedAssignmentExpression
+    ) && is_unused_expression(parent)
+        && id == parent.field("left")
+        && !can_be_used_later
+    {
+        return Some(parent.field("right"));
+    }
+    None
+}
+
+fn is_storable_function(func_node: Node, rhs_node: Node) -> bool {
+    let mut node = func_node;
+    let mut parent = func_node.parent();
+
+    while let Some(parent_present) = parent.filter(|&parent| is_inside(parent, rhs_node)) {
+        match parent_present.kind() {
+            SequenceExpression => {
+                if get_last_expression_of_sequence_expression(parent_present) != node {
+                    return false;
+                }
+            }
+
+            CallExpression => {
+                if is_tagged_template_expression(parent_present) {
+                    return true;
+                }
+                return parent_present.field("function") != node;
+            }
+            NewExpression => return parent_present.field("constructor") != node,
+
+            AssignmentExpression | AugmentedAssignmentExpression | YieldExpression => return true,
+
+            kind => {
+                if regex!(r#"(?:statement|declaration)$"#).is_match(kind) {
+                    return true;
+                }
+            }
+        }
+
+        node = parent_present;
+        parent = parent_present.parent();
+    }
+
+    false
+}
+
+fn is_inside_of_storable_function(id: Node, rhs_node: Node) -> bool {
+    let Some(func_node) = ast_utils::get_upper_function(id) else {
+        return false;
+    };
+
+    is_inside(func_node, rhs_node) && is_storable_function(func_node, rhs_node)
+}
+
+fn is_read_for_itself(ref_: &Reference, rhs_node: Option<Node>) -> bool {
     let id = ref_.identifier();
     let parent = id.parent().unwrap();
 
@@ -310,7 +410,7 @@ fn is_read_for_itself(ref_: Reference, rhs_node: Option<Node>) -> bool {
             })))
 }
 
-fn is_for_in_of_ref(ref_: Reference) -> bool {
+fn is_for_in_of_ref(ref_: &Reference) -> bool {
     let mut target = ref_.identifier().parent().unwrap();
 
     if target.kind() != ForInStatement {
@@ -330,28 +430,28 @@ fn is_for_in_of_ref(ref_: Reference) -> bool {
     target.kind() == ReturnStatement
 }
 
-fn is_used_variable(variable: Variable) -> bool {
+fn is_used_variable(variable: &Variable) -> bool {
     let function_nodes = get_function_definitions(variable);
     let is_function_definition = !function_nodes.is_empty();
     let mut rhs_node: Option<Node> = Default::default();
 
     variable.references().any(|ref_| {
-        if is_for_in_of_ref(ref_) {
+        if is_for_in_of_ref(&ref_) {
             return true;
         }
 
-        let for_itself = is_read_for_itself(ref_, rhs_node);
+        let for_itself = is_read_for_itself(&ref_, rhs_node);
 
-        rhs_node = get_rhs_node(ref_, rhs_node);
+        rhs_node = get_rhs_node(&ref_, rhs_node);
 
-        is_read_ref(ref_)
+        is_read_ref(&ref_)
             && !for_itself
-            && !(is_function_definition && is_self_reference(ref_, &function_nodes))
+            && !(is_function_definition && is_self_reference(&ref_, &function_nodes))
     })
 }
 
 fn is_after_last_used_arg<'a>(
-    variable: Variable<'a, '_>,
+    variable: &Variable<'a, '_>,
     scope_manager: &ScopeManager<'a>,
 ) -> bool {
     let def = variable.defs().next().unwrap();
@@ -361,7 +461,7 @@ fn is_after_last_used_arg<'a>(
     let posterior_params = &params[{
         params
             .iter()
-            .position(|param| *param == variable)
+            .position(|param| param == variable)
             .map_or_default(|index| index + 1)
     }..];
 
@@ -370,9 +470,10 @@ fn is_after_last_used_arg<'a>(
     )
 }
 
-fn collect_unused_variables<'a>(
-    scope: Scope<'a, '_>,
-    unused_vars: &mut Vec<Variable<'a, '_>>,
+#[allow(clippy::too_many_arguments)]
+fn collect_unused_variables<'a, 'b>(
+    scope: Scope<'a, 'b>,
+    unused_vars: &mut Vec<Variable<'a, 'b>>,
     vars: Vars,
     destructured_array_ignore_pattern: Option<&Regex>,
     caught_errors: CaughtErrors,
@@ -441,7 +542,7 @@ fn collect_unused_variables<'a>(
 
                     if args == Args::AfterUsed &&
                         ast_utils::is_function(def.name().parent().unwrap()) &&
-                        !is_after_last_used_arg(variable, scope_manager)
+                        !is_after_last_used_arg(&variable, scope_manager)
                     {
                         continue;
                     }
@@ -454,7 +555,7 @@ fn collect_unused_variables<'a>(
                 }
             }
 
-            if !is_used_variable(variable) && !is_exported(variable) && !has_rest_spread_sibling(variable, ignore_rest_siblings) {
+            if !is_used_variable(&variable) && !is_exported(&variable) && !has_rest_spread_sibling(&variable, ignore_rest_siblings) {
                 unused_vars.push(variable);
             }
         }
@@ -511,6 +612,7 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
                     self.args,
                     self.args_ignore_pattern.as_ref(),
                     self.vars_ignore_pattern.as_ref(),
+                    self.ignore_rest_siblings,
                     context,
                     scope_manager,
                 );
@@ -557,7 +659,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::kind::Identifier;
+    use crate::{get_instance_provider_factory, kind::Identifier};
 
     fn defined_error_builder(
         var_name: &str,
@@ -617,7 +719,7 @@ mod tests {
 
     #[test]
     fn test_no_unused_vars_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             no_unused_vars_rule(),
             rule_tests! {
                 valid => [
@@ -1443,7 +1545,7 @@ mod tests {
 
                     // Nested array destructuring with rest property
                     {
-                        code => "const data = { vars => ['x','y'], x: 1, y: 2 };\nconst { vars => [x], ...coords } = data;\n console.log(coords)",
+                        code => "const data = { vars: ['x','y'], x: 1, y: 2 };\nconst { vars: [x], ...coords } = data;\n console.log(coords)",
                         environment => { ecma_version => 2018 },
                         errors => [
                             {
@@ -2067,6 +2169,7 @@ mod tests {
                     }
                 ]
             },
+            get_instance_provider_factory(),
         )
     }
 }

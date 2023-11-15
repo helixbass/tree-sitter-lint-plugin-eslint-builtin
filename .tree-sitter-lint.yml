@@ -28,6 +28,9 @@ rules:
         get_comment_contents:
           module: crate::ast_helpers
           kind: function
+        get_last_expression_of_sequence_expression:
+          module: crate::ast_helpers
+          kind: function
         get_method_definition_kind:
           module: crate::ast_helpers
           kind: function
@@ -35,6 +38,9 @@ rules:
           module: crate::ast_helpers
           kind: function
         is_jsx_tag_name:
+          module: crate::ast_helpers
+          kind: function
+        is_tagged_template_expression:
           module: crate::ast_helpers
           kind: function
         MethodDefinitionKind:
@@ -57,6 +63,9 @@ rules:
         directives_pattern:
           module: crate::directives
           kind: static
+        Array:
+          module: crate::kind
+          kind: static
         Arguments:
           module: crate::kind
           kind: static
@@ -69,10 +78,37 @@ rules:
         AssignmentExpression:
           module: crate::kind
           kind: static
+        AssignmentPattern:
+          module: crate::kind
+          kind: static
         AugmentedAssignmentExpression:
           module: crate::kind
           kind: static
+        AwaitExpression:
+          module: crate::kind
+          kind: static
+        BinaryExpression:
+          module: crate::kind
+          kind: static
+        BreakStatement:
+          module: crate::kind
+          kind: static
         CallExpression:
+          module: crate::kind
+          kind: static
+        CatchClause:
+          module: crate::kind
+          kind: static
+        Class:
+          module: crate::kind
+          kind: static
+        ClassBody:
+          module: crate::kind
+          kind: static
+        ClassDeclaration:
+          module: crate::kind
+          kind: static
+        ClassHeritage:
           module: crate::kind
           kind: static
         ClassStaticBlock:
@@ -87,13 +123,52 @@ rules:
         ContinueStatement:
           module: crate::kind
           kind: static
+        DebuggerStatement:
+          module: crate::kind
+          kind: static
+        Decorator:
+          module: crate::kind
+          kind: static
+        DoStatement:
+          module: crate::kind
+          kind: static
+        ElseClause:
+          module: crate::kind
+          kind: static
         EmptyStatement:
+          module: crate::kind
+          kind: static
+        EscapeSequence:
+          module: crate::kind
+          kind: static
+        ExportClause:
+          module: crate::kind
+          kind: static
+        ExportSpecifier:
           module: crate::kind
           kind: static
         ExportStatement:
           module: crate::kind
           kind: static
+        ExpressionStatement:
+          module: crate::kind
+          kind: static
+        False:
+          module: crate::kind
+          kind: static
+        FieldDefinition:
+          module: crate::kind
+          kind: static
+        FinallyClause:
+          module: crate::kind
+          kind: static
         ForInStatement:
+          module: crate::kind
+          kind: static
+        FormalParameters:
+          module: crate::kind
+          kind: static
+        ForStatement:
           module: crate::kind
           kind: static
         Function:
@@ -108,10 +183,49 @@ rules:
         GeneratorFunctionDeclaration:
           module: crate::kind
           kind: static
+        GlimmerClosingTag:
+          module: crate::kind
+          kind: static
+        GlimmerOpeningTag:
+          module: crate::kind
+          kind: static
+        GlimmerTemplate:
+          module: crate::kind
+          kind: static
+        HashBangLine:
+          module: crate::kind
+          kind: static
         Identifier:
           module: crate::kind
           kind: static
         IfStatement:
+          module: crate::kind
+          kind: static
+        Import:
+          module: crate::kind
+          kind: static
+        ImportClause:
+          module: crate::kind
+          kind: static
+        ImportSpecifier:
+          module: crate::kind
+          kind: static
+        ImportStatement:
+          module: crate::kind
+          kind: static
+        JsxAttribute:
+          module: crate::kind
+          kind: static
+        JsxClosingElement:
+          module: crate::kind
+          kind: static
+        JsxElement:
+          module: crate::kind
+          kind: static
+        JsxExpression:
+          module: crate::kind
+          kind: static
+        JsxNamespaceName:
           module: crate::kind
           kind: static
         JsxOpeningElement:
@@ -120,16 +234,49 @@ rules:
         JsxSelfClosingElement:
           module: crate::kind
           kind: static
+        JsxText:
+          module: crate::kind
+          kind: static
+        LabeledStatement:
+          module: crate::kind
+          kind: static
+        LexicalDeclaration:
+          module: crate::kind
+          kind: static
         MemberExpression:
+          module: crate::kind
+          kind: static
+        MetaProperty:
           module: crate::kind
           kind: static
         MethodDefinition:
           module: crate::kind
           kind: static
+        NamedImports:
+          module: crate::kind
+          kind: static
+        NamespaceExport:
+          module: crate::kind
+          kind: static
+        NamespaceImport:
+          module: crate::kind
+          kind: static
+        NewExpression:
+          module: crate::kind
+          kind: static
+        Null:
+          module: crate::kind
+          kind: static
         Object:
           module: crate::kind
           kind: static
+        ObjectAssignmentPattern:
+          module: crate::kind
+          kind: static
         ObjectPattern:
+          module: crate::kind
+          kind: static
+        OptionalChain:
           module: crate::kind
           kind: static
         Pair:
@@ -138,10 +285,22 @@ rules:
         PairPattern:
           module: crate::kind
           kind: static
+        ParenthesizedExpression:
+          module: crate::kind
+          kind: static
+        PrivatePropertyIdentifier:
+          module: crate::kind
+          kind: static
         Program:
           module: crate::kind
           kind: static
         PropertyIdentifier:
+          module: crate::kind
+          kind: static
+        RegexFlags:
+          module: crate::kind
+          kind: static
+        RegexPattern:
           module: crate::kind
           kind: static
         RestPattern:
@@ -150,25 +309,85 @@ rules:
         ReturnStatement:
           module: crate::kind
           kind: static
+        SequenceExpression:
+          module: crate::kind
+          kind: static
+        ShorthandPropertyIdentifier:
+          module: crate::kind
+          kind: static
         ShorthandPropertyIdentifierPattern:
+          module: crate::kind
+          kind: static
+        SpreadElement:
           module: crate::kind
           kind: static
         StatementBlock:
           module: crate::kind
           kind: static
+        StatementIdentifier:
+          module: crate::kind
+          kind: static
         SubscriptExpression:
           module: crate::kind
           kind: static
-        UpdateExpression:
+        Super:
+          module: crate::kind
+          kind: static
+        SwitchBody:
+          module: crate::kind
+          kind: static
+        SwitchCase:
+          module: crate::kind
+          kind: static
+        SwitchDefault:
+          module: crate::kind
+          kind: static
+        SwitchStatement:
+          module: crate::kind
+          kind: static
+        TemplateString:
+          module: crate::kind
+          kind: static
+        TemplateSubstitution:
+          module: crate::kind
+          kind: static
+        TernaryExpression:
+          module: crate::kind
+          kind: static
+        This:
+          module: crate::kind
+          kind: static
+        ThrowStatement:
+          module: crate::kind
+          kind: static
+        True:
+          module: crate::kind
+          kind: static
+        TryStatement:
           module: crate::kind
           kind: static
         UnaryExpression:
+          module: crate::kind
+          kind: static
+        Undefined:
+          module: crate::kind
+          kind: static
+        UpdateExpression:
           module: crate::kind
           kind: static
         VariableDeclaration:
           module: crate::kind
           kind: static
         VariableDeclarator:
+          module: crate::kind
+          kind: static
+        WhileStatement:
+          module: crate::kind
+          kind: static
+        WithStatement:
+          module: crate::kind
+          kind: static
+        YieldExpression:
           module: crate::kind
           kind: static
         Kind:
@@ -189,6 +408,9 @@ rules:
         ScopeType:
           module: crate::scope
           kind: type
+        StringFragment:
+          module: crate::kind
+          kind: static
         Variable:
           module: crate::scope
           kind: type
