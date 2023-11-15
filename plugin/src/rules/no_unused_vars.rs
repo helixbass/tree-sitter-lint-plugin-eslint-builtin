@@ -523,9 +523,9 @@ fn collect_unused_variables<'a, 'b>(
 
                 #[allow(clippy::collapsible_else_if)]
                 if type_ == VariableType::Parameter {
-                    if def.node().parent().unwrap().thrush(|def_node_parent| {
-                        def_node_parent.kind() == MethodDefinition &&
-                            get_method_definition_kind(def_node_parent, context) == MethodDefinitionKind::Set
+                    if def.node().thrush(|def_node| {
+                        def_node.kind() == MethodDefinition &&
+                            get_method_definition_kind(def_node, context) == MethodDefinitionKind::Set
                     }) {
                         continue;
                     }
