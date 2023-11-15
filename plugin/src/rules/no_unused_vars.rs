@@ -496,16 +496,18 @@ fn collect_unused_variables<'a, 'b>(
             ))
         {
             let def = variable.defs().next();
+            println!("variable: {variable:#?}, def: {def:#?}");
 
             if let Some(def) = def {
                 let type_ = def.type_();
                 let ref_used_in_array_patterns = variable.references().any(|ref_| ref_.identifier().parent().unwrap().kind() == ArrayPattern);
 
-                if def.name().parent().unwrap().kind() == ArrayPattern ||
-                    ref_used_in_array_patterns && destructured_array_ignore_pattern.matches(|destructured_array_ignore_pattern| {
-                        destructured_array_ignore_pattern.is_match(&def.name().text(context))
-                    })
-                {
+                if (
+                    def.name().parent().unwrap().kind() == ArrayPattern ||
+                    ref_used_in_array_patterns
+                ) && destructured_array_ignore_pattern.matches(|destructured_array_ignore_pattern| {
+                    destructured_array_ignore_pattern.is_match(&def.name().text(context))
+                }) {
                     continue;
                 }
 
@@ -2021,9 +2023,9 @@ mod tests {
                         code => "(function ({ a, b }, { c } ) { return b; })();",
                         environment => { ecma_version => 2015 },
                         errors => [
-                            defined_error("a", None, None),
-                            defined_error("c", None, None)
-                        ]
+                            defined_error("a", None, Some(ShorthandPropertyIdentifierPattern)),
+                            defined_error("c", None, Some(ShorthandPropertyIdentifierPattern))
+                        ],
                     },
                     {
                         code => "(function ([ a ], b ) { return b; })();",
@@ -2046,7 +2048,7 @@ mod tests {
                         errors => [
                             defined_error("a", None, None),
                             defined_error("c", None, None)
-                        ]
+                        ],
                     },
 
                     // https://github.com/eslint/eslint/issues/9774
@@ -2081,8 +2083,7 @@ mod tests {
                         errors => [assigned_error("a", None, None)]
                     },
                     {
-                        code => "let myArray = [1,2,3,4].filter((x) => x == 0);
-                        myArray = myArray.filter((x) => x == 1);",
+                        code => "let myArray = [1,2,3,4].filter((x) => x == 0);\n    myArray = myArray.filter((x) => x == 1);",
                         environment => { ecma_version => 2015 },
                         errors => [assigned_error_builder("myArray", None, None).line(2).column(5).build().unwrap()],
                     },
@@ -2117,15 +2118,14 @@ mod tests {
                         errors => [assigned_error_builder("x", None, None).line(2).column(1).build().unwrap()],
                     },
                     {
-
                         code => "let a = 'a';
-                        a = 10;
-                        function foo(){
-                            a = 11;
-                            a = () => {
-                                a = 13
-                            }
-                        }",
+            a = 10;
+            function foo(){
+                a = 11;
+                a = () => {
+                    a = 13
+                }
+            }",
                         environment => { ecma_version => 2020 },
                         errors => [
                             assigned_error_builder("a", None, None).line(2).column(13).build().unwrap(),
@@ -2137,11 +2137,11 @@ mod tests {
                     },
                     {
                         code => "let foo;
-                        init();
-                        foo = foo + 2;
-                        function init() {
-                            foo = 1;
-                        }",
+            init();
+            foo = foo + 2;
+            function init() {
+                foo = 1;
+            }",
                         environment => { ecma_version => 2020 },
                         errors => [assigned_error_builder("foo", None, None).line(3).column(13).build().unwrap()],
                     },
@@ -2155,17 +2155,17 @@ mod tests {
                     },
                     {
                         code => "let c = 'c'
-                        c = 10
-                        function foo1() {
-                          c = 11
-                          c = () => {
-                            c = 13
-                          }
-                        }
+c = 10
+function foo1() {
+  c = 11
+  c = () => {
+    c = 13
+  }
+}
 
-                        c = foo1",
+c = foo1",
                         environment => { ecma_version => 2020 },
-                        errors => [assigned_error_builder("c", None, None).line(10).column(1).build().unwrap()]
+                        errors => [assigned_error_builder("c", None, None).line(10).column(1).build().unwrap()],
                     }
                 ]
             },
