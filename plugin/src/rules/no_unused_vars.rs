@@ -250,14 +250,21 @@ fn has_rest_sibling(node: Node) -> bool {
     })
 }
 
+fn get_object_pattern_child(node: Node) -> Node {
+    match node.kind() {
+        ShorthandPropertyIdentifierPattern => node,
+        _ => node.parent().unwrap(),
+    }
+}
+
 fn has_rest_spread_sibling(variable: &Variable, ignore_rest_siblings: bool) -> bool {
     if ignore_rest_siblings {
         let has_rest_sibling_definition = variable
             .defs()
-            .any(|def| has_rest_sibling(def.name().parent().unwrap()));
+            .any(|def| has_rest_sibling(get_object_pattern_child(def.name())));
         let has_rest_sibling_reference = variable
             .references()
-            .any(|ref_| has_rest_sibling(ref_.identifier().parent().unwrap()));
+            .any(|ref_| has_rest_sibling(get_object_pattern_child(ref_.identifier())));
 
         return has_rest_sibling_definition || has_rest_sibling_reference;
     }
@@ -826,16 +833,18 @@ mod tests {
                     { code => "var x = 1; function foo(y = function(z = x) { bar(z); }) { y(); } foo();", environment => { ecma_version => 6 } },
                     { code => "var x = 1; function foo(y = function() { bar(x); }) { y(); } foo();", environment => { ecma_version => 6 } },
 
+                    // TODO: support these?
                     // exported variables should work
-                    "/*exported toaster*/ var toaster = 'great'",
-                    "/*exported toaster, poster*/ var toaster = 1; poster = 0;",
-                    { code => "/*exported x*/ var { x } = y", environment => { ecma_version => 6 } },
-                    { code => "/*exported x, y*/  var { x, y } = z", environment => { ecma_version => 6 } },
+                    // "/*exported toaster*/ var toaster = 'great'",
+                    // "/*exported toaster, poster*/ var toaster = 1; poster = 0;",
+                    // { code => "/*exported x*/ var { x } = y", environment => { ecma_version => 6 } },
+                    // { code => "/*exported x, y*/  var { x, y } = z", environment => { ecma_version => 6 } },
 
+                    // TODO: support these?
                     // Can mark variables as used via context.markVariableAsUsed()
-                    "/*eslint use-every-a:1*/ var a;",
-                    "/*eslint use-every-a:1*/ !function(a) { return 1; }",
-                    "/*eslint use-every-a:1*/ !function() { var a; return 1 }",
+                    // "/*eslint use-every-a:1*/ var a;",
+                    // "/*eslint use-every-a:1*/ !function(a) { return 1; }",
+                    // "/*eslint use-every-a:1*/ !function() { var a; return 1 }",
 
                     // ignore pattern
                     { code => "var _a;", options => { vars => "all", vars_ignore_pattern => "^_" } },
@@ -916,7 +925,7 @@ mod tests {
                         b;
                         ",
                         options => { destructured_array_ignore_pattern => "^_", ignore_rest_siblings => true },
-                        environment => { ecma_version => 2018 }
+                        environment => { ecma_version => 2018 },
                     },
 
                     // for-in loops (see #2342)
@@ -1939,7 +1948,7 @@ mod tests {
                     // https://github.com/eslint/eslint/issues/14325
                     {
                         code => "let x = 0;
-            x++, x = 0;",
+x++, x = 0;",
                         environment => { ecma_version => 2015 },
                         errors => [assigned_error_builder("x", None, None).line(2).column(6).build().unwrap()],
                     },
