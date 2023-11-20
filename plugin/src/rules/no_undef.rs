@@ -29,7 +29,7 @@ pub fn no_undef_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             consider_typeof: bool = options.typeof_,
         },
         listeners => [

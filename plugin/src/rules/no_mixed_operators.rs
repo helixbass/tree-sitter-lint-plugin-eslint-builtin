@@ -169,7 +169,7 @@ pub fn no_mixed_operators_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_same_precedence: bool = options.allow_same_precedence,
             groups: Vec<Vec<Cow<'static, str>>> = options.groups,
         },

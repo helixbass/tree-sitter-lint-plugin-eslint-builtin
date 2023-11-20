@@ -44,7 +44,7 @@ pub fn no_plusplus_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_for_loop_afterthoughts: bool = options.allow_for_loop_afterthoughts,
         },
         listeners => [

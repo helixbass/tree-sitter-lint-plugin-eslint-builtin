@@ -114,7 +114,7 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             target_loop_kinds: HashSet<Kind> = get_difference(&ALL_LOOP_TYPES, &options.ignore),
 
             [per-file-run]

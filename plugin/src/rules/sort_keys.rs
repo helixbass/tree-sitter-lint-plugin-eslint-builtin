@@ -152,7 +152,7 @@ pub fn sort_keys_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             order: Direction = options.direction,
             insensitive: bool = !options.case_sensitive,
             natural: bool = options.natural,

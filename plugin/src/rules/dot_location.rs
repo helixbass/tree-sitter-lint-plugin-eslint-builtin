@@ -24,7 +24,7 @@ pub fn dot_location_rule() -> Arc<dyn Rule> {
         fixable => true,
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             on_object: bool = options == Options::Object,
         },
         listeners => [

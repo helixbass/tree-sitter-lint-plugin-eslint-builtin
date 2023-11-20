@@ -18,7 +18,7 @@ pub fn no_unsafe_negation_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             enforce_for_ordering_relations: bool = options.enforce_for_ordering_relations,
         },
         listeners => [

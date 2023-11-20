@@ -188,7 +188,7 @@ pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             check_get_without_set: bool = options.get_without_set,
             check_set_without_get: bool = options.set_without_get,
             enforce_for_class_members: bool = options.enforce_for_class_members,

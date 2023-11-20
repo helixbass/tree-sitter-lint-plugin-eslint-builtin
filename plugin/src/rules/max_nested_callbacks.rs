@@ -49,7 +49,7 @@ pub fn max_nested_callbacks_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             threshold: usize = options.max(),
 
             [per-file-run]

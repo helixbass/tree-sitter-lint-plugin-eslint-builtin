@@ -18,7 +18,7 @@ pub fn no_multi_assign_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             ignore_non_declaration: bool = options.ignore_non_declaration,
         },
         listeners => [

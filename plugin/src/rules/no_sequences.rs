@@ -67,7 +67,7 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_in_parentheses: bool = options.allow_in_parentheses,
         },
         listeners => [

@@ -84,7 +84,7 @@ pub fn line_comment_position_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             above: bool = options.above(),
             ignore_pattern: Option<Regex> = options.ignore_pattern(),
             apply_default_ignore_patterns: bool = options.apply_default_ignore_patterns(),

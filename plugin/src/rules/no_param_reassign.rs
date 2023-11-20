@@ -145,7 +145,7 @@ pub fn no_param_reassign_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             props: bool = options.props,
             ignored_property_assignments_for: HashSet<String> = options.ignore_property_modifications_for.iter().cloned().collect(),
             ignored_property_assignments_for_regex: Vec<Regex> = options.ignore_property_modifications_for_regex,

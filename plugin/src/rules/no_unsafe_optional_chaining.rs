@@ -64,7 +64,7 @@ pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             // disallow_arithmetic_operators: bool = options.disallow_arithmetic_operators,
             disallow_arithmetic_operators: bool = {
                 options.disallow_arithmetic_operators

@@ -78,7 +78,7 @@ pub fn complexity_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             threshold: usize = options.max(),
             [per-file-run]
             complexities: HashMap<Id<CodePath<'a>>, (usize, Node<'a>, CodePathOrigin)>,

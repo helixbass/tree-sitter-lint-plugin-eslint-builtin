@@ -149,7 +149,7 @@ pub fn no_self_assign_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             props: bool = options.props,
         },
         listeners => [

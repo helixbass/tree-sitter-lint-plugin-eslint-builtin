@@ -101,7 +101,7 @@ pub fn no_unneeded_ternary_rule() -> Arc<dyn Rule> {
         fixable => true,
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             default_assignment: bool = options.default_assignment,
         },
         listeners => [

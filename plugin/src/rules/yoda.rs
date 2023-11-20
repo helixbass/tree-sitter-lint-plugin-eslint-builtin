@@ -296,7 +296,7 @@ pub fn yoda_rule() -> Arc<dyn Rule> {
         fixable => true,
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             always: bool = options.always_never == AlwaysNever::Always,
             except_range: bool = options.except_range,
             only_equality: bool = options.only_equality,

@@ -25,7 +25,7 @@ pub fn default_case_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             comment_pattern: Cow<'static, Regex> = options.comment_pattern.map_or_else(
                 || Cow::Borrowed(&*DEFAULT_COMMENT_PATTERN),
                 |comment_pattern| Cow::Owned(Regex::new(&comment_pattern).unwrap())

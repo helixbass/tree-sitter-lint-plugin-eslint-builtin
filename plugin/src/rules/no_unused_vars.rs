@@ -489,7 +489,7 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             vars: Vars = options.vars(),
             vars_ignore_pattern: Option<Regex> = options.vars_ignore_pattern(),
             args: Args = options.args(),

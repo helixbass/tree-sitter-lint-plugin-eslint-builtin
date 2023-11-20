@@ -167,7 +167,7 @@ pub fn no_restricted_properties_rule() -> Arc<dyn Rule> {
         ],
         options_type => Vec<RestrictedCallSpec>,
         state => {
-            [per-run]
+            [per-config]
             is_configuration_empty: bool = options.is_empty(),
             restricted_properties: RestrictedProperties =
                 get_restricted_properties(&options),

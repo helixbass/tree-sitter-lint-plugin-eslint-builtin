@@ -147,7 +147,7 @@ pub fn max_statements_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             max_statements: usize = options.max,
             ignore_top_level_functions: bool = options.ignore_top_level_functions,
 

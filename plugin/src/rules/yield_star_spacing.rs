@@ -117,7 +117,7 @@ pub fn yield_star_spacing_rule() -> Arc<dyn Rule> {
         fixable => true,
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             before: bool = options.before(),
             after: bool = options.after(),
         },

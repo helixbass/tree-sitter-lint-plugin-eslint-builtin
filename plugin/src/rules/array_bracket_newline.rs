@@ -207,7 +207,7 @@ pub fn array_bracket_newline_rule() -> Arc<dyn Rule> {
         allow_self_conflicting_fixes => true,
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             consistent: bool = options.consistent(),
             multiline: bool = options.multiline(),
             min_items: usize = options.min_items(),

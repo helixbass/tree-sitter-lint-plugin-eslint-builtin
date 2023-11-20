@@ -90,7 +90,7 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             comment_pattern: Regex = options.comment_pattern.clone(),
             allow_empty_case: bool = options.allow_empty_case,
 

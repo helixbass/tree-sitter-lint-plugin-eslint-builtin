@@ -66,7 +66,7 @@ pub fn no_inner_declarations_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             both: bool = options == Options::Both,
         },
         listeners => [

@@ -106,7 +106,7 @@ pub fn getter_return_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_implicit: bool = options.allow_implicit,
 
             [per-file-run]

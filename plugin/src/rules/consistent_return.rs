@@ -44,7 +44,7 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             treat_undefined_as_unspecified: bool = options.treat_undefined_as_unspecified,
 
             [per-file-run]

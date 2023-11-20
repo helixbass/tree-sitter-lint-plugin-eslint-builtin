@@ -128,7 +128,7 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_implicit: bool = options.allow_implicit,
             check_for_each: bool = options.check_for_each,
         },

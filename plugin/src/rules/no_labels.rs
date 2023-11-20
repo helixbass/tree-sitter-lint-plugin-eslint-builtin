@@ -65,7 +65,7 @@ pub fn no_labels_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_loop: bool = options.allow_loop,
             allow_switch: bool = options.allow_switch,
 

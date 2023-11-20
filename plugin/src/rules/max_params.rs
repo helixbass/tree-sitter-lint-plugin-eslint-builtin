@@ -51,7 +51,7 @@ pub fn max_params_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             num_params: usize = options.max(),
         },
         listeners => [

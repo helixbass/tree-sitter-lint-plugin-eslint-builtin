@@ -77,7 +77,7 @@ pub fn no_cond_assign_rule() -> Arc<dyn Rule> {
         ],
         options_type => ProhibitAssign,
         state => {
-            [per-run]
+            [per-config]
             prohibit_assign: ProhibitAssign = options,
         },
         listeners => [

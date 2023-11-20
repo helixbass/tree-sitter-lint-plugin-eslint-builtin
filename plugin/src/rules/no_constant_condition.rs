@@ -58,7 +58,7 @@ pub fn no_constant_condition_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             check_loops: bool = options.check_loops,
 
             [per-file-run]

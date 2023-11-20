@@ -28,7 +28,7 @@ pub fn no_return_assign_rule() -> Arc<dyn Rule> {
         ],
         options_type => Always,
         state => {
-            [per-run]
+            [per-config]
             always: bool = options != Always::ExceptParens,
         },
         listeners => [

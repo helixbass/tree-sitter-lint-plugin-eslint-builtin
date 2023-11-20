@@ -213,7 +213,7 @@ pub fn space_unary_ops_rule() -> Arc<dyn Rule> {
         fixable => true,
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             words: bool = options.words,
             nonwords: bool = options.nonwords,
             overrides: Overrides = options.overrides,

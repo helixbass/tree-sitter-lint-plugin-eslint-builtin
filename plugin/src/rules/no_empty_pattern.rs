@@ -21,7 +21,7 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
         ],
         options_type => Options,
         state => {
-            [per-run]
+            [per-config]
             allow_object_patterns_as_parameters: bool = options.allow_object_patterns_as_parameters,
         },
         listeners => [
