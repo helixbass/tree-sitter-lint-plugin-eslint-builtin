@@ -174,157 +174,6 @@ impl<'a> From<CowStrOrVecNode<'a>> for FoundAccessors<'a> {
     }
 }
 
-fn check_list<'a>(
-    nodes: impl Iterator<Item = Node<'a>>,
-    check_set_without_get: bool,
-    check_get_without_set: bool,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    let mut accessors: Vec<FoundAccessors> = Default::default();
-
-    for node in nodes {
-        let accessor_kind = get_method_definition_kind(node, context);
-        if !matches!(
-            accessor_kind,
-            MethodDefinitionKind::Get | MethodDefinitionKind::Set
-        ) {
-            continue;
-        }
-
-        let name = ast_utils::get_static_property_name(node, context);
-        let key: CowStrOrVecNode<'a> = name.map_or_else(
-            || {
-                context
-                    .get_tokens(
-                        node.field("name").thrush(|name| match name.kind() {
-                            ComputedPropertyName => name
-                                .first_non_comment_named_child(SupportedLanguage::Javascript)
-                                .skip_parentheses(),
-                            _ => name,
-                        }),
-                        Option::<fn(Node) -> bool>::None,
-                    )
-                    .collect_vec()
-                    .into()
-            },
-            Into::into,
-        );
-
-        let accessor = if let Some(index) = accessors
-            .iter()
-            .position(|accessor| are_equal_keys(&accessor.key, &key, context))
-        {
-            &mut accessors[index]
-        } else {
-            accessors.push(key.into());
-            accessors.last_mut().unwrap()
-        };
-        match accessor_kind {
-            MethodDefinitionKind::Get => accessor.getters.push(node),
-            MethodDefinitionKind::Set => accessor.setters.push(node),
-            _ => unreachable!(),
-        }
-    }
-
-    for FoundAccessors {
-        getters, setters, ..
-    } in accessors
-    {
-        if check_set_without_get && !setters.is_empty() && getters.is_empty() {
-            report_list(&setters, "missing_getter", context);
-        }
-        if check_get_without_set && !getters.is_empty() && setters.is_empty() {
-            report_list(&getters, "missing_setter", context);
-        }
-    }
-}
-
-fn check_object_literal<'a>(
-    node: Node<'a>,
-    check_set_without_get: bool,
-    check_get_without_set: bool,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    check_list(
-        node.non_comment_named_children(SupportedLanguage::Javascript)
-            .filter(|child| child.kind() == MethodDefinition),
-        check_set_without_get,
-        check_get_without_set,
-        context,
-    );
-}
-
-fn check_property_descriptor<'a>(
-    node: Node<'a>,
-    check_set_without_get: bool,
-    check_get_without_set: bool,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    let names_to_check: HashSet<Cow<'_, str>> = node
-        .non_comment_named_children(SupportedLanguage::Javascript)
-        .filter_map(|child| {
-            (child.kind() == Pair).then_and(|| {
-                child
-                    .field("key")
-                    .when(|key| key.kind() == PropertyIdentifier)
-                    .map(|key| key.text(context))
-            })
-        })
-        .collect();
-
-    let has_getter = names_to_check.contains("get");
-    let has_setter = names_to_check.contains("set");
-
-    if check_set_without_get && has_setter && !has_getter {
-        report(node, "missing_getter", context);
-    }
-    if check_get_without_set && has_getter && !has_setter {
-        report(node, "missing_setter", context);
-    }
-}
-
-fn check_class_body<'a>(
-    node: Node<'a>,
-    check_set_without_get: bool,
-    check_get_without_set: bool,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    let method_definitions = node
-        .non_comment_named_children(SupportedLanguage::Javascript)
-        .filter(|child| child.kind() == MethodDefinition)
-        .collect_vec();
-    check_list(
-        method_definitions
-            .iter()
-            .filter(|&&m| is_class_member_static(m, context))
-            .copied(),
-        check_set_without_get,
-        check_get_without_set,
-        context,
-    );
-    check_list(
-        method_definitions
-            .iter()
-            .filter(|&&m| !is_class_member_static(m, context))
-            .copied(),
-        check_set_without_get,
-        check_get_without_set,
-        context,
-    );
-}
-
-fn check_object_expression<'a>(
-    node: Node<'a>,
-    check_set_without_get: bool,
-    check_get_without_set: bool,
-    context: &QueryMatchContext<'a, '_>,
-) {
-    check_object_literal(node, check_set_without_get, check_get_without_set, context);
-    if is_property_descriptor(node, context) {
-        check_property_descriptor(node, check_set_without_get, check_get_without_set, context);
-    }
-}
-
 pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
     rule! {
         name => "accessor-pairs",
@@ -344,6 +193,147 @@ pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
             check_set_without_get: bool = options.set_without_get,
             enforce_for_class_members: bool = options.enforce_for_class_members,
         },
+        methods => {
+            fn check_list(
+                &self,
+                nodes: impl Iterator<Item = Node<'a>>,
+                context: &QueryMatchContext<'a, '_>,
+            ) {
+                let mut accessors: Vec<FoundAccessors> = Default::default();
+
+                for node in nodes {
+                    let accessor_kind = get_method_definition_kind(node, context);
+                    if !matches!(
+                        accessor_kind,
+                        MethodDefinitionKind::Get | MethodDefinitionKind::Set
+                    ) {
+                        continue;
+                    }
+
+                    let name = ast_utils::get_static_property_name(node, context);
+                    let key: CowStrOrVecNode<'a> = name.map_or_else(
+                        || {
+                            context
+                                .get_tokens(
+                                    node.field("name").thrush(|name| match name.kind() {
+                                        ComputedPropertyName => name
+                                            .first_non_comment_named_child(SupportedLanguage::Javascript)
+                                            .skip_parentheses(),
+                                        _ => name,
+                                    }),
+                                    Option::<fn(Node) -> bool>::None,
+                                )
+                                .collect_vec()
+                                .into()
+                        },
+                        Into::into,
+                    );
+
+                    let accessor = if let Some(index) = accessors
+                        .iter()
+                        .position(|accessor| are_equal_keys(&accessor.key, &key, context))
+                    {
+                        &mut accessors[index]
+                    } else {
+                        accessors.push(key.into());
+                        accessors.last_mut().unwrap()
+                    };
+                    match accessor_kind {
+                        MethodDefinitionKind::Get => accessor.getters.push(node),
+                        MethodDefinitionKind::Set => accessor.setters.push(node),
+                        _ => unreachable!(),
+                    }
+                }
+
+                for FoundAccessors {
+                    getters, setters, ..
+                } in accessors
+                {
+                    if self.check_set_without_get && !setters.is_empty() && getters.is_empty() {
+                        report_list(&setters, "missing_getter", context);
+                    }
+                    if self.check_get_without_set && !getters.is_empty() && setters.is_empty() {
+                        report_list(&getters, "missing_setter", context);
+                    }
+                }
+            }
+
+            fn check_object_literal(
+                &self,
+                node: Node<'a>,
+                context: &QueryMatchContext<'a, '_>,
+            ) {
+                self.check_list(
+                    node.non_comment_named_children(SupportedLanguage::Javascript)
+                        .filter(|child| child.kind() == MethodDefinition),
+                    context,
+                );
+            }
+
+            fn check_property_descriptor(
+                &self,
+                node: Node<'a>,
+                context: &QueryMatchContext<'a, '_>,
+            ) {
+                let names_to_check: HashSet<Cow<'_, str>> = node
+                    .non_comment_named_children(SupportedLanguage::Javascript)
+                    .filter_map(|child| {
+                        (child.kind() == Pair).then_and(|| {
+                            child
+                                .field("key")
+                                .when(|key| key.kind() == PropertyIdentifier)
+                                .map(|key| key.text(context))
+                        })
+                    })
+                    .collect();
+
+                let has_getter = names_to_check.contains("get");
+                let has_setter = names_to_check.contains("set");
+
+                if self.check_set_without_get && has_setter && !has_getter {
+                    report(node, "missing_getter", context);
+                }
+                if self.check_get_without_set && has_getter && !has_setter {
+                    report(node, "missing_setter", context);
+                }
+            }
+
+            fn check_class_body(
+                &self,
+                node: Node<'a>,
+                context: &QueryMatchContext<'a, '_>,
+            ) {
+                let method_definitions = node
+                    .non_comment_named_children(SupportedLanguage::Javascript)
+                    .filter(|child| child.kind() == MethodDefinition)
+                    .collect_vec();
+                self.check_list(
+                    method_definitions
+                        .iter()
+                        .filter(|&&m| is_class_member_static(m, context))
+                        .copied(),
+                    context,
+                );
+                self.check_list(
+                    method_definitions
+                        .iter()
+                        .filter(|&&m| !is_class_member_static(m, context))
+                        .copied(),
+                    context,
+                );
+            }
+
+            fn check_object_expression(
+                &self,
+                node: Node<'a>,
+                context: &QueryMatchContext<'a, '_>,
+            ) {
+                self.check_object_literal(node, context);
+                if is_property_descriptor(node, context) {
+                    self.check_property_descriptor(node, context);
+                }
+            }
+        },
         listeners => [
             r#"
               (object) @c
@@ -351,7 +341,7 @@ pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
                 if !(self.check_set_without_get || self.check_get_without_set) {
                     return;
                 }
-                check_object_expression(node, self.check_set_without_get, self.check_get_without_set, context);
+                self.check_object_expression(node, context);
             },
             r#"
               (class_body) @c
@@ -359,7 +349,7 @@ pub fn accessor_pairs_rule() -> Arc<dyn Rule> {
                 if !self.enforce_for_class_members {
                     return;
                 }
-                check_class_body(node, self.check_set_without_get, self.check_get_without_set, context);
+                self.check_class_body(node, context);
             },
         ],
     }
