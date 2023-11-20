@@ -479,115 +479,6 @@ fn is_after_last_used_arg<'a>(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn collect_unused_variables<'a, 'b>(
-    scope: Scope<'a, 'b>,
-    unused_vars: &mut Vec<Variable<'a, 'b>>,
-    vars: Vars,
-    destructured_array_ignore_pattern: Option<&Regex>,
-    caught_errors: CaughtErrors,
-    caught_errors_ignore_pattern: Option<&Regex>,
-    args: Args,
-    args_ignore_pattern: Option<&Regex>,
-    vars_ignore_pattern: Option<&Regex>,
-    ignore_rest_siblings: bool,
-    context: &QueryMatchContext,
-    scope_manager: &ScopeManager<'a>,
-) {
-    if scope.type_() != ScopeType::Global || vars == Vars::All {
-        for variable in scope
-            .variables()
-            .filter(|variable| !(
-                scope.type_() == ScopeType::Class && scope.block().child_by_field_name("name") == variable.identifiers().next() ||
-                scope.function_expression_scope() ||
-                // variable.eslintUsed ||
-                scope.type_() == ScopeType::Function && variable.name() == "arguments" && variable.identifiers().next().is_none()
-            ))
-        {
-            let def = variable.defs().next();
-
-            if let Some(def) = def {
-                let type_ = def.type_();
-                let ref_used_in_array_patterns = variable.references().any(|ref_| ref_.identifier().parent().unwrap().kind() == ArrayPattern);
-
-                if (
-                    def.name().parent().unwrap().kind() == ArrayPattern ||
-                    ref_used_in_array_patterns
-                ) && destructured_array_ignore_pattern.matches(|destructured_array_ignore_pattern| {
-                    destructured_array_ignore_pattern.is_match(&def.name().text(context))
-                }) {
-                    continue;
-                }
-
-                if type_ == VariableType::CatchClause {
-                    if caught_errors == CaughtErrors::None {
-                        continue;
-                    }
-
-                    if caught_errors_ignore_pattern.matches(|caught_errors_ignore_pattern| {
-                        caught_errors_ignore_pattern.is_match(&def.name().text(context))
-                    }) {
-                        continue;
-                    }
-                }
-
-                #[allow(clippy::collapsible_else_if)]
-                if type_ == VariableType::Parameter {
-                    if def.node().thrush(|def_node| {
-                        def_node.kind() == MethodDefinition &&
-                            get_method_definition_kind(def_node, context) == MethodDefinitionKind::Set
-                    }) {
-                        continue;
-                    }
-
-                    if args == Args::None {
-                        continue;
-                    }
-
-                    if args_ignore_pattern.matches(|args_ignore_pattern| {
-                        args_ignore_pattern.is_match(&def.name().text(context))
-                    }) {
-                        continue;
-                    }
-
-                    if args == Args::AfterUsed &&
-                        def.name().parent().unwrap().kind() == FormalParameters &&
-                        !is_after_last_used_arg(&variable, scope_manager)
-                    {
-                        continue;
-                    }
-                } else {
-                    if vars_ignore_pattern.matches(|vars_ignore_pattern| {
-                        vars_ignore_pattern.is_match(&def.name().text(context))
-                    }) {
-                        continue;
-                    }
-                }
-            }
-
-            if !is_used_variable(&variable) && !is_exported(&variable) && !has_rest_spread_sibling(&variable, ignore_rest_siblings) {
-                unused_vars.push(variable);
-            }
-        }
-    }
-
-    for child_scope in scope.child_scopes() {
-        collect_unused_variables(
-            child_scope,
-            unused_vars,
-            vars,
-            destructured_array_ignore_pattern,
-            caught_errors,
-            caught_errors_ignore_pattern,
-            args,
-            args_ignore_pattern,
-            vars_ignore_pattern,
-            ignore_rest_siblings,
-            context,
-            scope_manager,
-        );
-    }
-}
 
 pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
     rule! {
@@ -608,22 +499,109 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
             caught_errors_ignore_pattern: Option<Regex> = options.caught_errors_ignore_pattern(),
             destructured_array_ignore_pattern: Option<Regex> = options.destructured_array_ignore_pattern(),
         },
+        methods => {
+            fn collect_unused_variables<'b>(
+                &self,
+                scope: Scope<'a, 'b>,
+                unused_vars: &mut Vec<Variable<'a, 'b>>,
+                context: &QueryMatchContext,
+                scope_manager: &ScopeManager<'a>,
+            ) {
+                if scope.type_() != ScopeType::Global || self.vars == Vars::All {
+                    for variable in scope
+                        .variables()
+                        .filter(|variable| !(
+                            scope.type_() == ScopeType::Class && scope.block().child_by_field_name("name") == variable.identifiers().next() ||
+                            scope.function_expression_scope() ||
+                            // variable.eslintUsed ||
+                            scope.type_() == ScopeType::Function && variable.name() == "arguments" && variable.identifiers().next().is_none()
+                        ))
+                    {
+                        let def = variable.defs().next();
+
+                        if let Some(def) = def {
+                            let type_ = def.type_();
+                            let ref_used_in_array_patterns = variable.references().any(|ref_| ref_.identifier().parent().unwrap().kind() == ArrayPattern);
+
+                            if (
+                                def.name().parent().unwrap().kind() == ArrayPattern ||
+                                ref_used_in_array_patterns
+                            ) && self.destructured_array_ignore_pattern.as_ref().matches(|destructured_array_ignore_pattern| {
+                                destructured_array_ignore_pattern.is_match(&def.name().text(context))
+                            }) {
+                                continue;
+                            }
+
+                            if type_ == VariableType::CatchClause {
+                                if self.caught_errors == CaughtErrors::None {
+                                    continue;
+                                }
+
+                                if self.caught_errors_ignore_pattern.as_ref().matches(|caught_errors_ignore_pattern| {
+                                    caught_errors_ignore_pattern.is_match(&def.name().text(context))
+                                }) {
+                                    continue;
+                                }
+                            }
+
+                            #[allow(clippy::collapsible_else_if)]
+                            if type_ == VariableType::Parameter {
+                                if def.node().thrush(|def_node| {
+                                    def_node.kind() == MethodDefinition &&
+                                        get_method_definition_kind(def_node, context) == MethodDefinitionKind::Set
+                                }) {
+                                    continue;
+                                }
+
+                                if self.args == Args::None {
+                                    continue;
+                                }
+
+                                if self.args_ignore_pattern.as_ref().matches(|args_ignore_pattern| {
+                                    args_ignore_pattern.is_match(&def.name().text(context))
+                                }) {
+                                    continue;
+                                }
+
+                                if self.args == Args::AfterUsed &&
+                                    def.name().parent().unwrap().kind() == FormalParameters &&
+                                    !is_after_last_used_arg(&variable, scope_manager)
+                                {
+                                    continue;
+                                }
+                            } else {
+                                if self.vars_ignore_pattern.as_ref().matches(|vars_ignore_pattern| {
+                                    vars_ignore_pattern.is_match(&def.name().text(context))
+                                }) {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if !is_used_variable(&variable) && !is_exported(&variable) && !has_rest_spread_sibling(&variable, self.ignore_rest_siblings) {
+                            unused_vars.push(variable);
+                        }
+                    }
+                }
+
+                for child_scope in scope.child_scopes() {
+                    self.collect_unused_variables(
+                        child_scope,
+                        unused_vars,
+                        context,
+                        scope_manager,
+                    );
+                }
+            }
+        },
         listeners => [
             r#"program:exit"# => |node, context| {
                 let program_node = node;
                 let scope_manager = context.retrieve::<ScopeManager<'a>>();
                 let mut unused_vars: Vec<Variable<'a, '_>> = Default::default();
-                collect_unused_variables(
+                self.collect_unused_variables(
                     scope_manager.get_scope(program_node),
                     &mut unused_vars,
-                    self.vars,
-                    self.destructured_array_ignore_pattern.as_ref(),
-                    self.caught_errors,
-                    self.caught_errors_ignore_pattern.as_ref(),
-                    self.args,
-                    self.args_ignore_pattern.as_ref(),
-                    self.vars_ignore_pattern.as_ref(),
-                    self.ignore_rest_siblings,
                     context,
                     scope_manager,
                 );
