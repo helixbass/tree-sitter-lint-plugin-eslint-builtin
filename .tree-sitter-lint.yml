@@ -13,6 +13,9 @@ rules:
         get_instance_provider_factory:
           module: crate
           kind: function
+        assert_kind:
+          module: crate
+          kind: macro
         AllComments:
           module: crate::all_comments
           kind: type
