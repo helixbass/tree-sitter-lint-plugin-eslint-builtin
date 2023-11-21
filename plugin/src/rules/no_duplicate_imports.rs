@@ -10,6 +10,7 @@ use tree_sitter_lint::{
 
 use crate::{
     assert_kind,
+    ast_helpers::is_default_import_declaration,
     kind::{
         ExportClause, ExportSpecifier, ExportStatement, ImportClause, ImportSpecifier,
         ImportStatement, NamedImports, NamespaceExport, NamespaceImport,
@@ -41,6 +42,7 @@ enum ImportExportType {
     ImportNamespaceSpecifier,
     ImportSpecifier,
     ExportSpecifier,
+    ImportDefaultSpecifier,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -73,11 +75,16 @@ fn get_specifiers(node: Node) -> Option<Vec<Node>> {
             .first_non_comment_named_child(SupportedLanguage::Javascript)
             .when(|child| child.kind() == ImportClause)
             .and_then(|import_clause| {
-                import_clause.maybe_first_child_of_kind(NamedImports)
-                    .map(|named_imports| named_imports.children_of_kind(ImportSpecifier).collect_vec())
+                import_clause
+                    .maybe_first_child_of_kind(NamedImports)
+                    .map(|named_imports| {
+                        named_imports
+                            .children_of_kind(ImportSpecifier)
+                            .collect_vec()
+                    })
                     .or_else(|| {
-                        import_clause.first_non_comment_named_child(SupportedLanguage::Javascript)
-                            .when(|child| child.kind() == NamespaceImport)
+                        import_clause
+                            .maybe_first_child_of_kind(NamespaceImport)
                             .map(|namespace_import| vec![namespace_import])
                     })
             }),
@@ -111,9 +118,7 @@ fn specifier_to_import_export_type(node: Node) -> ImportExportType {
 }
 
 fn get_import_export_type(node: Node) -> ImportExportType {
-    if let Some(node_specifiers) = get_specifiers(node)
-        .non_empty()
-    {
+    if let Some(node_specifiers) = get_specifiers(node).non_empty() {
         return node_specifiers
             .iter()
             .find(|&specifier| {
@@ -125,6 +130,9 @@ fn get_import_export_type(node: Node) -> ImportExportType {
             .copied()
             .unwrap_or(node_specifiers[0])
             .thrush(specifier_to_import_export_type);
+    }
+    if is_default_import_declaration(node) {
+        return ImportExportType::ImportDefaultSpecifier;
     }
     if is_export_all_declaration(node) {
         return match get_export_all_namespace_export_or_star(node)
@@ -204,7 +212,7 @@ pub fn no_duplicate_imports_rule() -> Arc<dyn Rule> {
             include_exports: bool = options.include_exports,
 
             [per-file-run]
-            modules: HashMap<String, Vec<ModuleSpec<'a>>>,
+            modules: HashMap<Cow<'a, str>, Vec<ModuleSpec<'a>>>,
         },
         methods => {
             fn check_and_report(&self, context: &QueryMatchContext, node: Node, declaration_type: ImportOrExport, module: &str) {
@@ -255,6 +263,10 @@ pub fn no_duplicate_imports_rule() -> Arc<dyn Rule> {
                     self.check_and_report(
                         context, node, declaration_type, &module,
                     );
+                    self.modules.entry(module).or_default().push(ModuleSpec {
+                        node,
+                        declaration_type,
+                    });
                 }
             }
         },
@@ -263,6 +275,14 @@ pub fn no_duplicate_imports_rule() -> Arc<dyn Rule> {
               (import_statement) @c
             "# => |node, context| {
                 self.handle_imports_exports(node, context, ImportOrExport::Import);
+            },
+            r#"
+              (export_statement) @c
+            "# => |node, context| {
+                if !self.include_exports {
+                    return;
+                }
+                self.handle_imports_exports(node, context, ImportOrExport::Export);
             },
         ],
     }
@@ -275,7 +295,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_no_debugger_rule() {
+    fn test_no_duplicate_imports_rule() {
         RuleTester::run(
             no_duplicate_imports_rule(),
             rule_tests! {
@@ -323,7 +343,7 @@ mod tests {
                     },
                     {
                         code => "import os from \"os\";\nexport * from \"os\";",
-                        options => { include_exports => true }
+                        options => { include_exports => true },
                     },
                     {
                         code => "export { something } from \"os\";\nexport * from \"os\";",
@@ -333,70 +353,70 @@ mod tests {
                 invalid => [
                     {
                         code => "import \"fs\";\nimport \"fs\"",
-                        errors => [{ message_id => "import", data => { module => "fs" }, type => "ImportDeclaration" }]
+                        errors => [{ message_id => "import", data => { module => "fs" }, type => ImportStatement }],
                     },
                     {
                         code => "import { merge } from \"lodash-es\";\nimport { find } from \"lodash-es\";",
-                        errors => [{ message_id => "import", data => { module => "lodash-es" }, type => "ImportDeclaration" }]
+                        errors => [{ message_id => "import", data => { module => "lodash-es" }, type => ImportStatement }]
                     },
                     {
                         code => "import { merge } from \"lodash-es\";\nimport _ from \"lodash-es\";",
-                        errors => [{ message_id => "import", data => { module => "lodash-es" }, type => "ImportDeclaration" }]
+                        errors => [{ message_id => "import", data => { module => "lodash-es" }, type => ImportStatement }]
                     },
                     {
                         code => "import os from \"os\";\nimport { something } from \"os\";\nimport * as foobar from \"os\";",
                         errors => [
-                            { message_id => "import", data => { module => "os" }, type => "ImportDeclaration" },
-                            { message_id => "import", data => { module => "os" }, type => "ImportDeclaration" }
+                            { message_id => "import", data => { module => "os" }, type => ImportStatement },
+                            { message_id => "import", data => { module => "os" }, type => ImportStatement }
                         ]
                     },
                     {
                         code => "import * as modns from \"lodash-es\";\nimport { merge } from \"lodash-es\";\nimport { baz } from \"lodash-es\";",
-                        errors => [{ message_id => "import", data => { module => "lodash-es" }, type => "ImportDeclaration" }]
+                        errors => [{ message_id => "import", data => { module => "lodash-es" }, type => ImportStatement }]
                     },
                     {
                         code => "export { os } from \"os\";\nexport { something } from \"os\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "export", data => { module => "os" }, type => "ExportNamedDeclaration" }]
+                        errors => [{ message_id => "export", data => { module => "os" }, type => ExportStatement }],
                     },
                     {
                         code => "import os from \"os\";\nexport { os as foobar } from \"os\";\nexport { something } from \"os\";",
                         options => { include_exports => true },
                         errors => [
-                            { message_id => "export_as", data => { module => "os" }, type => "ExportNamedDeclaration" },
-                            { message_id => "export", data => { module => "os" }, type => "ExportNamedDeclaration" },
-                            { message_id => "export_as", data => { module => "os" }, type => "ExportNamedDeclaration" }
+                            { message_id => "export_as", data => { module => "os" }, type => ExportStatement },
+                            { message_id => "export", data => { module => "os" }, type => ExportStatement },
+                            { message_id => "export_as", data => { module => "os" }, type => ExportStatement }
                         ]
                     },
                     {
                         code => "import os from \"os\";\nexport { something } from \"os\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "export_as", data => { module => "os" }, type => "ExportNamedDeclaration" }]
+                        errors => [{ message_id => "export_as", data => { module => "os" }, type => ExportStatement }]
                     },
                     {
                         code => "import os from \"os\";\nexport * as os from \"os\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "export_as", data => { module => "os" }, type => "ExportAllDeclaration" }]
+                        errors => [{ message_id => "export_as", data => { module => "os" }, type => ExportStatement }]
                     },
                     {
                         code => "export * as os from \"os\";\nimport os from \"os\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "import_as", data => { module => "os" }, type => "ImportDeclaration" }]
+                        errors => [{ message_id => "import_as", data => { module => "os" }, type => ImportStatement }]
                     },
                     {
                         code => "import * as modns from \"mod\";\nexport * as  modns from \"mod\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "export_as", data => { module => "mod" }, type => "ExportAllDeclaration" }]
+                        errors => [{ message_id => "export_as", data => { module => "mod" }, type => ExportStatement }]
                     },
                     {
                         code => "export * from \"os\";\nexport * from \"os\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "export", data => { module => "os" }, type => "ExportAllDeclaration" }]
+                        errors => [{ message_id => "export", data => { module => "os" }, type => ExportStatement }]
                     },
                     {
                         code => "import \"os\";\nexport * from \"os\";",
                         options => { include_exports => true },
-                        errors => [{ message_id => "export_as", data => { module => "os" }, type => "ExportAllDeclaration" }]
+                        errors => [{ message_id => "export_as", data => { module => "os" }, type => ExportStatement }]
                     }
                 ]
             },

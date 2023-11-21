@@ -23,9 +23,10 @@ use crate::{
 mod number;
 
 pub use number::{get_number_literal_string_value, get_number_literal_value, Number};
+use squalid::EverythingExt;
 use tree_sitter_lint::tree_sitter::Tree;
 
-use crate::kind::{JsxOpeningElement, JsxSelfClosingElement};
+use crate::kind::{ImportStatement, JsxOpeningElement, JsxSelfClosingElement};
 
 #[macro_export]
 macro_rules! assert_kind {
@@ -480,6 +481,19 @@ pub fn maybe_get_directive<'a>(
 #[allow(dead_code)]
 pub fn is_default_import(node: Node) -> bool {
     node.kind() == Identifier && node.parent().unwrap().kind() == ImportClause
+}
+
+pub fn is_default_import_declaration(node: Node) -> bool {
+    node.kind() == ImportStatement
+        && node
+            .first_non_comment_named_child(SupportedLanguage::Javascript)
+            .thrush(|child| {
+                child.kind() == ImportClause
+                    && child
+                        .first_non_comment_named_child(SupportedLanguage::Javascript)
+                        .kind()
+                        == Identifier
+            })
 }
 
 pub fn get_function_params(node: Node) -> impl Iterator<Item = Node> {
