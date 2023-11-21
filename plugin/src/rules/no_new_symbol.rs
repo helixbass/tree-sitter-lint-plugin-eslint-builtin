@@ -70,9 +70,10 @@ mod tests {
                 ]
             },
             get_instance_provider_factory(),
-            // TODO: this is {env: {es6: true}} in the ESLint version, support that?
             json_object!({
-                "ecma_version": 6,
+                "env": {
+                    "es6": true,
+                },
             }),
         )
     }

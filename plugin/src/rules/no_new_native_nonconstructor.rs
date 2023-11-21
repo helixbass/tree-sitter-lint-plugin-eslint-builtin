@@ -103,9 +103,10 @@ mod tests {
                 ]
             },
             get_instance_provider_factory(),
-            // TODO: this is {env: {es2022: true}} in the ESLint version, support that?
             json_object!({
-                "ecma_version": 2022,
+                "env": {
+                    "es2022": true,
+                },
             }),
         )
     }

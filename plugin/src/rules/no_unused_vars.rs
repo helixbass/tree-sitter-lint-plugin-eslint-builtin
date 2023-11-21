@@ -479,7 +479,6 @@ fn is_after_last_used_arg<'a>(
     )
 }
 
-
 pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-unused-vars",
@@ -766,8 +765,7 @@ mod tests {
                     { code => "function g(bar, baz) { return bar + baz; }; g();", options => { vars => "local", args => "all" } },
                     { code => "var g = function(bar, baz) { return 2; }; g();", options => { vars => "all", args => "none" } },
                     "(function z() { z(); })();",
-                    // TODO: support this?
-                    // { code => " ", globals => { a => true } },
+                    { code => " ", environment => { globals => { a => true } } },
                     { code => "var who = \"Paul\";\nmodule.exports = `Hello ${who}!`;", environment => { ecma_version => 6 } },
                     { code => "export var foo = 123;", environment => { ecma_version => 6, source_type => "module" } },
                     { code => "export function foo () {}", environment => { ecma_version => 6, source_type => "module" } },
@@ -1383,7 +1381,9 @@ foo.forEach(item => {
                     // For-of loops
                     {
                         code => "(function(iter) { var name; for ( name of iter ) { i(); return; } })({});",
-                        // env => { es6 => true },
+                        environment => {
+                            env => { es6 => true },
+                        },
                         errors => [{
                             line => 1,
                             column => 35,
@@ -1397,7 +1397,9 @@ foo.forEach(item => {
                     },
                     {
                         code => "(function(iter) { var name; for ( name of iter ) { } })({});",
-                        // env => { es6 => true },
+                        environment => {
+                            env => { es6 => true },
+                        },
                         errors => [{
                             line => 1,
                             column => 35,
@@ -1411,7 +1413,9 @@ foo.forEach(item => {
                     },
                     {
                         code => "(function(iter) { for ( var name of iter ) { } })({});",
-                        // env => { es6 => true },
+                        environment => {
+                            env => { es6 => true },
+                        },
                         errors => [{
                             line => 1,
                             column => 29,

@@ -155,7 +155,7 @@ mod tests {
                 "switch ((doSomething(), val)) {}",
                 "while ((doSomething(), !!test));",
                 "with ((doSomething(), val)) {}",
-                { code => "a => ((doSomething(), a))", /*env: { es6: true }*/ },
+                { code => "a => ((doSomething(), a))", environment => { env => { es6 => true } } },
 
                 // options object without "allowInParentheses" property
                 { code => "var foo = (1, 2);", options => {} },
@@ -168,8 +168,8 @@ mod tests {
                 { code => "for (; test; (i++, j++));", options => { allow_in_parentheses => false } },
 
                 // https://github.com/eslint/eslint/issues/14572
-                { code => "const foo = () => { return ((bar = 123), 10) }", /*env: { es6: true }*/ },
-                { code => "const foo = () => (((bar = 123), 10));", /*env: { es6: true }*/ }
+                { code => "const foo = () => { return ((bar = 123), 10) }", environment => { env => { es6 => true } } },
+                { code => "const foo = () => (((bar = 123), 10));", environment => { env => { es6 => true } } },
             ],
 
             // Examples of code that should trigger the rule
@@ -192,7 +192,7 @@ mod tests {
                 { code => "switch (doSomething(), val) {}", errors => errors(22) },
                 { code => "while (doSomething(), !!test);", errors => errors(21) },
                 { code => "with (doSomething(), val) {}", errors => errors(20) },
-                { code => "a => (doSomething(), a)", /*env: { es6: true }*/ errors => errors(20) },
+                { code => "a => (doSomething(), a)", environment => { env => { es6 => true } }, errors => errors(20) },
                 { code => "(1), 2", errors => errors(4) },
                 { code => "((1)) , (2)", errors => errors(7) },
                 { code => "while((1) , 2);", errors => errors(11) },
@@ -207,7 +207,7 @@ mod tests {
                 { code => "switch ((doSomething(), val)) {}", options => { allow_in_parentheses => false }, errors => errors(23) },
                 { code => "while ((doSomething(), !!test));", options => { allow_in_parentheses => false }, errors => errors(22) },
                 { code => "with ((doSomething(), val)) {}", options => { allow_in_parentheses => false }, errors => errors(21) },
-                { code => "a => ((doSomething(), a))", options => { allow_in_parentheses => false }, /*env: { es6: true }*/ errors => errors(21) }
+                { code => "a => ((doSomething(), a))", options => { allow_in_parentheses => false }, environment => { env => { es6 => true } }, errors => errors(21) }
             ]
             },
         )

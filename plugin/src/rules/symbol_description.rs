@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, violation, Rule, tree_sitter::Node, QueryMatchContext};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
 
-use crate::{scope::ScopeManager, utils::ast_utils, ast_helpers::get_call_expression_arguments};
+use crate::{ast_helpers::get_call_expression_arguments, scope::ScopeManager, utils::ast_utils};
 
-fn check_argument<'a>(
-    node: Node<'a>,
-    context: &QueryMatchContext<'a, '_>,
-) {
+fn check_argument<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
     if get_call_expression_arguments(node).matches(|mut arguments| arguments.next().is_none()) {
         context.report(violation! {
             node => node,
@@ -50,7 +47,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind::CallExpression, get_instance_provider_factory};
+    use crate::{get_instance_provider_factory, kind::CallExpression};
 
     #[test]
     fn test_symbol_description_rule() {
@@ -87,12 +84,11 @@ mod tests {
                 ]
             },
             get_instance_provider_factory(),
-            // json_object!({
-            //     "env": {
-            //         "es6": true,
-            //     }
-            // }),
-            json_object!({"ecma_version": 6}),
+            json_object!({
+                "env": {
+                    "es6": true,
+                }
+            }),
         )
     }
 }
