@@ -10,8 +10,10 @@ bitflags = "2.3.3"
 Inflector = "0.11.4"
 const_format = "0.2.31"
 id-arena = "2.2.1"
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 regex = "1.9.1"
+# regexpp-js = { git = "https://github.com/helixbass/regexpp-js", rev = "f6b2ae4" }
+regexpp-js = { path = "../../regexpp-js" }
 serde = "1.0.178"
 squalid = { git = "https://github.com/helixbass/squalid", rev = "ca9515c" }
 tree-sitter-lint = { workspace = true }

@@ -576,6 +576,18 @@ rules:
         Lazy:
           module: once_cell::sync
           kind: type
+        visit_reg_exp_ast:
+          module: regexpp_js
+          kind: function
+        RegExpParser:
+          module: regexpp_js
+          kind: type
+        ValidatePatternFlags:
+          module: regexpp_js
+          kind: type
+        Wtf16:
+          module: regexpp_js
+          kind: type
         iter:
           module: std
           kind: module
