@@ -31,8 +31,8 @@ use rules::{
     no_array_constructor_rule, no_async_promise_executor_rule, no_await_in_loop_rule,
     no_class_assign_rule, no_compare_neg_zero_rule, no_cond_assign_rule, no_const_assign_rule,
     no_constant_binary_expression_rule, no_constant_condition_rule, no_constructor_return_rule,
-    no_debugger_rule, no_dupe_args_rule, no_dupe_class_members_rule, no_dupe_else_if_rule,
-    no_dupe_keys_rule, no_duplicate_case_rule, no_duplicate_imports_rule,
+    no_control_regex_rule, no_debugger_rule, no_dupe_args_rule, no_dupe_class_members_rule,
+    no_dupe_else_if_rule, no_dupe_keys_rule, no_duplicate_case_rule, no_duplicate_imports_rule,
     no_empty_character_class_rule, no_empty_pattern_rule, no_eq_null_rule, no_ex_assign_rule,
     no_extra_bind_rule, no_extra_label_rule, no_fallthrough_rule, no_func_assign_rule,
     no_import_assign_rule, no_inner_declarations_rule, no_labels_rule, no_lonely_if_rule,
@@ -154,6 +154,7 @@ pub fn instantiate() -> Plugin {
             no_new_native_nonconstructor_rule(),
             no_new_symbol_rule(),
             no_empty_character_class_rule(),
+            no_control_regex_rule(),
         ],
     }
 }
