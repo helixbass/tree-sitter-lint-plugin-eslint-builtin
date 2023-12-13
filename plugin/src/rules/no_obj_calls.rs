@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use tree_sitter_lint::{rule, violation, Rule};
 
+use crate::scope::ScopeManager;
+
 pub fn no_obj_calls_rule() -> Arc<dyn Rule> {
     rule! {
         name => "no-obj-calls",
@@ -12,9 +14,12 @@ pub fn no_obj_calls_rule() -> Arc<dyn Rule> {
             unexpected_ref_call => "'{{name}}' is reference to '{{ref_}}', which is not a function.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
+            r#"
+              (program) @c
+            "# => |node, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                let scope = scope_manager.get_scope(node);
+
                 context.report(violation! {
                     node => node,
                     message_id => "unexpected",

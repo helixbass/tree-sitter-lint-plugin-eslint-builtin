@@ -26,7 +26,9 @@ pub use number::{get_number_literal_string_value, get_number_literal_value, Numb
 use squalid::EverythingExt;
 use tree_sitter_lint::tree_sitter::Tree;
 
-use crate::kind::{ImportStatement, JsxOpeningElement, JsxSelfClosingElement};
+use crate::kind::{
+    Array, ImportStatement, JsxOpeningElement, JsxSelfClosingElement, SpreadElement,
+};
 
 #[macro_export]
 macro_rules! assert_kind {
@@ -554,4 +556,14 @@ pub fn is_jsx_tag_name(node: Node) -> bool {
 
 pub fn is_tagged_template_expression(node: Node) -> bool {
     node.kind() == CallExpression && node.field("arguments").kind() == TemplateString
+}
+
+pub fn get_array_expression_elements(node: Node) -> impl Iterator<Item = Option<Node>> {
+    assert_kind!(node, Array);
+    get_comma_separated_optional_non_comment_named_children(node)
+}
+
+pub fn get_spread_element_argument(node: Node) -> Node {
+    assert_kind!(node, SpreadElement);
+    node.first_non_comment_named_child(SupportedLanguage::Javascript)
 }

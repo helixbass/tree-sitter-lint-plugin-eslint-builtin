@@ -22,7 +22,13 @@ rules:
         CommentType:
           module: crate::ast_helpers
           kind: type
+        get_array_expression_elements:
+          module: crate::ast_helpers
+          kind: function
         get_call_expression_arguments:
+          module: crate::ast_helpers
+          kind: function
+        get_comma_separated_optional_non_comment_named_children:
           module: crate::ast_helpers
           kind: function
         get_comment_type:
@@ -37,6 +43,12 @@ rules:
         get_method_definition_kind:
           module: crate::ast_helpers
           kind: function
+        get_spread_element_argument:
+          module: crate::ast_helpers
+          kind: function
+        is_chain_expression:
+          module: crate::ast_helpers
+          kind: function
         is_class_member_static:
           module: crate::ast_helpers
           kind: function
@@ -44,6 +56,9 @@ rules:
           module: crate::ast_helpers
           kind: function
         is_jsx_tag_name:
+          module: crate::ast_helpers
+          kind: function
+        is_logical_expression:
           module: crate::ast_helpers
           kind: function
         is_tagged_template_expression:
@@ -511,6 +526,9 @@ rules:
         Deserialize:
           module: serde
           kind: type
+        continue_if_none:
+          module: squalid
+          kind: macro
         return_default_if_none:
           module: squalid
           kind: macro
@@ -526,6 +544,10 @@ rules:
         regex:
           module: squalid
           kind: macro
+        map_or_default:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
         matches:
           module: squalid
           kind: trait_method
@@ -577,6 +599,9 @@ rules:
           module: once_cell::sync
           kind: type
         iter:
+          module: std
+          kind: module
+        ops:
           module: std
           kind: module
         Ref:
