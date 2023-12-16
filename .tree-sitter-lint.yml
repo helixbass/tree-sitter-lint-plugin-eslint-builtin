@@ -16,6 +16,9 @@ rules:
         assert_kind:
           module: crate
           kind: macro
+        kind:
+          module: crate
+          kind: module
         AllComments:
           module: crate::all_comments
           kind: type
@@ -582,6 +585,9 @@ rules:
         RegExpParser:
           module: regexpp_js
           kind: type
+        RegExpValidator:
+          module: regexpp_js
+          kind: type
         ValidatePatternFlags:
           module: regexpp_js
           kind: type
@@ -591,7 +597,13 @@ rules:
         iter:
           module: std
           kind: module
+        OnceCell:
+          module: std::cell
+          kind: type
         Ref:
+          module: std::cell
+          kind: type
+        RefCell:
           module: std::cell
           kind: type
         HashSet:
@@ -600,7 +612,13 @@ rules:
         HashMap:
           module: std::collections
           kind: type
+        Rc:
+          module: std::rc
+          kind: type
         Arc:
+          module: std::sync
+          kind: type
+        OnceLock:
           module: std::sync
           kind: type
         Cow:

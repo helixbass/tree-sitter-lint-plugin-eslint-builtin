@@ -1,6 +1,105 @@
-use std::sync::Arc;
+use std::{
+    borrow::Cow,
+    cell::{Ref, RefCell},
+    rc::Rc,
+    sync::Arc,
+};
 
-use tree_sitter_lint::{rule, violation, Rule};
+use once_cell::sync::Lazy;
+use regexpp_js::{validator, CodePoint, RegExpValidator, ValidatePatternFlags, Wtf16};
+use squalid::OptionExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::kind;
+
+struct RegExp<'a> {
+    pattern: Cow<'a, str>,
+    flags: Option<Cow<'a, str>>,
+}
+
+struct Collector<'a> {
+    _source: RefCell<Wtf16>,
+    _control_chars: RefCell<Vec<String>>,
+    _validator: RefCell<Option<RegExpValidator<'a>>>,
+}
+
+impl<'a> Collector<'a> {
+    pub fn new() -> Rc<Self> {
+        let ret = Rc::new(Self {
+            _source: Default::default(),
+            _control_chars: Default::default(),
+            _validator: Default::default(),
+        });
+
+        *ret._validator.borrow_mut() = Some(RegExpValidator::new(Some(ret.clone())));
+        ret
+    }
+
+    pub fn collect_control_chars(
+        &self,
+        regexp_str: &str,
+        flags: Option<&str>,
+    ) -> Ref<'_, Vec<String>> {
+        let u_flag = flags.matches(|flags| flags.contains('u'));
+        let v_flag = flags.matches(|flags| flags.contains('v'));
+
+        self._control_chars.borrow_mut().clear();
+        *self._source.borrow_mut() = regexp_str.into();
+
+        let _ = self
+            ._validator
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
+            .validate_pattern(
+                &self._source.borrow(),
+                None,
+                None,
+                Some(ValidatePatternFlags {
+                    unicode: Some(u_flag),
+                    unicode_sets: Some(v_flag),
+                }),
+            );
+        self._control_chars.borrow()
+    }
+}
+
+impl<'a> validator::Options for Collector<'a> {
+    fn strict(&self) -> Option<bool> {
+        None
+    }
+
+    fn ecma_version(&self) -> Option<regexpp_js::EcmaVersion> {
+        None
+    }
+
+    // TODO: these should really take &mut self?
+    // But that doesn't play well with passing an
+    // Rc<dyn Options> to RegExpValidator::new()?
+    fn on_pattern_enter(&self, _start: usize) {
+        self._control_chars.borrow_mut().clear();
+    }
+
+    fn on_character(&self, start: usize, end: usize, cp: CodePoint) {
+        let _source = self._source.borrow();
+        if
+        /* cp >= 0x00 && */
+        cp <= 0x1f
+            && (_source.code_point_at(start).unwrap() == cp
+                || _source[start..end].starts_with({
+                    static BACKSLASH_X: Lazy<Wtf16> = Lazy::new(|| r#"\x"#.into());
+                    &BACKSLASH_X
+                })
+                || _source[start..end].starts_with({
+                    static BACKSLASH_U: Lazy<Wtf16> = Lazy::new(|| r#"\u"#.into());
+                    &BACKSLASH_U
+                }))
+        {
+            let cp_as_hex = format!("0{:x}", cp);
+            self._control_chars.borrow_mut().push(format!(r#"\x{}"#, &cp_as_hex[cp_as_hex.len() - 2..]));
+        }
+    }
+}
 
 pub fn no_control_regex_rule() -> Arc<dyn Rule> {
     rule! {
@@ -9,14 +108,42 @@ pub fn no_control_regex_rule() -> Arc<dyn Rule> {
         messages => [
             unexpected => "Unexpected control character(s) in regular expression: {{control_chars}}.",
         ],
+        state => {
+            // TODO: make this rule-static? Couldn't do that because regexpp-js
+            // is currently single-threaded I guess
+            // I think as-is it will be leaking a circular reference (on each file run)
+            [per-file-run]
+            collector: Rc<Collector<'a>> = Collector::new(),
+        },
+        methods => {
+            fn get_reg_exp(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Option<RegExp<'a>> {
+                match node.kind() {
+                    kind::Regex => Some(RegExp {
+                        pattern: node.field("pattern").text(context),
+                        flags: node.child_by_field_name("flags").map(|flags| flags.text(context)),
+                    }),
+                    _ => unimplemented!(),
+                }
+            }
+        },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (regex) @c
+            "# => |node, context| {
+                let Some(RegExp { pattern, flags }) = self.get_reg_exp(node, context) else {
+                    return;
+                };
+                let control_characters = self.collector.collect_control_chars(&pattern, flags.as_deref());
+
+                if !control_characters.is_empty() {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "unexpected",
+                        data => {
+                            control_chars => control_characters.join(", "),
+                        }
+                    });
+                }
             },
         ],
     }
@@ -26,8 +153,8 @@ pub fn no_control_regex_rule() -> Arc<dyn Rule> {
 mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
-    use crate::kind;
     use super::*;
+    use crate::kind;
 
     #[test]
     fn test_no_control_regex_rule() {
