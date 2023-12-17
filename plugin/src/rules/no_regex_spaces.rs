@@ -12,9 +12,9 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::{get_call_expression_arguments, get_cooked_value},
+    ast_helpers::get_call_expression_arguments,
     get_instance_provider_factory, kind,
-    kind::NewExpression,
+    kind::{CallExpression, NewExpression},
     scope::ScopeManager,
     utils::{ast_utils, ast_utils::get_static_string_value},
 };
@@ -124,7 +124,7 @@ pub fn no_regex_spaces_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 let pattern_node = node.field("pattern");
                 let raw_pattern = pattern_node.text(context);
-                let pattern = raw_pattern.map_cow_ref(get_cooked_value);
+                let pattern = raw_pattern.clone();
                 let raw_pattern_start_range = pattern_node.start_byte();
                 let flags = node.child_by_field_name("flags").map(|flags| flags.text(context));
 
@@ -268,7 +268,7 @@ mod tests {
                                 data => { length => "2" },
                                 type => kind::Regex
                             }
-                        ]
+                        ],
                     },
                     {
                         code => "var foo = /bar    baz/;",
@@ -299,7 +299,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "2" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
@@ -310,7 +310,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "4" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
@@ -335,7 +335,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "4" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
@@ -379,7 +379,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "2" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
@@ -403,7 +403,7 @@ mod tests {
                                 data => { length => "2" },
                                 type => kind::Regex
                             }
-                        ]
+                        ],
                     },
                     {
                         code => "var foo = /[   ]  /;",
@@ -445,7 +445,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "2" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
@@ -489,7 +489,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "3" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
@@ -548,7 +548,7 @@ mod tests {
                             {
                                 message_id => "multiple_spaces",
                                 data => { length => "3" },
-                                type => "CallExpression"
+                                type => CallExpression
                             }
                         ]
                     },
