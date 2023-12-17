@@ -1,4 +1,8 @@
-use std::{borrow::Cow, iter::{self, Peekable}, str::CharIndices};
+use std::{
+    borrow::Cow,
+    iter::{self, Peekable},
+    str::CharIndices,
+};
 
 use itertools::Either;
 use regexpp_js::CodePoint;
@@ -519,7 +523,7 @@ pub fn template_string_has_any_cooked_literal_characters(
     node.non_comment_children(SupportedLanguage::Javascript)
         .any(|child| {
             if child.kind() == EscapeSequence
-                && !get_cooked_value(&child.text(context)/*, true*/).is_empty()
+                && !get_cooked_value(&child.text(context) /* , true */).is_empty()
             {
                 return true;
             }
@@ -531,7 +535,7 @@ pub fn template_string_has_any_cooked_literal_characters(
             if quasi.is_empty() {
                 return false;
             }
-            !get_cooked_value(&quasi/*, true*/).is_empty()
+            !get_cooked_value(&quasi /* , true */).is_empty()
         })
 }
 
@@ -573,7 +577,9 @@ pub fn get_cooked_value(input: &str) -> Cow<'_, str> {
     }
 }
 
-fn read_escaped_char(char_indices: &mut Peekable<CharIndices>, /*in_template: bool*/) -> Cow<'static, str> {
+fn read_escaped_char(
+    char_indices: &mut Peekable<CharIndices>, /* in_template: bool */
+) -> Cow<'static, str> {
     let (_, ch) = char_indices.next().unwrap();
     match ch {
         'n' => "\n".into(),
@@ -592,10 +598,7 @@ fn read_escaped_char(char_indices: &mut Peekable<CharIndices>, /*in_template: bo
         'v' => "\u{000b}".into(),
         'f' => "\u{000c}".into(),
         '\r' => {
-            if matches!(
-                char_indices.peek(),
-                Some((_, '\n'))
-            ) {
+            if matches!(char_indices.peek(), Some((_, '\n'))) {
                 char_indices.next();
             }
             "".into()
@@ -628,7 +631,7 @@ fn read_code_point(char_indices: &mut Peekable<CharIndices>) -> CodePoint {
             char_indices.next().unwrap().1,
             char_indices.next().unwrap().1,
             char_indices.next().unwrap().1,
-        ])
+        ]),
     }
 }
 
@@ -680,7 +683,7 @@ mod tests {
                 Cow::Owned("BBBu0A".to_owned()),
             ),
         ] {
-            assert_that!(&get_cooked_value(input/*, false*/)).is_equal_to(expected);
+            assert_that!(&get_cooked_value(input /* , false */)).is_equal_to(expected);
         }
     }
 }

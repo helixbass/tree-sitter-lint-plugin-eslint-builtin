@@ -42,9 +42,8 @@ pub fn no_dupe_args_rule() -> Arc<dyn Rule> {
 mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
-    use crate::get_instance_provider_factory;
-
     use super::*;
+    use crate::get_instance_provider_factory;
 
     #[test]
     fn test_no_dupe_args_rule() {

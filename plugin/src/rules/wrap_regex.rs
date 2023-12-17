@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 pub fn wrap_regex_rule() -> Arc<dyn Rule> {
     rule! {

@@ -383,14 +383,13 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        kind::{CallExpression, MethodDefinition},
-        get_instance_provider_factory,
-    };
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::{
+        get_instance_provider_factory,
+        kind::{CallExpression, MethodDefinition},
+    };
 
     #[test]
     fn test_constructor_super_rule() {

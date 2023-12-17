@@ -55,11 +55,10 @@ pub fn require_yield_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::{GeneratorFunction, GeneratorFunctionDeclaration, MethodDefinition};
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::{GeneratorFunction, GeneratorFunctionDeclaration, MethodDefinition};
 
     #[test]
     fn test_require_yield_rule() {

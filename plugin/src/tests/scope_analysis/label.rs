@@ -16,11 +16,7 @@ fn test_should_not_create_variables() {
     let code = "function bar() { q: for(;;) { break q; } }";
     let ast = parse(code);
 
-    let scope_manager = analyze(
-        &ast,
-        code,
-        Default::default()
-    );
+    let scope_manager = analyze(&ast, code, Default::default());
 
     let scopes = scope_manager.scopes().collect_vec();
     assert_that!(scopes).has_length(2);
@@ -57,11 +53,7 @@ fn test_should_count_child_node_references() {
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(
-        &ast,
-        code,
-        Default::default()
-    );
+    let scope_manager = analyze(&ast, code, Default::default());
 
     let scopes = scope_manager.scopes().collect_vec();
     assert_that!(scopes).has_length(1);

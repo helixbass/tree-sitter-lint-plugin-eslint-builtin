@@ -180,19 +180,19 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
 
     use once_cell::sync::Lazy;
     use squalid::regex;
-    use std::collections::HashMap;
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedErrorBuilder, RuleTestInvalid, RuleTestInvalidBuilder,
         RuleTester,
     };
 
+    use super::*;
     use crate::{
-        kind::{DoStatement, ForInStatement, ForStatement, WhileStatement},
         get_instance_provider_factory,
+        kind::{DoStatement, ForInStatement, ForStatement, WhileStatement},
     };
 
     static LOOP_TEMPLATES: Lazy<HashMap<&'static str, Vec<&'static str>>> = Lazy::new(|| {

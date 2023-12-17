@@ -158,9 +158,9 @@ pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_extra_bind_rule() {

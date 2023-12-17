@@ -5,7 +5,7 @@ use speculoos::prelude::*;
 use tree_sitter_lint::NodeExt;
 
 use crate::{
-    kind::{ClassDeclaration, Program, MethodDefinition, Class, Function},
+    kind::{Class, ClassDeclaration, Function, MethodDefinition, Program},
     scope::{analyze, ScopeManagerOptionsBuilder, ScopeType},
     tests::helpers::{parse, tracing_subscribe},
 };

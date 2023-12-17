@@ -4,8 +4,9 @@ use itertools::Itertools;
 use speculoos::prelude::*;
 
 use crate::{
+    kind::Program,
     scope::{analyze, ScopeManagerOptionsBuilder, ScopeType, SourceType, VariableType},
-    tests::helpers::{parse, tracing_subscribe}, kind::Program,
+    tests::helpers::{parse, tracing_subscribe},
 };
 
 #[test]
@@ -51,7 +52,8 @@ fn test_creates_a_function_scope_following_the_global_scope_immediately_when_nod
 }
 
 #[test]
-fn test_creates_a_function_scope_following_the_global_scope_immediately_when_source_type_commonjs() {
+fn test_creates_a_function_scope_following_the_global_scope_immediately_when_source_type_commonjs()
+{
     tracing_subscribe();
 
     let code = r#"
@@ -136,6 +138,7 @@ fn test_creates_a_function_scope_following_the_global_scope_immediately_and_crea
     let variables = scope.variables().collect_vec();
     assert_that(&variables).has_length(1);
     assert_that(&variables[0].name()).is_equal_to("v");
-    assert_that(&variables[0].defs().next().unwrap().type_()).is_equal_to(VariableType::ImportBinding);
+    assert_that(&variables[0].defs().next().unwrap().type_())
+        .is_equal_to(VariableType::ImportBinding);
     assert_that(&scope.references().collect_vec()).is_empty();
 }

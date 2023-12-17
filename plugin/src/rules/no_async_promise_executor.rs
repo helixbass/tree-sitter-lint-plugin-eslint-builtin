@@ -46,9 +46,9 @@ pub fn no_async_promise_executor_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_async_promise_executor_rule() {

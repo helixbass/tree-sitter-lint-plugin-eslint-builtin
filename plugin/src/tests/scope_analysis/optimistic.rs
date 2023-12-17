@@ -85,16 +85,9 @@ fn test_with_statement() {
             })
             .collect_vec(),
     )
-    .is_equal_to(
-        vec![
-            vec![
-                "outer".to_owned(),
-            ],
-            vec![
-                "arguments".to_owned(),
-                "i".to_owned(),
-            ],
-            vec![]
-        ]
-    );
+    .is_equal_to(vec![
+        vec!["outer".to_owned()],
+        vec!["arguments".to_owned(), "i".to_owned()],
+        vec![],
+    ]);
 }

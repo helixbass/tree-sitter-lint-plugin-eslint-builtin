@@ -153,9 +153,15 @@ fn test_let_is_not_hoistable_1() {
         assert_that(&variable.name()).is_equal_to("i");
         let references = scope.references().collect_vec();
         assert_that(&references).has_length(3);
-        assert_that(&references[0].resolved()).is_some().is_equal_to(variable);
-        assert_that(&references[1].resolved()).is_some().is_equal_to(variable);
-        assert_that(&references[2].resolved()).is_some().is_equal_to(variable);
+        assert_that(&references[0].resolved())
+            .is_some()
+            .is_equal_to(variable);
+        assert_that(&references[1].resolved())
+            .is_some()
+            .is_equal_to(variable);
+        assert_that(&references[2].resolved())
+            .is_some()
+            .is_equal_to(variable);
     });
 }
 
@@ -213,9 +219,15 @@ fn test_let_is_not_hoistable_2() {
 
         let references = scope.references().collect_vec();
         assert_that(&references).has_length(3);
-        assert_that(&references[0].resolved()).is_some().is_equal_to(v1);
-        assert_that(&references[1].resolved()).is_some().is_equal_to(v1);
-        assert_that(&references[2].resolved()).is_some().is_equal_to(v1);
+        assert_that(&references[0].resolved())
+            .is_some()
+            .is_equal_to(v1);
+        assert_that(&references[1].resolved())
+            .is_some()
+            .is_equal_to(v1);
+        assert_that(&references[2].resolved())
+            .is_some()
+            .is_equal_to(v1);
 
         let scope = &scopes[2];
 
@@ -227,9 +239,15 @@ fn test_let_is_not_hoistable_2() {
 
         let references = scope.references().collect_vec();
         assert_that(&references).has_length(3);
-        assert_that(&references[0].resolved()).is_some().is_equal_to(v3);
-        assert_that(&references[1].resolved()).is_some().is_equal_to(v3);
-        assert_that(&references[2].resolved()).is_some().is_equal_to(v3);
+        assert_that(&references[0].resolved())
+            .is_some()
+            .is_equal_to(v3);
+        assert_that(&references[1].resolved())
+            .is_some()
+            .is_equal_to(v3);
+        assert_that(&references[2].resolved())
+            .is_some()
+            .is_equal_to(v3);
 
         let scope = &scopes[3];
 
@@ -241,8 +259,14 @@ fn test_let_is_not_hoistable_2() {
 
         let references = scope.references().collect_vec();
         assert_that(&references).has_length(3);
-        assert_that(&references[0].resolved()).is_some().is_equal_to(v2);
-        assert_that(&references[1].resolved()).is_some().is_equal_to(v2);
-        assert_that(&references[2].resolved()).is_some().is_equal_to(v2);
+        assert_that(&references[0].resolved())
+            .is_some()
+            .is_equal_to(v2);
+        assert_that(&references[1].resolved())
+            .is_some()
+            .is_equal_to(v2);
+        assert_that(&references[2].resolved())
+            .is_some()
+            .is_equal_to(v2);
     });
 }

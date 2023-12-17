@@ -228,14 +228,13 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        kind::{ExpressionStatement, LexicalDeclaration, StatementBlock, VariableDeclaration},
-        get_instance_provider_factory,
-    };
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::{
+        get_instance_provider_factory,
+        kind::{ExpressionStatement, LexicalDeclaration, StatementBlock, VariableDeclaration},
+    };
 
     #[test]
     fn test_no_unreachable_rule() {

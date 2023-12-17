@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use tree_sitter_lint::{rule, violation, Rule};
 
@@ -106,9 +105,9 @@ pub fn no_dupe_class_members_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_dupe_class_members_rule() {

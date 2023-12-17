@@ -130,8 +130,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        kind::{Super, This},
         get_instance_provider_factory,
+        kind::{Super, This},
     };
 
     #[test]

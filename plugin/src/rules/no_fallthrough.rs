@@ -190,11 +190,10 @@ pub fn no_fallthrough_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{kind::SwitchCase, get_instance_provider_factory};
+    use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
+    use crate::{get_instance_provider_factory, kind::SwitchCase};
 
     #[test]
     fn test_no_fallthrough_rule() {

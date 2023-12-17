@@ -247,10 +247,9 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, serde_json::json, RuleTester};
 
+    use super::*;
     use crate::get_instance_provider_factory;
 
     #[test]

@@ -30,11 +30,10 @@ pub fn no_nested_ternary_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::TernaryExpression;
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::TernaryExpression;
 
     #[test]
     fn test_no_nested_ternary_rule() {

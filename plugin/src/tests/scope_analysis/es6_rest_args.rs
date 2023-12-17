@@ -45,11 +45,13 @@ fn test_materialize_rest_argument_in_scope() {
     assert_that!(&variables).has_length(2);
     assert_that!(&variables[0].name()).is_equal_to("arguments");
     assert_that!(&variables[1].name()).is_equal_to("bar");
-    assert_that(&&*variables[1]
-        .defs()
-        .next()
-        .unwrap()
-        .name()
-        .text(&scope_manager))
+    assert_that(
+        &&*variables[1]
+            .defs()
+            .next()
+            .unwrap()
+            .name()
+            .text(&scope_manager),
+    )
     .is_equal_to("bar");
 }

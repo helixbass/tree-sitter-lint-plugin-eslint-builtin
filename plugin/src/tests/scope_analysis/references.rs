@@ -16,7 +16,9 @@ fn test_let_declaration_on_global_reference_on_global_should_be_resolved() {
     let code = "let a = 0;";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -57,7 +59,9 @@ fn test_let_declaration_on_global_reference_in_functions_should_be_resolved() {
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -96,7 +100,9 @@ fn test_let_declaration_on_global_reference_in_default_parameters_should_be_reso
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -131,7 +137,9 @@ fn test_const_declaration_on_global_reference_on_global_should_be_resolved() {
     let code = "const a = 0;";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -172,7 +180,9 @@ fn test_const_declaration_on_global_reference_in_functions_should_be_resolved() 
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -207,7 +217,9 @@ fn test_var_declaration_on_global_reference_on_global_should_not_be_resolved() {
     let code = "var a = 0;";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -245,7 +257,9 @@ fn test_var_declaration_on_global_reference_in_functions_should_not_be_resolved(
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -281,7 +295,9 @@ fn test_function_declaration_on_global_reference_on_global_should_not_be_resolve
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -319,7 +335,9 @@ fn test_function_declaration_on_global_reference_in_functions_should_not_be_reso
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -355,7 +373,9 @@ fn test_class_declaration_on_global_reference_on_global_should_be_resolved() {
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -396,7 +416,9 @@ fn test_class_declaration_on_global_reference_in_functions_should_be_resolved() 
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -435,7 +457,9 @@ fn test_let_declaration_in_functions_reference_on_the_function_should_be_resolve
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -478,7 +502,9 @@ fn test_let_declaration_in_functions_reference_in_nested_functions_should_be_res
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -517,7 +543,9 @@ fn test_var_declaration_in_functions_reference_on_the_function_should_be_resolve
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -560,7 +588,9 @@ fn test_var_declaration_in_functions_reference_in_nested_functions_should_be_res
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -595,7 +625,9 @@ fn test_let_a_1_reference_should_be_resolved() {
     let code = "let [a] = [1];";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -631,7 +663,9 @@ fn test_let_a_a_1_reference_should_be_resolved() {
     let code = "let {a} = {a: 1};";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -667,7 +701,9 @@ fn test_let_a_a_a_a_1_reference_should_be_resolved() {
     let code = "let {a: {a}} = {a: {a: 1}};";
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(6)
             .build()
@@ -731,13 +767,15 @@ fn test_reference_init_should_be_boolean_of_whether_initialized_or_not() {
         "for (let {a = 0} in []);",
         "new function(a = 0) {}",
         "new function([a = 0] = []) {}",
-        "new function({b: a = 0} = {}) {}"
+        "new function({b: a = 0} = {}) {}",
     ];
 
     true_codes.into_iter().for_each(|code| {
         let ast = parse(code);
 
-        let scope_manager = analyze(&ast, code,
+        let scope_manager = analyze(
+            &ast,
+            code,
             ScopeManagerOptionsBuilder::default()
                 .ecma_version(6)
                 .build()
@@ -772,13 +810,15 @@ fn test_reference_init_should_be_boolean_of_whether_initialized_or_not() {
         "let a; for ([a] in []);",
         "let a; for ([a = 0] in []);",
         "let a; for ({a} in []);",
-        "let a; for ({a = 0} in []);"
+        "let a; for ({a = 0} in []);",
     ];
 
     false_codes.into_iter().for_each(|code| {
         let ast = parse(code);
 
-        let scope_manager = analyze(&ast, code,
+        let scope_manager = analyze(
+            &ast,
+            code,
             ScopeManagerOptionsBuilder::default()
                 .ecma_version(6)
                 .build()
@@ -816,13 +856,15 @@ fn test_reference_init_should_be_boolean_of_whether_initialized_or_not() {
         "let a,b; for (b in a);",
         "let a,b; for ([b = a] in []);",
         "let a; a.foo = 0;",
-        "let a,b; b = a.foo;"
+        "let a,b; b = a.foo;",
     ];
 
     false_codes.into_iter().for_each(|code| {
         let ast = parse(code);
 
-        let scope_manager = analyze(&ast, code,
+        let scope_manager = analyze(
+            &ast,
+            code,
             ScopeManagerOptionsBuilder::default()
                 .ecma_version(6)
                 .build()

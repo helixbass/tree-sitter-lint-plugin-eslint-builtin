@@ -29,13 +29,12 @@ pub fn default_case_last_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::SwitchDefault;
-
-    use super::*;
-
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedError, RuleTestExpectedErrorBuilder, RuleTester,
     };
+
+    use super::*;
+    use crate::kind::SwitchDefault;
 
     fn error(column: usize) -> RuleTestExpectedError {
         RuleTestExpectedErrorBuilder::default()

@@ -26,11 +26,10 @@ pub fn no_new_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::ExpressionStatement;
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::ExpressionStatement;
 
     #[test]
     fn test_no_new_rule() {

@@ -21,11 +21,8 @@ enum Options {
     Both,
 }
 
-static VALID_PARENT: Lazy<HashSet<Kind>> = Lazy::new(|| {
-    [Program, ExportStatement]
-        .into_iter()
-        .collect()
-});
+static VALID_PARENT: Lazy<HashSet<Kind>> =
+    Lazy::new(|| [Program, ExportStatement].into_iter().collect());
 
 static VALID_BLOCK_STATEMENT_PARENT: Lazy<HashSet<Kind>> = Lazy::new(|| {
     [
@@ -35,7 +32,7 @@ static VALID_BLOCK_STATEMENT_PARENT: Lazy<HashSet<Kind>> = Lazy::new(|| {
         MethodDefinition,
         GeneratorFunction,
         GeneratorFunctionDeclaration,
-        ClassStaticBlock, 
+        ClassStaticBlock,
     ]
     .into_iter()
     .collect()

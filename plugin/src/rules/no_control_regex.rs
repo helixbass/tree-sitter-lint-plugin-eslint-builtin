@@ -100,7 +100,9 @@ impl<'a> validator::Options for Collector<'a> {
                 }))
         {
             let cp_as_hex = format!("0{:x}", cp);
-            self._control_chars.borrow_mut().push(format!(r#"\x{}"#, &cp_as_hex[cp_as_hex.len() - 2..]));
+            self._control_chars
+                .borrow_mut()
+                .push(format!(r#"\x{}"#, &cp_as_hex[cp_as_hex.len() - 2..]));
         }
     }
 }

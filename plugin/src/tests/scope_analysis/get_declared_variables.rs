@@ -33,7 +33,10 @@ impl<'a, 'b> TreeEnterLeaveVisitor<'a> for VerifyEnterLeaveVisitor<'a, 'b> {
             }
         {
             let expected = self.expected_names_list.remove(0);
-            let actual = self.scope_manager.get_declared_variables(node).collect_vec();
+            let actual = self
+                .scope_manager
+                .get_declared_variables(node)
+                .collect_vec();
 
             if expected.is_empty() {
                 assert_that!(&actual).is_empty();

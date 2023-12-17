@@ -9,8 +9,8 @@ use tree_sitter_lint::{rule, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     kind::{
-        AssignmentExpression, CallExpression, ForInStatement, PairPattern, SubscriptExpression,
-        TernaryExpression, UnaryExpression, UpdateExpression, AugmentedAssignmentExpression,
+        AssignmentExpression, AugmentedAssignmentExpression, CallExpression, ForInStatement,
+        PairPattern, SubscriptExpression, TernaryExpression, UnaryExpression, UpdateExpression,
     },
     scope::{Reference, ScopeManager, VariableType},
 };
@@ -35,7 +35,9 @@ fn is_modifying_prop(reference: &Reference) -> bool {
 
     while !STOP_NODE_PATTERN.is_match(parent.kind()) || parent.kind() == ForInStatement {
         match parent.kind() {
-            AssignmentExpression | AugmentedAssignmentExpression => return parent.field("left") == node,
+            AssignmentExpression | AugmentedAssignmentExpression => {
+                return parent.field("left") == node
+            }
             UpdateExpression => return true,
             UnaryExpression => {
                 if parent.field("operator").kind() == "delete" {

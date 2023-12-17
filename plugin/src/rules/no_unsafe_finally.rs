@@ -101,11 +101,10 @@ pub fn no_unsafe_finally_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::{BreakStatement, ContinueStatement, ReturnStatement, ThrowStatement};
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::{BreakStatement, ContinueStatement, ReturnStatement, ThrowStatement};
 
     #[test]
     fn test_no_unsafe_finally_rule() {

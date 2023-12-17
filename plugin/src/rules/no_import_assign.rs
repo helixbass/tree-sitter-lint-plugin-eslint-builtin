@@ -2,15 +2,16 @@ use std::sync::Arc;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use squalid::{OptionExt, EverythingExt};
+use squalid::{EverythingExt, OptionExt};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::{get_call_expression_arguments, NodeExtJs},
     kind::{
-        ArrayPattern, AssignmentExpression, AssignmentPattern, AugmentedAssignmentExpression,
-        CallExpression, ForInStatement, MemberExpression, NamespaceImport, ObjectPattern,
-        PairPattern, RestPattern, SubscriptExpression, UnaryExpression, UpdateExpression, Arguments,
+        Arguments, ArrayPattern, AssignmentExpression, AssignmentPattern,
+        AugmentedAssignmentExpression, CallExpression, ForInStatement, MemberExpression,
+        NamespaceImport, ObjectPattern, PairPattern, RestPattern, SubscriptExpression,
+        UnaryExpression, UpdateExpression,
     },
     scope::{Scope, ScopeManager, ScopeType},
     utils::{ast_utils, eslint_utils::find_variable},
@@ -85,12 +86,16 @@ fn is_operand_of_mutation_unary_operator(node: Node) -> bool {
 }
 
 fn is_iteration_variable(node: Node) -> bool {
-    node.parent().unwrap().thrush(|parent| {
-        parent.kind() == ForInStatement && parent.field("left") == node
-    })
+    node.parent()
+        .unwrap()
+        .thrush(|parent| parent.kind() == ForInStatement && parent.field("left") == node)
 }
 
-fn is_member_write<'a>(id: Node<'a>, scope: &Scope<'a, '_>, context: &QueryMatchContext<'a, '_>) -> bool {
+fn is_member_write<'a>(
+    id: Node<'a>,
+    scope: &Scope<'a, '_>,
+    context: &QueryMatchContext<'a, '_>,
+) -> bool {
     let parent = id.parent().unwrap();
 
     [MemberExpression, SubscriptExpression].contains(&parent.kind())
@@ -180,9 +185,8 @@ mod tests {
     use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTester};
 
-    use crate::get_instance_provider_factory;
-
     use super::*;
+    use crate::get_instance_provider_factory;
 
     #[test]
     fn test_no_import_assign_rule() {
@@ -496,7 +500,7 @@ mod tests {
             json_object!({
                 "ecma_version": 2018,
                 "source_type": "module",
-            })
+            }),
         )
     }
 }

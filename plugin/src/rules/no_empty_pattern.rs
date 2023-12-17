@@ -70,11 +70,10 @@ pub fn no_empty_pattern_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::{ArrayPattern, ObjectPattern};
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::{ArrayPattern, ObjectPattern};
 
     #[test]
     fn test_no_empty_pattern_rule() {

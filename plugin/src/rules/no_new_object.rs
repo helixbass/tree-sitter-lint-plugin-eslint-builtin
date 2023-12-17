@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{utils::ast_utils, scope::ScopeManager};
+use crate::{scope::ScopeManager, utils::ast_utils};
 
 pub fn no_new_object_rule() -> Arc<dyn Rule> {
     rule! {

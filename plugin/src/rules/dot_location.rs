@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule, NodeExt, tree_sitter::Node};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
 
 use crate::utils::ast_utils;
 

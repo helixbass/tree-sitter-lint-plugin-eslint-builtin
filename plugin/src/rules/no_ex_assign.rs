@@ -38,7 +38,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind::Identifier, get_instance_provider_factory};
+    use crate::{get_instance_provider_factory, kind::Identifier};
 
     #[test]
     fn test_no_ex_assign_rule() {

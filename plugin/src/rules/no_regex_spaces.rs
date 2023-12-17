@@ -4,7 +4,7 @@ use regexpp_js::{
     id_arena::Id, visit_reg_exp_ast, visitor, AllArenas, NodeInterface, RegExpParser,
     ValidatePatternFlags, Wtf16,
 };
-use squalid::{regex, CowExt, CowStrExt, OptionExt};
+use squalid::{regex, CowStrExt, OptionExt};
 use tree_sitter_lint::{
     rule,
     tree_sitter::{Node, Point, Range},
@@ -13,8 +13,7 @@ use tree_sitter_lint::{
 
 use crate::{
     ast_helpers::get_call_expression_arguments,
-    get_instance_provider_factory, kind,
-    kind::{CallExpression, NewExpression},
+    kind,
     scope::ScopeManager,
     utils::{ast_utils, ast_utils::get_static_string_value},
 };
@@ -195,7 +194,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{get_instance_provider_factory, kind, kind::NewExpression};
+    use crate::{get_instance_provider_factory, kind, kind::{CallExpression, NewExpression}};
 
     #[test]
     fn test_no_regex_spaces_rule() {

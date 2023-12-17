@@ -1,11 +1,8 @@
 use std::{cell::RefCell, env, fs, sync::Arc};
 
 use clap::{ArgGroup, Parser, Subcommand};
-
 use tree_sitter_lint::{rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration};
-use tree_sitter_lint_plugin_eslint_builtin::{
-    CodePathAnalyzer, get_instance_provider_factory,
-};
+use tree_sitter_lint_plugin_eslint_builtin::{get_instance_provider_factory, CodePathAnalyzer};
 
 #[derive(Parser)]
 struct Args {

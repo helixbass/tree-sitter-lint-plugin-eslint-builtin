@@ -43,11 +43,10 @@ pub fn no_constructor_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
-    use crate::{kind::ReturnStatement, get_instance_provider_factory};
+    use super::*;
+    use crate::{get_instance_provider_factory, kind::ReturnStatement};
 
     #[test]
     fn test_no_constructor_return_rule() {

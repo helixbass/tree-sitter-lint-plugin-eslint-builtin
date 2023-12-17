@@ -54,13 +54,12 @@ pub fn no_multi_assign_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::AssignmentExpression;
-
-    use super::*;
-
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedError, RuleTestExpectedErrorBuilder, RuleTester,
     };
+
+    use super::*;
+    use crate::kind::AssignmentExpression;
 
     fn error_at(line: usize, column: usize, type_: &str) -> RuleTestExpectedError {
         RuleTestExpectedErrorBuilder::default()

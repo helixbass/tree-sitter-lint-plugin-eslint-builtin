@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 use tree_sitter_lint::{
-    range_between_end_and_start, rule, tree_sitter::Node, violation, QueryMatchContext, Rule,
+    range_between_end_and_start, rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext,
+    Rule,
 };
-
-use tree_sitter_lint::NodeExt;
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -143,9 +142,9 @@ pub fn yield_star_spacing_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_yield_star_spacing_rule() {

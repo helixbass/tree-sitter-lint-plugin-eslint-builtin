@@ -147,14 +147,14 @@ pub fn get_static_string_value<'a>(
         kind::String => Some(
             node.text(context)
                 .sliced(|len| 1..len - 1)
-                .map_cow(get_cooked_value/*, false*/),
+                .map_cow(get_cooked_value /* , false */),
         ),
         Null => Some("null".into()),
         TemplateString => {
             (!context.has_named_child_of_kind(node, "template_substitution")).then(|| {
                 node.text(context)
                     .sliced(|len| 1..len - 1)
-                    .map_cow(get_cooked_value/*, true*/)
+                    .map_cow(get_cooked_value /* , true */)
             })
         }
         _ => None,

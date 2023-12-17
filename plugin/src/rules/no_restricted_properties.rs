@@ -260,10 +260,9 @@ pub fn no_restricted_properties_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
 
+    use super::*;
     use crate::kind::{MemberExpression, ObjectPattern, SubscriptExpression};
 
     #[test]
