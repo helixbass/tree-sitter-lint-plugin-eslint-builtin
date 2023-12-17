@@ -1,14 +1,37 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use regex::Regex;
+use regexpp_js::{RegExpValidator, ValidatePatternFlags, Wtf16};
 use serde::Deserialize;
 use squalid::{regex, NonEmpty};
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::get_call_expression_arguments, kind, utils::ast_utils::get_static_string_value,
+};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
 struct Options {
     allow_constructor_flags: Option<Vec<char>>,
+}
+
+fn report<'a>(node: Node<'a>, message: String, context: &QueryMatchContext<'a, '_>) {
+    context.report(violation! {
+        node => node,
+        message_id => "regex_message",
+        data => {
+            message => message,
+        }
+    });
+}
+
+fn get_flags<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Option<Cow<'a, str>> {
+    get_call_expression_arguments(node)
+        .unwrap()
+        .nth(1)
+        .filter(|arg| arg.kind() == kind::String)
+        .and_then(|arg| get_static_string_value(arg, context))
 }
 
 pub fn no_invalid_regexp_rule() -> Arc<dyn Rule> {
@@ -27,15 +50,86 @@ pub fn no_invalid_regexp_rule() -> Arc<dyn Rule> {
             }).non_empty().map(|allow_constructor_flags| {
                 Regex::new(&format!("(?i)[{}]", allow_constructor_flags)).unwrap()
             }),
+            [per-file-run]
+            validator: RegExpValidator<'a> = RegExpValidator::new(None),
+        },
+        methods => {
+            fn validate_reg_exp_flags(&mut self, flags: Option<&str>) -> Option<String> {
+                let flags = flags?;
+                if self.validator.validate_flags(&Wtf16::from(flags), None, None).is_err() {
+                    return Some(format!(
+                        "Invalid flags supplied to RegExp constructor '{flags}'"
+                    ));
+                }
+
+                if flags.contains('u') && flags.contains('v') {
+                    return Some("Regex 'u' and 'v' flags cannot be used together".into());
+                }
+                None
+            }
+
+            fn validate_reg_exp_pattern(&mut self, pattern: &str, flags: ValidatePatternFlags) -> Option<String> {
+                match self.validator.validate_pattern(&Wtf16::from(pattern), None, None, Some(flags)) {
+                    Err(err) => Some(err.message),
+                    _ => None,
+                }
+            }
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (call_expression
+                function: (identifier) @regexp (#eq? @regexp "RegExp")
+              ) @call_expression
+              (new_expression
+                constructor: (identifier) @regexp (#eq? @regexp "RegExp")
+              ) @call_expression
+            "# => |captures, context| {
+                let node = captures["call_expression"];
+                let mut flags = get_flags(node, context);
+
+                if let (Some(flags_present), Some(allowed_flags)) = (
+                    flags.as_ref(),
+                    self.allowed_flags.as_ref()
+                ) {
+                    flags = Some(allowed_flags.replace_all(flags_present, "").into_owned().into());
+                }
+
+                if let Some(message) = self.validate_reg_exp_flags(flags.as_deref()) {
+                    report(node, message, context);
+                    return;
+                }
+
+                let Some(first_arg) = get_call_expression_arguments(node)
+                    .unwrap()
+                    .next()
+                    .filter(|arg| arg.kind() == kind::String) else {
+                    return;
+                };
+
+                let pattern = get_static_string_value(first_arg, context).unwrap();
+
+                if let Some(message) = match flags {
+                    None => self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
+                        unicode: Some(true),
+                        unicode_sets: Some(false),
+                    }).or_else(|| {
+                        self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
+                            unicode: Some(false),
+                            unicode_sets: Some(true),
+                        }).or_else(|| {
+                            self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
+                                unicode: Some(false),
+                                unicode_sets: Some(false),
+                            })
+                        })
+                    }),
+                    Some(flags) => self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
+                        unicode: Some(flags.contains('u')),
+                        unicode_sets: Some(flags.contains('v')),
+                    })
+                } {
+                    report(node, message, context);
+                }
             },
         ],
     }
@@ -46,7 +140,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-use crate::kind::NewExpression;
+    use crate::kind::NewExpression;
 
     #[test]
     fn test_no_invalid_regexp_rule() {
