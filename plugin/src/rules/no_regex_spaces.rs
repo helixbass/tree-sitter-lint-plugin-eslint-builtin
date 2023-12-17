@@ -1,6 +1,108 @@
-use std::sync::Arc;
+use std::{borrow::Cow, cell::RefCell, sync::Arc};
 
-use tree_sitter_lint::{rule, violation, Rule};
+use regexpp_js::{
+    id_arena::Id, visit_reg_exp_ast, visitor, AllArenas, NodeInterface, RegExpParser,
+    ValidatePatternFlags, Wtf16,
+};
+use squalid::{regex, CowExt, OptionExt};
+use tree_sitter_lint::{
+    rule,
+    tree_sitter::{Node, Point, Range},
+    violation, NodeExt, QueryMatchContext, Rule,
+};
+
+use crate::ast_helpers::get_cooked_value;
+
+fn check_regex<'a>(
+    node_to_report: Node<'a>,
+    pattern_node: Node<'a>,
+    pattern: Cow<'a, str>,
+    raw_pattern: Cow<'a, str>,
+    raw_pattern_start_range: usize,
+    flags: Option<Cow<'a, str>>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    if !regex!(r#" {2}"#).is_match(&raw_pattern) {
+        return;
+    }
+
+    let arena: AllArenas = Default::default();
+    let mut reg_exp_parser = RegExpParser::new(&arena, None);
+    let pattern_as_wtf16: Wtf16 = (&*pattern).into();
+    let Ok(reg_exp_ast) = reg_exp_parser.parse_pattern(
+        &pattern_as_wtf16,
+        Some(0),
+        Some(pattern_as_wtf16.len()),
+        Some(ValidatePatternFlags {
+            unicode: Some(flags.as_ref().matches(|flags| flags.contains('u'))),
+            unicode_sets: Some(flags.as_ref().matches(|flags| flags.contains('v'))),
+        }),
+    ) else {
+        return;
+    };
+
+    #[derive(Default)]
+    struct Handlers {
+        character_class_nodes: RefCell<Vec<Id<regexpp_js::Node>>>,
+    }
+
+    impl visitor::Handlers for Handlers {
+        fn on_character_class_enter(&self, node: Id<regexpp_js::Node /* CharacterClass */>) {
+            self.character_class_nodes.borrow_mut().push(node);
+        }
+    }
+
+    let handlers = Handlers::default();
+
+    visit_reg_exp_ast(reg_exp_ast, &handlers, &arena);
+
+    let character_class_nodes = handlers.character_class_nodes.borrow();
+
+    for captures in regex!(r#"( {2,})(?: [+*{?]|[^+*{?]|$)"#).captures_iter(&pattern) {
+        let index = captures.get(0).unwrap().start();
+
+        if character_class_nodes.iter().all(|&character_class_node| {
+            let character_class_node_ref = arena.node(character_class_node);
+            index < character_class_node_ref.start() || character_class_node_ref.end() <= index
+        }) {
+            let length = captures[1].len();
+            context.report(violation! {
+                node => node_to_report,
+                message_id => "multiple_spaces",
+                data => {
+                    length => length,
+                },
+                fix => |fixer| {
+                    if pattern != raw_pattern {
+                        return;
+                    }
+                    fixer.replace_text_range(
+                        Range {
+                            start_byte: raw_pattern_start_range + index,
+                            end_byte: raw_pattern_start_range + index + length,
+                            // TODO: this assumes that there are no preceding newlines
+                            // in the regex pattern I believe which is wrong
+                            // Probably should have some helpers for converting from
+                            // a byte range to a tree_sitter::Range using the
+                            // FileRunContext or something?
+                            start_point: Point {
+                                row: pattern_node.start_position().row,
+                                column: pattern_node.start_position().column + index + 1,
+                            },
+                            end_point: Point {
+                                row: pattern_node.start_position().row,
+                                column: pattern_node.start_position().column + index + length + 1,
+                            },
+                        },
+                        format!(" {{{length}}}")
+                    );
+                }
+            });
+
+            return;
+        }
+    }
+}
 
 pub fn no_regex_spaces_rule() -> Arc<dyn Rule> {
     rule! {
@@ -11,13 +113,24 @@ pub fn no_regex_spaces_rule() -> Arc<dyn Rule> {
         ],
         fixable => true,
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (regex) @c
+            "# => |node, context| {
+                let pattern_node = node.field("pattern");
+                let raw_pattern = pattern_node.text(context);
+                let pattern = raw_pattern.map_cow_ref(get_cooked_value);
+                let raw_pattern_start_range = pattern_node.start_byte();
+                let flags = node.child_by_field_name("flags").map(|flags| flags.text(context));
+
+                check_regex(
+                    node,
+                    pattern_node,
+                    pattern,
+                    raw_pattern,
+                    raw_pattern_start_range,
+                    flags,
+                    context,
+                );
             },
         ],
     }
