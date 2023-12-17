@@ -3,7 +3,7 @@ use std::{borrow::Cow, sync::Arc};
 use regex::Regex;
 use regexpp_js::{RegExpValidator, ValidatePatternFlags, Wtf16};
 use serde::Deserialize;
-use squalid::{regex, NonEmpty};
+use squalid::{regex, EverythingExt, NonEmpty};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, QueryMatchContext, Rule};
 
 use crate::{
@@ -27,10 +27,10 @@ fn report<'a>(node: Node<'a>, message: String, context: &QueryMatchContext<'a, '
 }
 
 fn get_flags<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Option<Cow<'a, str>> {
-    get_call_expression_arguments(node)
-        .unwrap()
-        .nth(1)
-        .filter(|arg| arg.kind() == kind::String)
+    let Some(arg) = get_call_expression_arguments(node).unwrap().nth(1) else {
+        return Some("".into());
+    };
+    arg.when(|arg| arg.kind() == kind::String)
         .and_then(|arg| get_static_string_value(arg, context))
 }
 
@@ -112,11 +112,11 @@ pub fn no_invalid_regexp_rule() -> Arc<dyn Rule> {
                     None => self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
                         unicode: Some(true),
                         unicode_sets: Some(false),
-                    }).or_else(|| {
+                    }).and_then(|_| {
                         self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
                             unicode: Some(false),
                             unicode_sets: Some(true),
-                        }).or_else(|| {
+                        }).and_then(|_| {
                             self.validate_reg_exp_pattern(&pattern, ValidatePatternFlags {
                                 unicode: Some(false),
                                 unicode_sets: Some(false),
@@ -140,7 +140,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::NewExpression;
+    use crate::kind::{CallExpression, NewExpression};
 
     #[test]
     fn test_no_invalid_regexp_rule() {
@@ -273,7 +273,7 @@ mod tests {
                         errors => [{
                             message_id => "regex_message",
                             data => { message => "Invalid regular expression: /[/: Unterminated character class" },
-                            type => "CallExpression"
+                            type => CallExpression
                         }]
                     },
                     {
@@ -281,7 +281,7 @@ mod tests {
                         errors => [{
                             message_id => "regex_message",
                             data => { message => "Invalid flags supplied to RegExp constructor 'z'" },
-                            type => "CallExpression"
+                            type => CallExpression
                         }]
                     },
                     {
@@ -290,7 +290,7 @@ mod tests {
                         errors => [{
                             message_id => "regex_message",
                             data => { message => "Invalid flags supplied to RegExp constructor 'a'" },
-                            type => "CallExpression"
+                            type => CallExpression
                         }]
                     },
                     {
@@ -350,8 +350,8 @@ mod tests {
                         errors => [{
                             message_id => "regex_message",
                             data => { message => "Invalid regular expression: /\\u{0}*/: Nothing to repeat" },
-                            type => "CallExpression"
-                        }]
+                            type => CallExpression
+                        }],
                     },
                     {
                         code => r#"new RegExp('\\u{0}*');"#,
@@ -384,7 +384,7 @@ mod tests {
                         errors => [{
                             message_id => "regex_message",
                             data => { message => "Invalid regular expression: /\\u{0}*/: Nothing to repeat" },
-                            type => "CallExpression"
+                            type => CallExpression
                         }]
                     },
 
@@ -404,7 +404,7 @@ mod tests {
                         errors => [{
                             message_id => "regex_message",
                             data => { message => "Invalid flags supplied to RegExp constructor 'a'" },
-                            type => "CallExpression"
+                            type => CallExpression
                         }]
                     },
                     {
