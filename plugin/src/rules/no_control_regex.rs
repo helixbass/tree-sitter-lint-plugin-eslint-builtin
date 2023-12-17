@@ -5,12 +5,16 @@ use std::{
     sync::Arc,
 };
 
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regexpp_js::{validator, CodePoint, RegExpValidator, ValidatePatternFlags, Wtf16};
-use squalid::OptionExt;
+use squalid::{CowExt, OptionExt};
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
-use crate::kind;
+use crate::{
+    ast_helpers::{get_call_expression_arguments, get_cooked_value},
+    kind,
+};
 
 struct RegExp<'a> {
     pattern: Cow<'a, str>,
@@ -116,23 +120,7 @@ pub fn no_control_regex_rule() -> Arc<dyn Rule> {
             collector: Rc<Collector<'a>> = Collector::new(),
         },
         methods => {
-            fn get_reg_exp(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Option<RegExp<'a>> {
-                match node.kind() {
-                    kind::Regex => Some(RegExp {
-                        pattern: node.field("pattern").text(context),
-                        flags: node.child_by_field_name("flags").map(|flags| flags.text(context)),
-                    }),
-                    _ => unimplemented!(),
-                }
-            }
-        },
-        listeners => [
-            r#"
-              (regex) @c
-            "# => |node, context| {
-                let Some(RegExp { pattern, flags }) = self.get_reg_exp(node, context) else {
-                    return;
-                };
+            fn check(&self, RegExp { pattern, flags }: RegExp, node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
                 let control_characters = self.collector.collect_control_chars(&pattern, flags.as_deref());
 
                 if !control_characters.is_empty() {
@@ -144,7 +132,51 @@ pub fn no_control_regex_rule() -> Arc<dyn Rule> {
                         }
                     });
                 }
+            }
+        },
+        listeners => [
+            r#"
+              (regex) @c
+            "# => |node, context| {
+                self.check(
+                    RegExp {
+                        pattern: node.field("pattern").text(context),
+                        flags: node.child_by_field_name("flags").map(|flags| flags.text(context)),
+                    },
+                    node,
+                    context
+                );
             },
+            r#"
+              (call_expression
+                function: (identifier) @regexp (#eq? @regexp "RegExp")
+                arguments: (arguments
+                  (string) @pattern
+                )
+              ) @call_expression
+              (new_expression
+                constructor: (identifier) @regexp (#eq? @regexp "RegExp")
+                arguments: (arguments
+                  (string) @pattern
+                )
+              ) @call_expression
+            "# => |captures, context| {
+                let pattern = captures["pattern"].text(context).map_cow(get_cooked_value);
+                let args = get_call_expression_arguments(
+                    captures["call_expression"]
+                ).unwrap().collect_vec();
+                let flags = args.get(1).copied().filter(|&arg| arg.kind() == kind::String).map(|flags| {
+                    flags.text(context).map_cow(get_cooked_value)
+                });
+                self.check(
+                    RegExp {
+                        pattern,
+                        flags,
+                    },
+                    captures["pattern"],
+                    context,
+                );
+            }
         ],
     }
 }
@@ -184,10 +216,10 @@ mod tests {
                     { code => r#"var regex = /\\\x1f\\x1e/"#, errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::Regex }] },
                     { code => r#"var regex = /\\\x1fFOO\\x00/"#, errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::Regex }] },
                     { code => r#"var regex = /FOO\\\x1fFOO\\x1f/"#, errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::Regex }] },
-                    { code => "var regex = new RegExp('\\x1f\\x1e')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f, \\x1e" }, type => "Literal" }] },
-                    { code => "var regex = new RegExp('\\x1fFOO\\x00')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f, \\x00" }, type => "Literal" }] },
-                    { code => "var regex = new RegExp('FOO\\x1fFOO\\x1f')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f, \\x1f" }, type => "Literal" }] },
-                    { code => "var regex = RegExp('\\x1f')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => "Literal" }] },
+                    { code => "var regex = new RegExp('\\x1f\\x1e')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f, \\x1e" }, type => kind::String }] },
+                    { code => "var regex = new RegExp('\\x1fFOO\\x00')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f, \\x00" }, type => kind::String }] },
+                    { code => "var regex = new RegExp('FOO\\x1fFOO\\x1f')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f, \\x1f" }, type => kind::String }] },
+                    { code => "var regex = RegExp('\\x1f')", errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::String }] },
                     {
                         code => "var regex = /(?<a>\\x1f)/",
                         environment => { ecma_version => 2018 },
@@ -200,7 +232,7 @@ mod tests {
                     },
                     {
                         code => r#"new RegExp("\\u001F", flags)"#,
-                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => "Literal" }]
+                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::String }]
                     },
                     {
                         code => r#"/\u{1111}*\x1F/u"#,
@@ -210,7 +242,7 @@ mod tests {
                     {
                         code => r#"new RegExp("\\u{1111}*\\x1F", "u")"#,
                         environment => { ecma_version => 2015 },
-                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => "Literal" }]
+                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::String }]
                     },
                     {
                         code => r#"/\u{1F}/u"#,
@@ -224,15 +256,15 @@ mod tests {
                     },
                     {
                         code => r#"new RegExp("\\u{1F}", "u")"#,
-                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => "Literal" }]
+                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::String }]
                     },
                     {
                         code => r#"new RegExp("\\u{1F}", "gui")"#,
-                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => "Literal" }]
+                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::String }]
                     },
                     {
                         code => r#"new RegExp("[\\q{\\u{1F}}]", "v")"#,
-                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => "Literal" }]
+                        errors => [{ message_id => "unexpected", data => { control_chars => "\\x1f" }, type => kind::String }]
                     },
                     {
                         code => r#"/[\u{1F}--B]/v"#,

@@ -34,6 +34,9 @@ rules:
         get_comment_contents:
           module: crate::ast_helpers
           kind: function
+        get_cooked_value:
+          module: crate::ast_helpers
+          kind: function
         get_last_expression_of_sequence_expression:
           module: crate::ast_helpers
           kind: function
