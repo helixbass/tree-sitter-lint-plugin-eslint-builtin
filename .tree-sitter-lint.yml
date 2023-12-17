@@ -435,6 +435,9 @@ rules:
         ast_utils:
           module: crate::utils
           kind: module
+        get_static_string_value:
+          module: crate::utils::ast_utils
+          kind: function
         FileRunContext:
           module: tree_sitter_lint
           kind: type

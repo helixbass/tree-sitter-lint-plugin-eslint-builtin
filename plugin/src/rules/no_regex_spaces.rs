@@ -4,14 +4,20 @@ use regexpp_js::{
     id_arena::Id, visit_reg_exp_ast, visitor, AllArenas, NodeInterface, RegExpParser,
     ValidatePatternFlags, Wtf16,
 };
-use squalid::{regex, CowExt, OptionExt};
+use squalid::{regex, CowExt, CowStrExt, OptionExt};
 use tree_sitter_lint::{
     rule,
     tree_sitter::{Node, Point, Range},
     violation, NodeExt, QueryMatchContext, Rule,
 };
 
-use crate::ast_helpers::get_cooked_value;
+use crate::{
+    ast_helpers::{get_call_expression_arguments, get_cooked_value},
+    get_instance_provider_factory, kind,
+    kind::NewExpression,
+    scope::ScopeManager,
+    utils::{ast_utils, ast_utils::get_static_string_value},
+};
 
 fn check_regex<'a>(
     node_to_report: Node<'a>,
@@ -132,6 +138,54 @@ pub fn no_regex_spaces_rule() -> Arc<dyn Rule> {
                     context,
                 );
             },
+            r#"
+              (call_expression
+                function: (identifier) @regexp (#eq? @regexp "RegExp")
+                arguments: (arguments
+                  (string) @pattern
+                )
+              ) @call_expression
+              (new_expression
+                constructor: (identifier) @regexp (#eq? @regexp "RegExp")
+                arguments: (arguments
+                  (string) @pattern
+                )
+              ) @call_expression
+            "# => |captures, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                let node = captures["call_expression"];
+                let scope = scope_manager.get_scope(node);
+                let reg_exp_var = ast_utils::get_variable_by_name(scope, "RegExp");
+                let shadowed = reg_exp_var.matches(|reg_exp_var| reg_exp_var.defs().next().is_some());
+                if shadowed {
+                    return;
+                }
+                let pattern_node = captures["pattern"];
+
+                let raw_pattern = pattern_node.text(context).sliced(|len| 1..len - 1);
+                let pattern = get_static_string_value(pattern_node, context).unwrap();
+                let raw_pattern_start_range = pattern_node.start_byte() + 1;
+                let flags_node = get_call_expression_arguments(node).unwrap().nth(1);
+                let flags = match flags_node {
+                    Some(flags_node) => {
+                        if flags_node.kind() != kind::String {
+                            return;
+                        }
+                        get_static_string_value(flags_node, context)
+                    }
+                    None => None,
+                };
+
+                check_regex(
+                    node,
+                    pattern_node,
+                    pattern,
+                    raw_pattern,
+                    raw_pattern_start_range,
+                    flags,
+                    context,
+                );
+            }
         ],
     }
 }
@@ -141,11 +195,11 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind, kind::NewExpression};
+    use crate::{get_instance_provider_factory, kind, kind::NewExpression};
 
     #[test]
     fn test_no_regex_spaces_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             no_regex_spaces_rule(),
             rule_tests! {
                 valid => [
@@ -538,6 +592,7 @@ mod tests {
                     }
                 ]
             },
+            get_instance_provider_factory(),
         )
     }
 }
