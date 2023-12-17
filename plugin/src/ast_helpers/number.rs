@@ -27,7 +27,7 @@ impl From<&str> for Number {
         let mut value = regex!(r#"_"#).replace_all(value, "");
         let mut is_bigint = false;
         if is_bigint_literal(&value) {
-            value = value.sliced(..value.len() - 1);
+            value = value.sliced(|len| ..len - 1);
             is_bigint = true;
         }
         if is_hex_literal(&value) {
@@ -40,7 +40,10 @@ impl From<&str> for Number {
         //     value[..value.len() - 1]
         //         .parse::<i64>()
         //         .map_or(Self::NaN, Self::Integer)
-        } else if let Some(value) = value.strip_prefix('0').filter(|value| !value.is_empty() && !value.contains('.')) {
+        } else if let Some(value) = value
+            .strip_prefix('0')
+            .filter(|value| !value.is_empty() && !value.contains('.'))
+        {
             i64::from_str_radix(value, 8).map_or(Self::NaN, Self::Integer)
         } else {
             value.parse::<i64>().map(Self::Integer).unwrap_or_else(|_| {
@@ -140,11 +143,13 @@ mod tests {
             ("012", Number::Integer(10)),
             ("abc", Number::NaN),
             ("1abc", Number::NaN),
-        ].into_iter().for_each(|(number_str, expected)| {
-            match (Number::from(number_str), expected) {
+        ]
+        .into_iter()
+        .for_each(
+            |(number_str, expected)| match (Number::from(number_str), expected) {
                 (Number::NaN, Number::NaN) => (),
                 (actual, expected) => assert_eq!(actual, expected),
-            }
-        });
+            },
+        );
     }
 }

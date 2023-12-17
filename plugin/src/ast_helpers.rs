@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter};
+use std::{borrow::Cow, iter::{self, Peekable}, str::CharIndices};
 
 use itertools::Either;
 use squalid::{BoolExt, CowStrExt, OptionExt};
@@ -32,11 +32,11 @@ use crate::kind::{ImportStatement, JsxOpeningElement, JsxSelfClosingElement};
 macro_rules! assert_kind {
     ($node:expr, $kind:pat) => {
         assert!(
-                                                                    matches!($node.kind(), $kind),
-                                                                    "Expected kind {:?}, got: {:?}",
-                                                                    stringify!($kind),
-                                                                    $node.kind()
-                                                                );
+            matches!($node.kind(), $kind),
+            "Expected kind {:?}, got: {:?}",
+            stringify!($kind),
+            $node.kind()
+        );
     };
 }
 
@@ -44,8 +44,8 @@ macro_rules! assert_kind {
 macro_rules! return_default_if_false {
     ($expr:expr) => {
         if !$expr {
-                                                                    return Default::default();
-                                                                }
+            return Default::default();
+        }
     };
 }
 
@@ -343,10 +343,10 @@ pub fn get_comment_contents<'a>(
     assert_kind!(comment, Comment);
     let text = comment.text(source_text_provider);
     if text.starts_with("//") {
-        text.sliced(2..)
+        text.sliced(|_| 2..)
     } else {
         assert!(text.starts_with("/*"));
-        text.sliced(2..text.len() - 2)
+        text.sliced(|len| 2..len - 2)
     }
 }
 
@@ -517,7 +517,8 @@ pub fn template_string_has_any_cooked_literal_characters(
     let mut last_end: Option<usize> = Default::default();
     node.non_comment_children(SupportedLanguage::Javascript)
         .any(|child| {
-            if child.kind() == EscapeSequence && !get_cooked_value(&child.text(context)).is_empty()
+            if child.kind() == EscapeSequence
+                && !get_cooked_value(&child.text(context)/*, true*/).is_empty()
             {
                 return true;
             }
@@ -529,12 +530,93 @@ pub fn template_string_has_any_cooked_literal_characters(
             if quasi.is_empty() {
                 return false;
             }
-            !get_cooked_value(&quasi).is_empty()
+            !get_cooked_value(&quasi/*, true*/).is_empty()
         })
 }
 
-fn get_cooked_value(quasi: &str) -> Cow<'_, str> {
-    regex!(r#"\\\n"#).replace_all(quasi, "")
+// from acorn pp.readString()
+pub fn get_cooked_value(input: &str) -> Cow<'_, str> {
+    // TODO: should handle lone surrogates? Maybe rather than
+    // always returning Wtf16 return an enum of Cow<'_, str> or
+    // Wtf16 and only return Wtf16 if it contains lone surrogates
+    // (ie can't be encoded as UTF-8 in a String)?
+    // Or maybe always/sometimes return Wtf8?
+    let mut out: Option<String> = Default::default();
+    let mut chunk_start = 0;
+    let mut char_indices = input.char_indices().peekable();
+    let mut should_reset_chunk_start = false;
+    loop {
+        let Some((index, ch)) = char_indices.next() else {
+            break;
+        };
+        if should_reset_chunk_start {
+            chunk_start = index;
+        }
+        should_reset_chunk_start = false;
+        if matches!(ch, '\\') {
+            let out = out.get_or_insert_with(Default::default);
+            out.push_str(&input[chunk_start..index]);
+            out.push_str(&read_escaped_char(&mut char_indices));
+            should_reset_chunk_start = true;
+        }
+    }
+    if should_reset_chunk_start {
+        chunk_start = input.len();
+    }
+    if chunk_start < input.len() && out.is_some() {
+        out.as_mut().unwrap().push_str(&input[chunk_start..]);
+    }
+    match out {
+        Some(out) => Cow::Owned(out),
+        None => Cow::Borrowed(input),
+    }
+}
+
+fn read_escaped_char(char_indices: &mut Peekable<CharIndices>, /*in_template: bool*/) -> Cow<'static, str> {
+    let (_, ch) = char_indices.next().unwrap();
+    match ch {
+        'n' => "\n".into(),
+        'r' => "\r".into(),
+        'x' => String::from(
+            char::try_from(read_hex_char(&[
+                char_indices.next().unwrap().1,
+                char_indices.next().unwrap().1,
+            ]))
+            .unwrap(),
+        )
+        .into(),
+        'u' => unimplemented!(),
+        't' => "\t".into(),
+        'b' => "\u{0008}".into(),
+        'v' => "\u{000b}".into(),
+        'f' => "\u{000c}".into(),
+        '\r' => {
+            if matches!(
+                char_indices.peek(),
+                Some((_, '\n'))
+            ) {
+                char_indices.next();
+            }
+            "".into()
+        }
+        // TODO: this also appears to be in the realm of
+        // "invalid input" which I don't kknow if we're trying
+        // to handle?
+        // '8' | '9' => {}
+        ch if ('0'..='7').contains(&ch) => {
+            unimplemented!()
+        }
+        ch if is_new_line(ch) => "".into(),
+        ch => String::from(ch).into(),
+    }
+}
+
+fn read_hex_char(chars: &[char]) -> u32 {
+    u32::from_str_radix(&chars.iter().collect::<String>(), 16).unwrap()
+}
+
+fn is_new_line(ch: char) -> bool {
+    matches!(ch, '\n' | '\r' | '\u{2028}' | '\u{2029}')
 }
 
 pub fn parse(source_text: &str) -> Tree {
@@ -554,4 +636,30 @@ pub fn is_jsx_tag_name(node: Node) -> bool {
 
 pub fn is_tagged_template_expression(node: Node) -> bool {
     node.kind() == CallExpression && node.field("arguments").kind() == TemplateString
+}
+
+#[cfg(test)]
+mod tests {
+    use speculoos::prelude::*;
+
+    use super::*;
+
+    #[test]
+    fn test_get_cooked_value() {
+        for (input, expected) in [
+            ("abc", Cow::Borrowed("abc")),
+            ("", Cow::Borrowed("")),
+            // from acorn/test/tests-harmony.js
+            (
+                "\\n\\r\\b\\v\\t\\f\\\n\\\r\n\\\u{2028}\\\u{2029}",
+                Cow::Owned("\n\r\u{0008}\u{000b}\t\u{000c}".to_owned()),
+            ),
+            (
+                "\\u{000042}\\u0042\\x42u0\\A",
+                Cow::Owned("BBBu0A".to_owned()),
+            ),
+        ] {
+            assert_that!(&get_cooked_value(input/*, false*/)).is_equal_to(expected);
+        }
+    }
 }

@@ -529,14 +529,42 @@ rules:
         regex:
           module: squalid
           kind: macro
-        matches:
-          module: squalid
-          kind: trait_method
-          trait: OptionExt
         then_and:
           module: squalid
           kind: trait_method
           trait: BoolExt
+        map_borrowed:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_borrowed_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_cow:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_cow_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        sliced:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        sliced_owned:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        trimmed:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        trimmed_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
         thrush:
           module: squalid
           kind: trait_method
@@ -545,6 +573,14 @@ rules:
           module: squalid
           kind: trait_method
           trait: EverythingExt
+        non_empty:
+          module: squalid
+          kind: trait_method
+          trait: NonEmpty
+        matches:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
         as_double_deref:
           module: squalid
           kind: trait_method
@@ -553,10 +589,6 @@ rules:
           module: squalid
           kind: trait_method
           trait: SliceExtCloneOrd
-        non_empty:
-          module: squalid
-          kind: trait_method
-          trait: NonEmpty
         Captures:
           module: regex
           kind: type

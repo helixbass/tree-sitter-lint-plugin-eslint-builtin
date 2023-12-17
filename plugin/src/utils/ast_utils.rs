@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashSet};
 use const_format::formatcp;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use squalid::{return_default_if_none, CowStrExt, EverythingExt, OptionExt};
+use squalid::{return_default_if_none, CowExt, CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::{Node, Point, Range, Tree},
     tree_sitter_grep::SupportedLanguage,
@@ -13,7 +13,7 @@ use tree_sitter_lint::{
 use crate::{
     assert_kind,
     ast_helpers::{
-        get_call_expression_arguments, get_first_non_comment_child,
+        get_call_expression_arguments, get_cooked_value, get_first_non_comment_child,
         get_last_expression_of_sequence_expression, get_method_definition_kind,
         get_number_literal_string_value, get_number_literal_value, get_prev_non_comment_sibling,
         is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind, parse,
@@ -144,17 +144,17 @@ pub fn get_static_string_value<'a>(
     match node.kind() {
         Number => Some(get_number_literal_string_value(node, context).into()),
         kind::Regex => Some(context.get_node_text(node)),
-        kind::String => {
-            let node_text = context.get_node_text(node);
-            // TODO: this doesn't handle things like hex/unicode escapes
-            Some(node_text.sliced(1..node_text.len() - 1))
-        }
+        kind::String => Some(
+            node.text(context)
+                .sliced(|len| 1..len - 1)
+                .map_cow(get_cooked_value/*, false*/),
+        ),
         Null => Some("null".into()),
         TemplateString => {
             (!context.has_named_child_of_kind(node, "template_substitution")).then(|| {
-                let node_text = context.get_node_text(node);
-                // TODO: this doesn't handle things like hex/unicode escapes
-                node_text.sliced(1..node_text.len() - 1)
+                node.text(context)
+                    .sliced(|len| 1..len - 1)
+                    .map_cow(get_cooked_value/*, true*/)
             })
         }
         _ => None,
