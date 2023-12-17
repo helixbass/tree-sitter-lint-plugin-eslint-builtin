@@ -1,6 +1,7 @@
 use std::{borrow::Cow, iter::{self, Peekable}, str::CharIndices};
 
 use itertools::Either;
+use regexpp_js::CodePoint;
 use squalid::{BoolExt, CowStrExt, OptionExt};
 use tree_sitter_lint::{
     regex,
@@ -585,7 +586,7 @@ fn read_escaped_char(char_indices: &mut Peekable<CharIndices>, /*in_template: bo
             .unwrap(),
         )
         .into(),
-        'u' => unimplemented!(),
+        'u' => String::from(char::try_from(read_code_point(char_indices)).unwrap()).into(),
         't' => "\t".into(),
         'b' => "\u{0008}".into(),
         'v' => "\u{000b}".into(),
@@ -611,8 +612,28 @@ fn read_escaped_char(char_indices: &mut Peekable<CharIndices>, /*in_template: bo
     }
 }
 
-fn read_hex_char(chars: &[char]) -> u32 {
-    u32::from_str_radix(&chars.iter().collect::<String>(), 16).unwrap()
+fn read_code_point(char_indices: &mut Peekable<CharIndices>) -> CodePoint {
+    match char_indices.peek().unwrap().1 {
+        '{' => {
+            char_indices.next().unwrap();
+            let mut hex_chars: Vec<char> = Default::default();
+            while char_indices.peek().unwrap().1 != '}' {
+                hex_chars.push(char_indices.next().unwrap().1);
+            }
+            char_indices.next().unwrap();
+            read_hex_char(&hex_chars)
+        }
+        _ => read_hex_char(&[
+            char_indices.next().unwrap().1,
+            char_indices.next().unwrap().1,
+            char_indices.next().unwrap().1,
+            char_indices.next().unwrap().1,
+        ])
+    }
+}
+
+fn read_hex_char(chars: &[char]) -> CodePoint {
+    CodePoint::from_str_radix(&chars.iter().collect::<String>(), 16).unwrap()
 }
 
 fn is_new_line(ch: char) -> bool {
