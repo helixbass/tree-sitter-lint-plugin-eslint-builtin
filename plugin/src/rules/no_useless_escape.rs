@@ -1,6 +1,144 @@
-use std::sync::Arc;
+use std::{borrow::Cow, collections::HashSet, sync::Arc};
 
-use tree_sitter_lint::{rule, violation, Rule};
+use once_cell::sync::Lazy;
+use regex::Captures;
+use squalid::{regex, OptionExt};
+use tree_sitter_lint::{
+    rule,
+    tree_sitter::{Node, Point, Range},
+    violation, NodeExt, QueryMatchContext, Rule,
+};
+
+use crate::{
+    ast_helpers::{get_template_string_chunks, is_tagged_template_expression},
+    utils::ast_utils,
+};
+
+static VALID_STRING_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
+    ['\\', 'n', 'r', 'v', 't', 'b', 'f', 'u', 'x']
+        .into_iter()
+        .chain(ast_utils::LINE_BREAK_SINGLE_CHARS.iter().copied())
+        .collect()
+});
+
+fn report<'a>(
+    node: Node<'a>,
+    start_offset: usize,
+    character: String,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    let range_start = node.start_byte() + start_offset;
+    let range = [range_start, range_start + 1];
+
+    context.report(violation! {
+        node => node,
+        range => Range {
+            start_byte: range[0],
+            end_byte: range[1],
+            // TODO: this may not be a valid assumption?
+            start_point: Point {
+                row: node.start_position().row,
+                column: node.start_position().column + start_offset,
+            },
+            end_point: Point {
+                row: node.start_position().row,
+                column: node.start_position().column + start_offset + 1,
+            },
+        },
+        message_id => "unnecessary_escape",
+        data => {
+            character => character,
+        },
+        // TODO: suggestions?
+    });
+}
+
+fn validate_string<'a>(
+    node: Node<'a>,
+    captures: Captures<'_>,
+    template_chunk_and_start: Option<&(Cow<'a, str>, usize)>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    let is_template_element = template_chunk_and_start.is_some();
+    let escaped_char = captures[0].chars().nth(1).unwrap();
+    let mut is_unnecessary_escape = !VALID_STRING_ESCAPES.contains(&escaped_char);
+    let is_quote_escape;
+
+    if is_template_element {
+        is_quote_escape = escaped_char == '`';
+
+        let template_chunk_and_start = template_chunk_and_start.unwrap();
+        match escaped_char {
+            '$' => {
+                let next_char_after_escaped_start = captures.get(0).unwrap().start() + 2;
+                is_unnecessary_escape =
+                    if next_char_after_escaped_start >= template_chunk_and_start.0.len() {
+                        true
+                    } else {
+                        &template_chunk_and_start.0
+                            [next_char_after_escaped_start..next_char_after_escaped_start + 1]
+                            != "{"
+                    };
+            }
+            '{' => {
+                let match_start = captures.get(0).unwrap().start();
+                is_unnecessary_escape = if match_start == 0 {
+                    true
+                } else {
+                    &template_chunk_and_start.0[match_start - 1..match_start] != "$"
+                };
+            }
+            _ => (),
+        }
+    } else {
+        is_quote_escape = escaped_char == node.text(context).chars().next().unwrap();
+    }
+
+    if is_unnecessary_escape && !is_quote_escape {
+        report(
+            node,
+            template_chunk_and_start
+                .map(|template_chunk_and_start| template_chunk_and_start.1)
+                .unwrap_or_else(|| node.start_byte())
+                + captures.get(0).unwrap().start(),
+            captures[0][1..].to_owned(),
+            context,
+        );
+    }
+}
+
+fn check<'a>(
+    node: Node<'a>,
+    template_chunk_and_start: Option<(Cow<'a, str>, usize)>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    let is_template_element = template_chunk_and_start.is_some();
+
+    if is_template_element
+        && node.parent().matches(|parent| {
+            parent.parent().matches(|parent_parent| {
+                is_tagged_template_expression(parent_parent)
+                    && parent_parent.field("function") == parent
+            })
+        })
+    {
+        return;
+    }
+
+    // if matches!(
+    //     node.parent().unwrap().kind(),
+    //     JSX
+    // )
+
+    let value = template_chunk_and_start
+        .as_ref()
+        .map(|template_chunk_and_start| template_chunk_and_start.0.clone())
+        .unwrap_or_else(|| node.text(context));
+
+    for captures in regex!(r#"\\[^\d]"#).captures_iter(&value) {
+        validate_string(node, captures, template_chunk_and_start.as_ref(), context);
+    }
+}
 
 pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
     rule! {
@@ -13,13 +151,12 @@ pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
             escape_backslash => "Replace the `\\` with `\\\\` to include the actual backslash character.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (template_string) @c
+            "# => |node, context| {
+                for (chunk, chunk_start) in get_template_string_chunks(node, context) {
+                    check(node, Some((chunk, chunk_start)), context);
+                }
             },
         ],
     }
