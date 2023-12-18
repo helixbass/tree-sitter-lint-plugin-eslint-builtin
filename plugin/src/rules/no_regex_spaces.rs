@@ -194,7 +194,10 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{get_instance_provider_factory, kind, kind::{CallExpression, NewExpression}};
+    use crate::{
+        get_instance_provider_factory, kind,
+        kind::{CallExpression, NewExpression},
+    };
 
     #[test]
     fn test_no_regex_spaces_rule() {
