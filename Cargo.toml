@@ -1,8 +1,11 @@
-[package]
-name = "tree-sitter-lint-plugin-eslint-builtin"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+    "plugin",
+    "xtask"
+]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace.dependencies]
+tree-sitter-lint = { git = "https://github.com/helixbass/tree-sitter-lint", rev = "80cf7c4" }
 
-[dependencies]
+[patch.crates-io]
+tree-sitter = { git = "https://github.com/tree-sitter/tree-sitter", rev = "c16b90d" }

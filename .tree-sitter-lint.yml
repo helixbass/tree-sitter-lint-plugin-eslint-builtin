@@ -1,0 +1,666 @@
+plugins:
+  rustfmt:
+    path: ../tree-sitter-lint-plugin-rustfmt
+  rust-known-imports:
+    path: ../tree-sitter-lint-plugin-rust-known-imports
+rules:
+  rustfmt/rustfmt:
+    level: error
+  rust-known-imports/known-imports:
+    level: error
+    options:
+      known_imports:
+        get_instance_provider_factory:
+          module: crate
+          kind: function
+        assert_kind:
+          module: crate
+          kind: macro
+        kind:
+          module: crate
+          kind: module
+        AllComments:
+          module: crate::all_comments
+          kind: type
+        CommentType:
+          module: crate::ast_helpers
+          kind: type
+        get_call_expression_arguments:
+          module: crate::ast_helpers
+          kind: function
+        get_comment_type:
+          module: crate::ast_helpers
+          kind: function
+        get_comment_contents:
+          module: crate::ast_helpers
+          kind: function
+        get_cooked_value:
+          module: crate::ast_helpers
+          kind: function
+        get_last_expression_of_sequence_expression:
+          module: crate::ast_helpers
+          kind: function
+        get_method_definition_kind:
+          module: crate::ast_helpers
+          kind: function
+        is_class_member_static:
+          module: crate::ast_helpers
+          kind: function
+        is_default_import_declaration:
+          module: crate::ast_helpers
+          kind: function
+        is_jsx_tag_name:
+          module: crate::ast_helpers
+          kind: function
+        is_tagged_template_expression:
+          module: crate::ast_helpers
+          kind: function
+        MethodDefinitionKind:
+          module: crate::ast_helpers
+          kind: type
+        next_non_parentheses_ancestor:
+          module: crate::ast_helpers
+          kind: trait_method
+          trait: NodeExtJs
+        skip_parentheses:
+          module: crate::ast_helpers
+          kind: trait_method
+          trait: NodeExtJs
+        globals:
+          module: crate::conf
+          kind: module
+        DirectiveComments:
+          module: crate::directive_comments
+          kind: type
+        directives_pattern:
+          module: crate::directives
+          kind: static
+        Array:
+          module: crate::kind
+          kind: static
+        Arguments:
+          module: crate::kind
+          kind: static
+        ArrayPattern:
+          module: crate::kind
+          kind: static
+        ArrowFunction:
+          module: crate::kind
+          kind: static
+        AssignmentExpression:
+          module: crate::kind
+          kind: static
+        AssignmentPattern:
+          module: crate::kind
+          kind: static
+        AugmentedAssignmentExpression:
+          module: crate::kind
+          kind: static
+        AwaitExpression:
+          module: crate::kind
+          kind: static
+        BinaryExpression:
+          module: crate::kind
+          kind: static
+        BreakStatement:
+          module: crate::kind
+          kind: static
+        CallExpression:
+          module: crate::kind
+          kind: static
+        CatchClause:
+          module: crate::kind
+          kind: static
+        Class:
+          module: crate::kind
+          kind: static
+        ClassBody:
+          module: crate::kind
+          kind: static
+        ClassDeclaration:
+          module: crate::kind
+          kind: static
+        ClassHeritage:
+          module: crate::kind
+          kind: static
+        ClassStaticBlock:
+          module: crate::kind
+          kind: static
+        Comment:
+          module: crate::kind
+          kind: static
+        ComputedPropertyName:
+          module: crate::kind
+          kind: static
+        ContinueStatement:
+          module: crate::kind
+          kind: static
+        DebuggerStatement:
+          module: crate::kind
+          kind: static
+        Decorator:
+          module: crate::kind
+          kind: static
+        DoStatement:
+          module: crate::kind
+          kind: static
+        ElseClause:
+          module: crate::kind
+          kind: static
+        EmptyStatement:
+          module: crate::kind
+          kind: static
+        EscapeSequence:
+          module: crate::kind
+          kind: static
+        ExportClause:
+          module: crate::kind
+          kind: static
+        ExportSpecifier:
+          module: crate::kind
+          kind: static
+        ExportStatement:
+          module: crate::kind
+          kind: static
+        ExpressionStatement:
+          module: crate::kind
+          kind: static
+        False:
+          module: crate::kind
+          kind: static
+        FieldDefinition:
+          module: crate::kind
+          kind: static
+        FinallyClause:
+          module: crate::kind
+          kind: static
+        ForInStatement:
+          module: crate::kind
+          kind: static
+        FormalParameters:
+          module: crate::kind
+          kind: static
+        ForStatement:
+          module: crate::kind
+          kind: static
+        Function:
+          module: crate::kind
+          kind: static
+        FunctionDeclaration:
+          module: crate::kind
+          kind: static
+        GeneratorFunction:
+          module: crate::kind
+          kind: static
+        GeneratorFunctionDeclaration:
+          module: crate::kind
+          kind: static
+        GlimmerClosingTag:
+          module: crate::kind
+          kind: static
+        GlimmerOpeningTag:
+          module: crate::kind
+          kind: static
+        GlimmerTemplate:
+          module: crate::kind
+          kind: static
+        HashBangLine:
+          module: crate::kind
+          kind: static
+        Identifier:
+          module: crate::kind
+          kind: static
+        IfStatement:
+          module: crate::kind
+          kind: static
+        Import:
+          module: crate::kind
+          kind: static
+        ImportClause:
+          module: crate::kind
+          kind: static
+        ImportSpecifier:
+          module: crate::kind
+          kind: static
+        ImportStatement:
+          module: crate::kind
+          kind: static
+        JsxAttribute:
+          module: crate::kind
+          kind: static
+        JsxClosingElement:
+          module: crate::kind
+          kind: static
+        JsxElement:
+          module: crate::kind
+          kind: static
+        JsxExpression:
+          module: crate::kind
+          kind: static
+        JsxNamespaceName:
+          module: crate::kind
+          kind: static
+        JsxOpeningElement:
+          module: crate::kind
+          kind: static
+        JsxSelfClosingElement:
+          module: crate::kind
+          kind: static
+        JsxText:
+          module: crate::kind
+          kind: static
+        LabeledStatement:
+          module: crate::kind
+          kind: static
+        LexicalDeclaration:
+          module: crate::kind
+          kind: static
+        MemberExpression:
+          module: crate::kind
+          kind: static
+        MetaProperty:
+          module: crate::kind
+          kind: static
+        MethodDefinition:
+          module: crate::kind
+          kind: static
+        NamedImports:
+          module: crate::kind
+          kind: static
+        NamespaceExport:
+          module: crate::kind
+          kind: static
+        NamespaceImport:
+          module: crate::kind
+          kind: static
+        NewExpression:
+          module: crate::kind
+          kind: static
+        Null:
+          module: crate::kind
+          kind: static
+        Object:
+          module: crate::kind
+          kind: static
+        ObjectAssignmentPattern:
+          module: crate::kind
+          kind: static
+        ObjectPattern:
+          module: crate::kind
+          kind: static
+        OptionalChain:
+          module: crate::kind
+          kind: static
+        Pair:
+          module: crate::kind
+          kind: static
+        PairPattern:
+          module: crate::kind
+          kind: static
+        ParenthesizedExpression:
+          module: crate::kind
+          kind: static
+        PrivatePropertyIdentifier:
+          module: crate::kind
+          kind: static
+        Program:
+          module: crate::kind
+          kind: static
+        PropertyIdentifier:
+          module: crate::kind
+          kind: static
+        RegexFlags:
+          module: crate::kind
+          kind: static
+        RegexPattern:
+          module: crate::kind
+          kind: static
+        RestPattern:
+          module: crate::kind
+          kind: static
+        ReturnStatement:
+          module: crate::kind
+          kind: static
+        SequenceExpression:
+          module: crate::kind
+          kind: static
+        ShorthandPropertyIdentifier:
+          module: crate::kind
+          kind: static
+        ShorthandPropertyIdentifierPattern:
+          module: crate::kind
+          kind: static
+        SpreadElement:
+          module: crate::kind
+          kind: static
+        StatementBlock:
+          module: crate::kind
+          kind: static
+        StatementIdentifier:
+          module: crate::kind
+          kind: static
+        SubscriptExpression:
+          module: crate::kind
+          kind: static
+        Super:
+          module: crate::kind
+          kind: static
+        SwitchBody:
+          module: crate::kind
+          kind: static
+        SwitchCase:
+          module: crate::kind
+          kind: static
+        SwitchDefault:
+          module: crate::kind
+          kind: static
+        SwitchStatement:
+          module: crate::kind
+          kind: static
+        TemplateString:
+          module: crate::kind
+          kind: static
+        TemplateSubstitution:
+          module: crate::kind
+          kind: static
+        TernaryExpression:
+          module: crate::kind
+          kind: static
+        This:
+          module: crate::kind
+          kind: static
+        ThrowStatement:
+          module: crate::kind
+          kind: static
+        True:
+          module: crate::kind
+          kind: static
+        TryStatement:
+          module: crate::kind
+          kind: static
+        UnaryExpression:
+          module: crate::kind
+          kind: static
+        Undefined:
+          module: crate::kind
+          kind: static
+        UpdateExpression:
+          module: crate::kind
+          kind: static
+        VariableDeclaration:
+          module: crate::kind
+          kind: static
+        VariableDeclarator:
+          module: crate::kind
+          kind: static
+        WhileStatement:
+          module: crate::kind
+          kind: static
+        WithStatement:
+          module: crate::kind
+          kind: static
+        YieldExpression:
+          module: crate::kind
+          kind: static
+        Kind:
+          module: crate::kind
+          kind: type
+        config_comment_parser:
+          module: crate::scope
+          kind: type
+        Reference:
+          module: crate::scope
+          kind: type
+        Scope:
+          module: crate::scope
+          kind: type
+        ScopeManager:
+          module: crate::scope
+          kind: type
+        ScopeType:
+          module: crate::scope
+          kind: type
+        StringFragment:
+          module: crate::kind
+          kind: static
+        Variable:
+          module: crate::scope
+          kind: type
+        VariableType:
+          module: crate::scope
+          kind: type
+        upper_case_first:
+          module: crate::string_utils
+          kind: function
+        ast_utils:
+          module: crate::utils
+          kind: module
+        get_static_string_value:
+          module: crate::utils::ast_utils
+          kind: function
+        FileRunContext:
+          module: tree_sitter_lint
+          kind: type
+        FromFileRunContext:
+          module: tree_sitter_lint
+          kind: type
+        QueryMatchContext:
+          module: tree_sitter_lint
+          kind: type
+        Rule:
+          module: tree_sitter_lint
+          kind: type
+        RuleTestExpectedError:
+          module: tree_sitter_lint
+          kind: type
+        RuleTestExpectedErrorBuilder:
+          module: tree_sitter_lint
+          kind: type
+        SkipOptionsBuilder:
+          module: tree_sitter_lint
+          kind: type
+        ViolationData:
+          module: tree_sitter_lint
+          kind: type
+        rule:
+          module: tree_sitter_lint
+          kind: macro
+        violation:
+          module: tree_sitter_lint
+          kind: macro
+        has_child_of_kind:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        first_non_comment_named_child:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        text:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        tokens:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        num_non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        field:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        tid:
+          module: tree_sitter_lint::better_any
+          kind: macro
+        Node:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
+        Point:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
+        Tree:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
+        TreeCursor:
+          module: tree_sitter_lint::tree_sitter
+          kind: type
+        RopeOrSlice:
+          module: tree_sitter_lint::tree_sitter_grep
+          kind: type
+        SupportedLanguage:
+          module: tree_sitter_lint::tree_sitter_grep
+          kind: type
+        Deserialize:
+          module: serde
+          kind: type
+        return_default_if_none:
+          module: squalid
+          kind: macro
+        return_if_none:
+          module: squalid
+          kind: macro
+        run_once:
+          module: squalid
+          kind: macro
+        json_object:
+          module: squalid
+          kind: macro
+        regex:
+          module: squalid
+          kind: macro
+        then_and:
+          module: squalid
+          kind: trait_method
+          trait: BoolExt
+        map_borrowed:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_borrowed_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_cow:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_cow_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        sliced:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        sliced_owned:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        trimmed:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        trimmed_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        thrush:
+          module: squalid
+          kind: trait_method
+          trait: EverythingExt
+        when:
+          module: squalid
+          kind: trait_method
+          trait: EverythingExt
+        non_empty:
+          module: squalid
+          kind: trait_method
+          trait: NonEmpty
+        matches:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
+        as_double_deref:
+          module: squalid
+          kind: trait_method
+          trait: OptionExtDeref
+        sorted:
+          module: squalid
+          kind: trait_method
+          trait: SliceExtCloneOrd
+        Captures:
+          module: regex
+          kind: type
+        Regex:
+          module: regex
+          kind: type
+        Either:
+          module: itertools
+          kind: type
+        collect_vec:
+          module: itertools
+          kind: trait_method
+          trait: Itertools
+        instrument:
+          module: tracing
+          kind: attribute
+        trace:
+          module: tracing
+          kind: macro
+        Lazy:
+          module: once_cell::sync
+          kind: type
+        visit_reg_exp_ast:
+          module: regexpp_js
+          kind: function
+        RegExpParser:
+          module: regexpp_js
+          kind: type
+        RegExpValidator:
+          module: regexpp_js
+          kind: type
+        ValidatePatternFlags:
+          module: regexpp_js
+          kind: type
+        Wtf16:
+          module: regexpp_js
+          kind: type
+        iter:
+          module: std
+          kind: module
+        OnceCell:
+          module: std::cell
+          kind: type
+        Ref:
+          module: std::cell
+          kind: type
+        RefCell:
+          module: std::cell
+          kind: type
+        HashSet:
+          module: std::collections
+          kind: type
+        HashMap:
+          module: std::collections
+          kind: type
+        Rc:
+          module: std::rc
+          kind: type
+        Arc:
+          module: std::sync
+          kind: type
+        OnceLock:
+          module: std::sync
+          kind: type
+        Cow:
+          module: std::borrow
+          kind: type
+tree-sitter-lint-dependency:
+  path: ../tree-sitter-lint
