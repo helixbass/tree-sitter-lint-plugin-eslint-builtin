@@ -354,7 +354,7 @@ pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
 
                         report(
                             self.node,
-                            reported_index,
+                            self.node.start_byte() + reported_index,
                             escaped_char.into(),
                             self.context,
                         );
