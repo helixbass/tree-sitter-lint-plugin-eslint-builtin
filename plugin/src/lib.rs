@@ -45,7 +45,7 @@ use rules::{
     no_throw_literal_rule, no_undef_rule, no_unneeded_ternary_rule, no_unreachable_loop_rule,
     no_unreachable_rule, no_unsafe_finally_rule, no_unsafe_negation_rule,
     no_unsafe_optional_chaining_rule, no_unused_labels_rule, no_unused_vars_rule,
-    no_useless_call_rule, no_useless_catch_rule, no_useless_return_rule,
+    no_useless_call_rule, no_useless_catch_rule, no_useless_escape_rule, no_useless_return_rule,
     prefer_object_has_own_rule, require_yield_rule, sort_keys_rule, space_unary_ops_rule,
     symbol_description_rule, vars_on_top_rule, wrap_regex_rule, yield_star_spacing_rule, yoda_rule,
 };
@@ -157,6 +157,7 @@ pub fn instantiate() -> Plugin {
             no_control_regex_rule(),
             no_regex_spaces_rule(),
             no_invalid_regexp_rule(),
+            no_useless_escape_rule(),
         ],
     }
 }
