@@ -86,7 +86,7 @@ fn test_class_c_a_b_c_d_e() {
     )
     .is_empty();
 
-    let expected_variable_names = vec!["a", "b", "c", "d", "e"];
+    let expected_variable_names = ["a", "b", "c", "d", "e"];
     let expected_variable_names_owned = expected_variable_names
         .iter()
         .map(|&value| value.to_owned())

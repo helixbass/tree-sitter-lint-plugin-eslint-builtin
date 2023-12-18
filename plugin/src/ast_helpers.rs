@@ -568,8 +568,10 @@ pub fn get_cooked_value(input: &str) -> Cow<'_, str> {
     if should_reset_chunk_start {
         chunk_start = input.len();
     }
-    if chunk_start < input.len() && out.is_some() {
-        out.as_mut().unwrap().push_str(&input[chunk_start..]);
+    if chunk_start < input.len() {
+        if let Some(out) = out.as_mut() {
+            out.push_str(&input[chunk_start..]);
+        }
     }
     match out {
         Some(out) => Cow::Owned(out),
