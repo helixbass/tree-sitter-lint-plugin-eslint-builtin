@@ -1,7 +1,11 @@
-use std::{borrow::Cow, collections::HashSet, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, collections::HashSet, sync::Arc};
 
+use id_arena::Id;
 use once_cell::sync::Lazy;
 use regex::Captures;
+use regexpp_js::{
+    visit_reg_exp_ast, visitor, AllArenas, NodeInterface, RegExpParser, ValidatePatternFlags, Wtf16,
+};
 use squalid::{regex, OptionExt};
 use tree_sitter_lint::{
     rule,
@@ -19,6 +23,40 @@ static VALID_STRING_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
         .into_iter()
         .chain(ast_utils::LINE_BREAK_SINGLE_CHARS.iter().copied())
         .collect()
+});
+
+static REGEX_GENERAL_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
+    [
+        '\\', 'b', 'c', 'd', 'D', 'f', 'n', 'p', 'P', 'r', 's', 'S', 't', 'v', 'w', 'W', 'x', 'u',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    ]
+    .into()
+});
+
+static REGEX_NON_CHARCLASS_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
+    REGEX_GENERAL_ESCAPES
+        .iter()
+        .copied()
+        .chain([
+            '^', '/', '.', '$', '*', '+', '?', '[', '{', '}', '|', '(', ')', 'B', 'k',
+        ])
+        .collect()
+});
+
+static REGEX_CLASSSET_CHARACTER_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
+    REGEX_GENERAL_ESCAPES
+        .iter()
+        .copied()
+        .chain(['q', '/', '[', '{', '}', '|', '(', ')', '-'])
+        .collect()
+});
+
+static REGEX_CLASS_SET_RESERVED_DOUBLE_PUNCTUATOR: Lazy<HashSet<char>> = Lazy::new(|| {
+    [
+        '!', '#', '$', '%', '&', '*', '+', ',', '.', ':', ';', '<', '=', '>', '?', '@', '^', '`',
+        '~',
+    ]
+    .into()
 });
 
 fn report<'a>(
@@ -164,6 +202,172 @@ pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
               (string) @c
             "# => |node, context| {
                 check(node, None, context);
+            },
+            r#"
+              (regex) @c
+            "# => |node, context| {
+                let pattern = node.field("pattern").text(context);
+                let flags = node.child_by_field_name("flags").map(|flags| flags.text(context));
+                let unicode = flags.as_ref().matches(|flags| flags.contains('u'));
+                let unicode_sets = flags.as_ref().matches(|flags| flags.contains('v'));
+
+                let arena = AllArenas::default();
+                let mut parser = RegExpParser::new(&arena, None);
+                let pattern_as_wtf16: Wtf16 = (&*pattern).into();
+                let Ok(pattern_node) = parser.parse_pattern(
+                    &pattern_as_wtf16,
+                    Some(0),
+                    Some(pattern_as_wtf16.len()),
+                    Some(ValidatePatternFlags {
+                        unicode: Some(unicode),
+                        unicode_sets: Some(unicode_sets),
+                    }),
+                ) else {
+                    return;
+                };
+
+                struct Handlers<'a, 'b, 'c> {
+                    arena: &'b AllArenas,
+                    pattern_as_wtf16: &'b Wtf16,
+                    unicode_sets: bool,
+                    character_class_stack: RefCell<Vec<Id<regexpp_js::Node>>>,
+                    node: Node<'a>,
+                    context: &'b QueryMatchContext<'a, 'c>,
+                }
+
+                impl<'a, 'b, 'c> Handlers<'a, 'b, 'c> {
+                    pub fn new(
+                        arena: &'b AllArenas,
+                        pattern_as_wtf16: &'b Wtf16,
+                        unicode_sets: bool,
+                        node: Node<'a>,
+                        context: &'b QueryMatchContext<'a, 'c>,
+                    ) -> Self {
+                        Self {
+                            arena,
+                            pattern_as_wtf16,
+                            unicode_sets,
+                            character_class_stack: Default::default(),
+                            node,
+                            context,
+                        }
+                    }
+                }
+
+                impl<'a, 'b, 'c> visitor::Handlers for Handlers<'a, 'b, 'c> {
+                    fn on_character_class_enter(&self, character_class_node: Id<regexpp_js::Node /*CharacterClass*/>) {
+                        self.character_class_stack.borrow_mut().insert(0, character_class_node);
+                    }
+
+                    fn on_character_class_leave(&self, _node: Id<regexpp_js::Node /*CharacterClass*/>) {
+                        self.character_class_stack.borrow_mut().remove(0);
+                    }
+
+                    fn on_expression_character_class_enter(&self, character_class_node: Id<regexpp_js::Node /*ExpressionCharacterClass*/>) {
+                        self.character_class_stack.borrow_mut().insert(0, character_class_node);
+                    }
+
+                    fn on_expression_character_class_leave(&self, _node: Id<regexpp_js::Node /*ExpressionCharacterClass*/>) {
+                        self.character_class_stack.borrow_mut().remove(0);
+                    }
+
+                    fn on_character_enter(&self, character_node: Id<regexpp_js::Node /*Character*/>) {
+                        let character_node_ref = self.arena.node(character_node);
+                        let character_node_raw = character_node_ref.raw();
+                        if character_node_raw[0] != u16::try_from('\\').unwrap() {
+                            return;
+                        }
+
+                        let escaped_char = &character_node_raw[1..];
+                        if escaped_char != *Wtf16::from(character_node_ref.as_character().value) {
+                            return;
+                        }
+
+                        let character_class_stack = self.character_class_stack.borrow();
+                        let allowed_escapes = if !character_class_stack.is_empty() {
+                            if self.unicode_sets {
+                                &REGEX_CLASSSET_CHARACTER_ESCAPES
+                            } else {
+                                &REGEX_GENERAL_ESCAPES
+                            }
+                        } else {
+                            &REGEX_NON_CHARCLASS_ESCAPES
+                        };
+                        let escaped_char_as_wtf_16 = escaped_char;
+                        let escaped_char = char::try_from(&Wtf16::from(escaped_char_as_wtf_16)).unwrap();
+                        if allowed_escapes.contains(&escaped_char) {
+                            return;
+                        }
+
+                        let reported_index = character_node_ref.start() + 1;
+                        // let mut disable_escape_backslash_suggest = false;
+
+                        if !character_class_stack.is_empty() {
+                            let character_class_node = character_class_stack[0];
+                            let character_class_node_ref = self.arena.node(character_class_node);
+
+                            #[allow(clippy::collapsible_if)]
+                            if escaped_char == '^' {
+                                if character_class_node_ref.start() + 1 == character_node_ref.start() {
+                                    return;
+                                }
+                            }
+                            #[allow(clippy::collapsible_else_if)]
+                            if !self.unicode_sets {
+                                #[allow(clippy::collapsible_if)]
+                                if escaped_char == '-' {
+                                    if character_class_node_ref.start() + 1 != character_node_ref.start() &&
+                                        character_node_ref.end() != character_class_node_ref.end() - 1 {
+                                        return;
+                                    }
+                                }
+                            } else {
+                                if REGEX_CLASS_SET_RESERVED_DOUBLE_PUNCTUATOR.contains(&escaped_char) {
+                                    if self.pattern_as_wtf16[character_node_ref.end()] == escaped_char_as_wtf_16[0] {
+                                        return;
+                                    }
+                                    if self.pattern_as_wtf16[character_node_ref.start() - 1] == escaped_char_as_wtf_16[0] {
+                                        if escaped_char != '^' {
+                                            return;
+                                        }
+
+                                        if !character_class_node_ref.as_character_class().negate {
+                                            return;
+                                        }
+                                        let negate_caret_index = character_class_node_ref.start() + 1;
+
+                                        if negate_caret_index < character_node_ref.start() - 1 {
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                // if matches!(
+                                //     &*self.arena.node(character_node_ref.parent()),
+                                //     regexpp_js::Node::ClassIntersection(_) |
+                                //     regexpp_js::Node::ClassSubtraction(_)
+                                // ) {
+                                //     disable_escape_backslash_suggest = true;
+                                // }
+                            }
+                        }
+
+                        report(
+                            self.node,
+                            reported_index,
+                            escaped_char.into(),
+                            self.context,
+                        );
+                    }
+                }
+
+                let handlers = Handlers::new(&arena, &pattern_as_wtf16, unicode_sets, node, context);
+
+                visit_reg_exp_ast(
+                    pattern_node,
+                    &handlers,
+                    &arena,
+                );
             },
         ],
     }
