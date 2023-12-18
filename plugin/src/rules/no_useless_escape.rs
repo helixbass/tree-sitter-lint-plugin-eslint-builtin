@@ -160,6 +160,11 @@ pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
                     check(node, Some((chunk, chunk_start)), context);
                 }
             },
+            r#"
+              (string) @c
+            "# => |node, context| {
+                check(node, None, context);
+            },
         ],
     }
 }
@@ -169,7 +174,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::TemplateString;
+    use crate::{kind, kind::TemplateString};
 
     #[test]
     fn test_no_useless_escape_rule() {
@@ -352,7 +357,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\#.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = /#/;"
@@ -369,7 +374,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\;.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = /;/;"
@@ -386,7 +391,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\'.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = \"'\";"
@@ -394,7 +399,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "var foo = \"\\\\'\";"
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = \"\\#/\";",
@@ -403,7 +408,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\#.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = \"#/\";"
@@ -420,7 +425,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\a.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = \"a\""
@@ -437,7 +442,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\B.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = \"B\";"
@@ -454,7 +459,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\@.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = \"@\";"
@@ -471,7 +476,7 @@ mod tests {
                             column => 16,
                             end_column => 17,
                             message => "Unnecessary escape character: \\a.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = \"foo a bar\";"
@@ -488,7 +493,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\\".",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = '\"';"
@@ -505,7 +510,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\#.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = '#';"
@@ -522,7 +527,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\$.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = '$';"
@@ -539,7 +544,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\p.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = 'p';"
@@ -557,7 +562,7 @@ mod tests {
                                 column => 12,
                                 end_column => 13,
                                 message => "Unnecessary escape character: \\p.",
-                                type => "Literal",
+                                type => kind::String,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = 'p\\a\\@';"
@@ -571,7 +576,7 @@ mod tests {
                                 column => 14,
                                 end_column => 15,
                                 message => "Unnecessary escape character: \\a.",
-                                type => "Literal",
+                                type => kind::String,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = '\\pa\\@';"
@@ -585,7 +590,7 @@ mod tests {
                                 column => 16,
                                 end_column => 17,
                                 message => "Unnecessary escape character: \\@.",
-                                type => "Literal",
+                                type => kind::String,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = '\\p\\a@';"
@@ -604,7 +609,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\d.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "<foo attr={\"d\"}/>"
@@ -621,7 +626,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\`.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = '`';"
@@ -693,7 +698,7 @@ mod tests {
                                 column => 12,
                                 end_column => 13,
                                 message => "Unnecessary escape character: \\`.",
-                                type => "Literal",
+                                type => kind::String,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = '`foo\\`';"
@@ -707,7 +712,7 @@ mod tests {
                                 column => 17,
                                 end_column => 18,
                                 message => "Unnecessary escape character: \\`.",
-                                type => "Literal",
+                                type => kind::String,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = '\\`foo`';"
@@ -812,7 +817,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\ .",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "let foo = ' ';"
@@ -830,7 +835,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\ .",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "let foo = / /;"
@@ -907,7 +912,7 @@ mod tests {
                             column => 15,
                             end_column => 16,
                             message => "Unnecessary escape character: \\-.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[ab-]/"#
@@ -924,7 +929,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\-.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[-ab]/"#
@@ -941,7 +946,7 @@ mod tests {
                             column => 15,
                             end_column => 16,
                             message => "Unnecessary escape character: \\?.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[ab?]/"#
@@ -958,7 +963,7 @@ mod tests {
                             column => 15,
                             end_column => 16,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[ab.]/"#
@@ -975,7 +980,7 @@ mod tests {
                             column => 14,
                             end_column => 15,
                             message => "Unnecessary escape character: \\|.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[a|b]/"#
@@ -992,7 +997,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\-.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /-/"#
@@ -1009,7 +1014,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\-.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[-]/"#
@@ -1026,7 +1031,7 @@ mod tests {
                             column => 15,
                             end_column => 16,
                             message => "Unnecessary escape character: \\$.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[ab$]/"#
@@ -1043,7 +1048,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\(.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[(paren]/"#
@@ -1060,7 +1065,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\[.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[[]/"#
@@ -1077,7 +1082,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\/.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[/]/"#
@@ -1094,7 +1099,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\B.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[B]/"#
@@ -1111,7 +1116,7 @@ mod tests {
                             column => 16,
                             end_column => 17,
                             message => "Unnecessary escape character: \\-.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[a][-b]/"#
@@ -1128,7 +1133,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\-.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /-[]/"#
@@ -1145,7 +1150,7 @@ mod tests {
                             column => 14,
                             end_column => 15,
                             message => "Unnecessary escape character: \\^.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: r#"var foo = /[a^]/"#
@@ -1290,7 +1295,7 @@ mod tests {
                             column => 5,
                             end_column => 6,
                             message => "Unnecessary escape character: \\ .",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscapeDoNotKeepSemantics",
                             //     output: r#""use strict";"#
@@ -1308,7 +1313,7 @@ mod tests {
                             column => 29,
                             end_column => 30,
                             message => "Unnecessary escape character: \\z.",
-                            type => "Literal",
+                            type => kind::String,
                             // suggestions: [{
                             //     messageId: "removeEscapeDoNotKeepSemantics",
                             //     output: r#"({ foo() { "foo"; "bar"; "baz" } })"#
@@ -1326,7 +1331,7 @@ mod tests {
                             line => 1,
                             column => 4,
                             message => "Unnecessary escape character: \\^.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1346,7 +1351,7 @@ mod tests {
                             line => 1,
                             column => 4,
                             message => "Unnecessary escape character: \\^.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1369,7 +1374,7 @@ mod tests {
                             column => 3,
                             end_column => 4,
                             message => "Unnecessary escape character: \\$.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1389,7 +1394,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\&.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1409,7 +1414,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\!.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1429,7 +1434,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\#.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1449,7 +1454,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\%.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1469,7 +1474,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\*.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1489,7 +1494,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\+.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1509,7 +1514,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\,.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1529,7 +1534,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1549,7 +1554,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\:.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1569,7 +1574,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\;.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1589,7 +1594,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\<.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1609,7 +1614,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\=.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1629,7 +1634,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\>.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1649,7 +1654,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\?.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1669,7 +1674,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\@.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1689,7 +1694,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\`.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1709,7 +1714,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\~.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1729,7 +1734,7 @@ mod tests {
                             line => 1,
                             column => 4,
                             message => "Unnecessary escape character: \\^.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1749,7 +1754,7 @@ mod tests {
                             line => 1,
                             column => 4,
                             message => "Unnecessary escape character: \\^.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1769,7 +1774,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\&.",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1789,7 +1794,7 @@ mod tests {
                             line => 1,
                             column => 14,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1805,7 +1810,7 @@ mod tests {
                             line => 1,
                             column => 14,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1821,7 +1826,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1837,7 +1842,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1853,7 +1858,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1864,7 +1869,7 @@ mod tests {
                             line => 1,
                             column => 7,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1875,7 +1880,7 @@ mod tests {
                             line => 1,
                             column => 11,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1891,7 +1896,7 @@ mod tests {
                             line => 1,
                             column => 3,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1902,7 +1907,7 @@ mod tests {
                             line => 1,
                             column => 7,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1913,7 +1918,7 @@ mod tests {
                             line => 1,
                             column => 11,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1929,7 +1934,7 @@ mod tests {
                             line => 1,
                             column => 4,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1944,7 +1949,7 @@ mod tests {
                             line => 1,
                             column => 11,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1964,7 +1969,7 @@ mod tests {
                             line => 1,
                             column => 4,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
@@ -1979,7 +1984,7 @@ mod tests {
                             line => 1,
                             column => 11,
                             message => "Unnecessary escape character: \\..",
-                            type => "Literal",
+                            type => kind::Regex,
                             // suggestions: [
                             //     {
                             //         messageId: "removeEscape",
