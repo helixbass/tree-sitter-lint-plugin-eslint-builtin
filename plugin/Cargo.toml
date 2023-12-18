@@ -16,7 +16,7 @@ regexpp-js = { git = "https://github.com/helixbass/regexpp-js", rev = "7ced0ca" 
 serde = "1.0.178"
 squalid = { git = "https://github.com/helixbass/squalid", rev = "7f1af35" }
 tree-sitter-lint = { workspace = true }
-itertools = "0.11.0"
+itertools = "0.12.0"
 fancy-regex = "0.11.0"
 natord = "1.0.9"
 derive_builder = "0.12.0"
