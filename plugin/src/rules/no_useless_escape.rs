@@ -23,11 +23,12 @@ static VALID_STRING_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
 
 fn report<'a>(
     node: Node<'a>,
-    start_offset: usize,
+    start_byte: usize,
     character: String,
     context: &QueryMatchContext<'a, '_>,
 ) {
-    let range_start = node.start_byte() + start_offset;
+    let range_start = start_byte;
+    let start_offset = range_start - node.start_byte();
     let range = [range_start, range_start + 1];
 
     context.report(violation! {
@@ -155,6 +156,7 @@ pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
               (template_string) @c
             "# => |node, context| {
                 for (chunk, chunk_start) in get_template_string_chunks(node, context) {
+                    // println!("no_useless_escape_rule() 1 chunk: {chunk:#?}, chunk_start: {chunk_start:#?}");
                     check(node, Some((chunk, chunk_start)), context);
                 }
             },
@@ -167,6 +169,7 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
+    use crate::kind::TemplateString;
 
     #[test]
     fn test_no_useless_escape_rule() {
@@ -357,7 +360,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "var foo = /\\\\#/;"
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = /\\;/;",
@@ -425,7 +428,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "var foo = \"\\\\a\""
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = \"\\B\";",
@@ -636,7 +639,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\\".",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = `\"`;"
@@ -644,7 +647,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "var foo = `\\\\\"`;"
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = `\\'`;",
@@ -654,7 +657,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\'.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = `'`;"
@@ -672,7 +675,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\#.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = `#`;"
@@ -724,7 +727,7 @@ mod tests {
                                 column => 12,
                                 end_column => 13,
                                 message => "Unnecessary escape character: \\\".",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `\"${foo}\\\"`;"
@@ -738,7 +741,7 @@ mod tests {
                                 column => 20,
                                 end_column => 21,
                                 message => "Unnecessary escape character: \\\".",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `\\\"${foo}\"`;"
@@ -758,7 +761,7 @@ mod tests {
                                 column => 12,
                                 end_column => 13,
                                 message => "Unnecessary escape character: \\'.",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `'${foo}\\'`;"
@@ -772,7 +775,7 @@ mod tests {
                                 column => 20,
                                 end_column => 21,
                                 message => "Unnecessary escape character: \\'.",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `\\'${foo}'`;"
@@ -791,7 +794,7 @@ mod tests {
                             column => 12,
                             end_column => 13,
                             message => "Unnecessary escape character: \\#.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "var foo = `#${foo}`;"
@@ -846,7 +849,7 @@ mod tests {
                                 column => 12,
                                 end_column => 13,
                                 message => "Unnecessary escape character: \\$.",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `$\\{{${foo}`;"
@@ -866,7 +869,7 @@ mod tests {
                                 column => 12,
                                 end_column => 13,
                                 message => "Unnecessary escape character: \\$.",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `$a${foo}`;"
@@ -886,7 +889,7 @@ mod tests {
                                 column => 13,
                                 end_column => 14,
                                 message => "Unnecessary escape character: \\{.",
-                                type => "TemplateElement",
+                                type => TemplateString,
                                 // suggestions: [{
                                 //     messageId: "removeEscape",
                                 //     output: "var foo = `a{{${foo}`;"
@@ -1160,7 +1163,7 @@ mod tests {
                             column => 22,
                             end_column => 23,
                             message => "Unnecessary escape character: \\e.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`multiline template\nliteral with useless escape`"
@@ -1178,7 +1181,7 @@ mod tests {
                             column => 22,
                             end_column => 23,
                             message => "Unnecessary escape character: \\e.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`multiline template\r\nliteral with useless escape`"
@@ -1196,7 +1199,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\e.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`template literal with line continuation \\\nand useless escape`"
@@ -1214,7 +1217,7 @@ mod tests {
                             column => 13,
                             end_column => 14,
                             message => "Unnecessary escape character: \\e.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`template literal with line continuation \\\r\nand useless escape`"
@@ -1232,7 +1235,7 @@ mod tests {
                             column => 1,
                             end_column => 2,
                             message => "Unnecessary escape character: \\a.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`template literal with mixed linebreaks \r\r\n\nand useless escape`"
@@ -1250,7 +1253,7 @@ mod tests {
                             column => 1,
                             end_column => 2,
                             message => "Unnecessary escape character: \\a.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`template literal with mixed linebreaks in line continuations \\\n\\\r\\\r\nand useless escape`"
@@ -1268,7 +1271,7 @@ mod tests {
                             column => 2,
                             end_column => 3,
                             message => "Unnecessary escape character: \\a.",
-                            type => "TemplateElement",
+                            type => TemplateString,
                             // suggestions: [{
                             //     messageId: "removeEscape",
                             //     output: "`a```"
