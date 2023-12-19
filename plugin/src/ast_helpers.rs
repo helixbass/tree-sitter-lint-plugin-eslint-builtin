@@ -738,8 +738,8 @@ impl<'a> Iterator for TemplateStringChunks<'a> {
             match self.cursor.node().kind() {
                 EscapeSequence => {
                     assert!(self.cursor.goto_next_sibling());
-                    continue
-                },
+                    continue;
+                }
                 TemplateSubstitution => {
                     let ret = self.get_current_chunk_and_advance(
                         self.cursor.node().start_byte(),

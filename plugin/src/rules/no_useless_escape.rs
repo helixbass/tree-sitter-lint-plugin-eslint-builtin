@@ -89,28 +89,24 @@ fn report<'a>(
     let range_start = start_byte;
     let start_offset = range_start - node.start_byte();
     let range = [range_start, range_start + 1];
-    let preceding_newline_info = (node.end_position().row != node.start_position().row).then(|| {
-        get_preceding_newline_info(
-            node,
-            range_start,
-            context,
-        )
-    });
-    let start_point = if let Some((num_preceding_newlines, preceding_newline_byte)) = preceding_newline_info {
-        Point {
-            row: node.start_position().row + num_preceding_newlines,
-            column: if let Some(preceding_newline_byte) = preceding_newline_byte {
-                range_start - (preceding_newline_byte + 1)
-            } else {
-                node.start_position().column + start_offset
+    let preceding_newline_info = (node.end_position().row != node.start_position().row)
+        .then(|| get_preceding_newline_info(node, range_start, context));
+    let start_point =
+        if let Some((num_preceding_newlines, preceding_newline_byte)) = preceding_newline_info {
+            Point {
+                row: node.start_position().row + num_preceding_newlines,
+                column: if let Some(preceding_newline_byte) = preceding_newline_byte {
+                    range_start - (preceding_newline_byte + 1)
+                } else {
+                    node.start_position().column + start_offset
+                },
             }
-        }
-    } else {
-        Point {
-            row: node.start_position().row,
-            column: node.start_position().column + start_offset,
-        }
-    };
+        } else {
+            Point {
+                row: node.start_position().row,
+                column: node.start_position().column + start_offset,
+            }
+        };
     let end_point = Point {
         row: start_point.row,
         column: start_point.column + 1,
@@ -195,8 +191,7 @@ fn check<'a>(
 
     if is_template_element
         && node.parent().matches(|parent| {
-            is_tagged_template_expression(parent)
-                && parent.field("arguments") == node
+            is_tagged_template_expression(parent) && parent.field("arguments") == node
         })
     {
         return;
