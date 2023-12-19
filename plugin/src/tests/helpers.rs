@@ -8,7 +8,7 @@ use tree_sitter_lint::{
 pub fn parse(source_text: &str) -> Tree {
     let mut parser = Parser::new();
     parser
-        .set_language(SupportedLanguage::Javascript.language())
+        .set_language(SupportedLanguage::Javascript.language(None))
         .unwrap();
     parser.parse(source_text, None).unwrap()
 }
@@ -17,7 +17,7 @@ pub fn parse(source_text: &str) -> Tree {
 pub fn parse_typescript(source_text: &str) -> Tree {
     let mut parser = Parser::new();
     parser
-        .set_language(SupportedLanguage::Typescript.language())
+        .set_language(SupportedLanguage::Typescript.language(None))
         .unwrap();
     parser.parse(source_text, None).unwrap()
 }
