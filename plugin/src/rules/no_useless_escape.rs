@@ -15,6 +15,7 @@ use tree_sitter_lint::{
 
 use crate::{
     ast_helpers::{get_template_string_chunks, is_tagged_template_expression},
+    kind::JsxAttribute,
     utils::ast_utils,
 };
 
@@ -28,7 +29,7 @@ static VALID_STRING_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
 static REGEX_GENERAL_ESCAPES: Lazy<HashSet<char>> = Lazy::new(|| {
     [
         '\\', 'b', 'c', 'd', 'D', 'f', 'n', 'p', 'P', 'r', 's', 'S', 't', 'v', 'w', 'W', 'x', 'u',
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ']',
     ]
     .into()
 });
@@ -155,19 +156,16 @@ fn check<'a>(
 
     if is_template_element
         && node.parent().matches(|parent| {
-            parent.parent().matches(|parent_parent| {
-                is_tagged_template_expression(parent_parent)
-                    && parent_parent.field("function") == parent
-            })
+            is_tagged_template_expression(parent)
+                && parent.field("arguments") == node
         })
     {
         return;
     }
 
-    // if matches!(
-    //     node.parent().unwrap().kind(),
-    //     JSX
-    // )
+    if matches!(node.parent().unwrap().kind(), JsxAttribute) {
+        return;
+    }
 
     let value = template_chunk_and_start
         .as_ref()
