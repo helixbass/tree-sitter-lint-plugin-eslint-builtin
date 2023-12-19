@@ -75,7 +75,7 @@ fn dump_dot_file(source_text: &str) {
             }])
             .build()
             .unwrap(),
-        tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
+        tree_sitter_lint::tree_sitter_grep::SupportedLanguageLanguage::Javascript,
         &*get_instance_provider_factory(),
     );
 }

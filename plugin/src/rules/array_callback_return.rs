@@ -116,7 +116,7 @@ fn full_method_name(array_method_name: &str) -> String {
 pub fn array_callback_return_rule() -> Arc<dyn Rule> {
     rule! {
         name => "array-callback-return",
-        languages => [Javascript],
+        languages => [Javascript, Typescript],
         messages => [
             expected_at_end =>
                 "{{array_method_name}}() expects a value to be returned at the end of {{name}}.",
