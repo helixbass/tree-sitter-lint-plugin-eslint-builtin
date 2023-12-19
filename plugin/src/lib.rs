@@ -5,19 +5,19 @@ use tree_sitter_lint::{
 };
 
 mod all_comments;
-mod ast_helpers;
+pub mod ast_helpers;
 mod code_path_analysis;
 mod conf;
 mod directive_comments;
 mod directives;
-mod kind;
+pub mod kind;
 mod macros;
 mod rules;
 pub mod scope;
 mod string_utils;
 #[cfg(test)]
 mod tests;
-mod utils;
+pub mod utils;
 mod visit;
 
 pub use code_path_analysis::{
