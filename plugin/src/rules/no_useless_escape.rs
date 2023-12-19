@@ -226,7 +226,6 @@ pub fn no_useless_escape_rule() -> Arc<dyn Rule> {
               (template_string) @c
             "# => |node, context| {
                 for (chunk, chunk_start) in get_template_string_chunks(node, context) {
-                    // println!("no_useless_escape_rule() 1 chunk: {chunk:#?}, chunk_start: {chunk_start:#?}");
                     check(node, Some((chunk, chunk_start)), context);
                 }
             },

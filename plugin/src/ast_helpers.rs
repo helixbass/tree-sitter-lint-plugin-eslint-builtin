@@ -718,10 +718,8 @@ impl<'a> Iterator for TemplateStringChunks<'a> {
         if self.has_seen_end_backtick {
             return None;
         }
-        // println!("TemplateStringChunks 1 self: {self:#?}");
         assert!(self.next_byte_index < self.node.end_byte());
         loop {
-            // println!("TemplateStringChunks 2 node: {:#?}", self.cursor.node());
             match self.cursor.node().kind() {
                 EscapeSequence => {
                     assert!(self.cursor.goto_next_sibling());
