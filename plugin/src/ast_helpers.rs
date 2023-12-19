@@ -683,19 +683,6 @@ pub struct TemplateStringChunks<'a> {
     has_seen_end_backtick: bool,
 }
 
-impl<'a> std::fmt::Debug for TemplateStringChunks<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TemplateStringChunks")
-            .field("node", &self.node)
-            .field("node_text", &self.node_text)
-            // .field("cursor", &self.cursor)
-            .field("next_byte_index", &self.next_byte_index)
-            .field("has_seen_start_backtick", &self.has_seen_start_backtick)
-            .field("has_seen_end_backtick", &self.has_seen_end_backtick)
-            .finish()
-    }
-}
-
 impl<'a> TemplateStringChunks<'a> {
     pub fn new(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Self {
         let mut cursor = node.walk();
