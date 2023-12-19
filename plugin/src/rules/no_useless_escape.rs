@@ -60,6 +60,26 @@ static REGEX_CLASS_SET_RESERVED_DOUBLE_PUNCTUATOR: Lazy<HashSet<char>> = Lazy::n
     .into()
 });
 
+// TODO: maybe handle this in a more general way (eg ability to translate
+// byte range -> Point on FileRunContext)?
+fn get_preceding_newline_info<'a>(
+    node: Node<'a>,
+    byte: usize,
+    context: &QueryMatchContext<'a, '_>,
+) -> (usize, Option<usize>) {
+    let mut num_preceding_newlines = 0;
+    let mut preceding_newline_byte: Option<usize> = Default::default();
+    for match_ in regex!(r#"\r\n|\r|\n"#).find_iter(&node.text(context)) {
+        if match_.end() - 1 < byte {
+            num_preceding_newlines += 1;
+            preceding_newline_byte = Some(match_.end() - 1);
+        } else {
+            break;
+        }
+    }
+    (num_preceding_newlines, preceding_newline_byte)
+}
+
 fn report<'a>(
     node: Node<'a>,
     start_byte: usize,
@@ -69,21 +89,40 @@ fn report<'a>(
     let range_start = start_byte;
     let start_offset = range_start - node.start_byte();
     let range = [range_start, range_start + 1];
+    let preceding_newline_info = (node.end_position().row != node.start_position().row).then(|| {
+        get_preceding_newline_info(
+            node,
+            range_start,
+            context,
+        )
+    });
+    let start_point = if let Some((num_preceding_newlines, preceding_newline_byte)) = preceding_newline_info {
+        Point {
+            row: node.start_position().row + num_preceding_newlines,
+            column: if let Some(preceding_newline_byte) = preceding_newline_byte {
+                range_start - (preceding_newline_byte + 1)
+            } else {
+                node.start_position().column + start_offset
+            }
+        }
+    } else {
+        Point {
+            row: node.start_position().row,
+            column: node.start_position().column + start_offset,
+        }
+    };
+    let end_point = Point {
+        row: start_point.row,
+        column: start_point.column + 1,
+    };
 
     context.report(violation! {
         node => node,
         range => Range {
             start_byte: range[0],
             end_byte: range[1],
-            // TODO: this may not be a valid assumption?
-            start_point: Point {
-                row: node.start_position().row,
-                column: node.start_position().column + start_offset,
-            },
-            end_point: Point {
-                row: node.start_position().row,
-                column: node.start_position().column + start_offset + 1,
-            },
+            start_point,
+            end_point,
         },
         message_id => "unnecessary_escape",
         data => {
@@ -1378,7 +1417,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "`multiline template\nliteral with useless \\\\escape`"
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "`multiline template\r\nliteral with useless \\escape`",
@@ -1396,7 +1435,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "`multiline template\r\nliteral with useless \\\\escape`"
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "`template literal with line continuation \\\nand useless \\escape`",
@@ -1450,7 +1489,7 @@ mod tests {
                             //     messageId: "escapeBackslash",
                             //     output: "`template literal with mixed linebreaks \r\r\n\n\\\\and useless escape`"
                             // }]
-                        }]
+                        }],
                     },
                     {
                         code => "`template literal with mixed linebreaks in line continuations \\\n\\\r\\\r\n\\and useless escape`",
