@@ -47,6 +47,13 @@ pub static COMMENTS_IGNORE_PATTERN: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
+#[allow(dead_code)]
+pub static LINE_BREAKS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| ["\r\n", "\r", "\n", "\u{2028}", "\u{2029}"].into());
+
+pub static LINE_BREAK_SINGLE_CHARS: Lazy<HashSet<char>> =
+    Lazy::new(|| ['\r', '\n', '\u{2028}', '\u{2029}'].into());
+
 pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
     [
         Program,

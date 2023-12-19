@@ -3,6 +3,7 @@ members = [
     "plugin",
     "xtask"
 ]
+resolver = "2"
 
 [workspace.dependencies]
 tree-sitter-lint = { git = "https://github.com/helixbass/tree-sitter-lint", rev = "80cf7c4" }

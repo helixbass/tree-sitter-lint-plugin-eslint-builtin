@@ -29,9 +29,11 @@ mod number;
 
 pub use number::{get_number_literal_string_value, get_number_literal_value, Number};
 use squalid::EverythingExt;
-use tree_sitter_lint::tree_sitter::Tree;
+use tree_sitter_lint::tree_sitter::{Tree, TreeCursor};
 
-use crate::kind::{ImportStatement, JsxOpeningElement, JsxSelfClosingElement};
+use crate::kind::{
+    ImportStatement, JsxOpeningElement, JsxSelfClosingElement, TemplateSubstitution,
+};
 
 #[macro_export]
 macro_rules! assert_kind {
@@ -662,6 +664,95 @@ pub fn is_jsx_tag_name(node: Node) -> bool {
 
 pub fn is_tagged_template_expression(node: Node) -> bool {
     node.kind() == CallExpression && node.field("arguments").kind() == TemplateString
+}
+
+pub fn get_template_string_chunks<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> TemplateStringChunks<'a> {
+    assert_kind!(node, TemplateString);
+    TemplateStringChunks::new(node, context)
+}
+
+pub struct TemplateStringChunks<'a> {
+    node: Node<'a>,
+    node_text: Cow<'a, str>,
+    cursor: TreeCursor<'a>,
+    next_byte_index: usize,
+    has_seen_start_backtick: bool,
+    has_seen_end_backtick: bool,
+}
+
+impl<'a> TemplateStringChunks<'a> {
+    pub fn new(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Self {
+        let mut cursor = node.walk();
+        assert!(cursor.goto_first_child());
+        Self {
+            node,
+            node_text: node.text(context),
+            cursor,
+            next_byte_index: node.start_byte(),
+            has_seen_start_backtick: Default::default(),
+            has_seen_end_backtick: Default::default(),
+        }
+    }
+
+    fn get_current_chunk_and_advance(
+        &mut self,
+        chunk_end_byte: usize,
+        next_next_byte_index: usize,
+    ) -> (Cow<'a, str>, usize) {
+        let chunk_start_byte = self.next_byte_index;
+        let chunk = self.node_text.sliced(|_| {
+            chunk_start_byte - self.node.start_byte()..chunk_end_byte - self.node.start_byte()
+        });
+        self.next_byte_index = next_next_byte_index;
+        (chunk, chunk_start_byte)
+    }
+}
+
+impl<'a> Iterator for TemplateStringChunks<'a> {
+    type Item = (Cow<'a, str>, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.has_seen_end_backtick {
+            return None;
+        }
+        assert!(self.next_byte_index < self.node.end_byte());
+        loop {
+            match self.cursor.node().kind() {
+                EscapeSequence => {
+                    assert!(self.cursor.goto_next_sibling());
+                    continue;
+                }
+                TemplateSubstitution => {
+                    let ret = self.get_current_chunk_and_advance(
+                        self.cursor.node().start_byte(),
+                        self.cursor.node().end_byte(),
+                    );
+                    assert!(self.cursor.goto_next_sibling());
+                    return Some(ret);
+                }
+                "`" => {
+                    if self.has_seen_start_backtick {
+                        self.has_seen_end_backtick = true;
+                        return Some(self.get_current_chunk_and_advance(
+                            self.cursor.node().start_byte(),
+                            self.cursor.node().end_byte(),
+                        ));
+                    } else {
+                        self.has_seen_start_backtick = true;
+                        assert!(self.cursor.node().start_byte() == self.node.start_byte());
+                        assert!(self.cursor.node().end_byte() == self.node.start_byte() + 1);
+                        assert!(self.next_byte_index == self.node.start_byte());
+                        self.next_byte_index += 1;
+                    }
+                }
+                _ => unreachable!(),
+            }
+            assert!(self.cursor.goto_next_sibling());
+        }
+    }
 }
 
 #[cfg(test)]
