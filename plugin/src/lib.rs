@@ -52,7 +52,7 @@ use rules::{
 use scope::ScopeManager;
 pub use visit::Visit;
 
-use crate::{all_comments::AllComments, directive_comments::DirectiveComments};
+pub use crate::{all_comments::AllComments, directive_comments::DirectiveComments};
 
 pub type ProvidedTypes<'a> = (
     CodePathAnalyzer<'a>,
