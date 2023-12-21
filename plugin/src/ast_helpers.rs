@@ -755,6 +755,13 @@ impl<'a> Iterator for TemplateStringChunks<'a> {
     }
 }
 
+pub fn is_simple_template_literal(node: Node) -> bool {
+    node.kind() == TemplateString
+        && !node
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .any(|child| child.kind() == TemplateSubstitution)
+}
+
 #[cfg(test)]
 mod tests {
     use speculoos::prelude::*;
