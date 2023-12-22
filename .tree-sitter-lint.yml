@@ -408,6 +408,9 @@ rules:
         Kind:
           module: crate::kind
           kind: type
+        is_literal_kind:
+          module: crate::kind
+          kind: function
         config_comment_parser:
           module: crate::scope
           kind: type

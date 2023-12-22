@@ -1098,7 +1098,7 @@ mod tests {
                 }])
                 .build()
                 .unwrap(),
-            tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
+            tree_sitter_lint::tree_sitter_grep::SupportedLanguageLanguage::Javascript,
             &instance_provider_factory!(ProvidedTypes),
         );
 

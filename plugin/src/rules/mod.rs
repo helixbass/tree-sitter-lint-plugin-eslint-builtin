@@ -1,6 +1,7 @@
 mod accessor_pairs;
 mod array_bracket_newline;
 mod array_callback_return;
+mod class_methods_use_this;
 mod complexity;
 mod consistent_return;
 mod constructor_super;
@@ -95,6 +96,7 @@ mod yoda;
 pub use accessor_pairs::accessor_pairs_rule;
 pub use array_bracket_newline::array_bracket_newline_rule;
 pub use array_callback_return::array_callback_return_rule;
+pub use class_methods_use_this::class_methods_use_this_rule;
 pub use complexity::complexity_rule;
 pub use consistent_return::consistent_return_rule;
 pub use constructor_super::constructor_super_rule;

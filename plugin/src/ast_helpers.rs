@@ -650,7 +650,7 @@ fn is_new_line(ch: char) -> bool {
 pub fn parse(source_text: &str) -> Tree {
     let mut parser = Parser::new();
     parser
-        .set_language(SupportedLanguage::Javascript.language())
+        .set_language(SupportedLanguage::Javascript.language(None))
         .unwrap();
     parser.parse(source_text, None).unwrap()
 }
@@ -753,6 +753,13 @@ impl<'a> Iterator for TemplateStringChunks<'a> {
             assert!(self.cursor.goto_next_sibling());
         }
     }
+}
+
+pub fn is_simple_template_literal(node: Node) -> bool {
+    node.kind() == TemplateString
+        && !node
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .any(|child| child.kind() == TemplateSubstitution)
 }
 
 #[cfg(test)]
