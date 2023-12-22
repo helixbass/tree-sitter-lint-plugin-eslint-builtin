@@ -175,7 +175,7 @@ pub fn get_static_property_name<'a>(
     let prop = match node.kind() {
         Pair | PairPattern => node.child_by_field_name("key"),
         FieldDefinition | MemberExpression => node.child_by_field_name("property"),
-        MethodDefinition => node.child_by_field_name("name"),
+        MethodDefinition | "public_field_definition" => node.child_by_field_name("name"),
         SubscriptExpression => node.child_by_field_name("index"),
         ShorthandPropertyIdentifierPattern | ShorthandPropertyIdentifier => Some(node),
         _ => None,
@@ -729,14 +729,14 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
     let mut is_private = false;
     let function_name = if let Some(field_definition) = node
         .parent()
-        .filter(|parent| parent.kind() == FieldDefinition)
+        .filter(|parent| matches!(parent.kind(), FieldDefinition | "public_field_definition"))
     {
         function_type = FunctionType::Method;
         let mut children = field_definition
             .non_comment_children_and_field_names(context)
             .skip_while(|(child, _)| child.kind() == Decorator);
         let (child, field_name) = children.next().unwrap();
-        let property_name = if field_name == Some("property") {
+        let property_name = if field_name == Some("property") || field_name == Some("name") {
             child
         } else {
             is_static = true;
@@ -843,7 +843,7 @@ pub fn get_function_head_range(node: Node) -> Range {
 
     let parent = node.parent().unwrap();
 
-    if matches!(parent.kind(), FieldDefinition | Pair) {
+    if matches!(parent.kind(), FieldDefinition | "public_field_definition" | Pair) {
         ((parent, Start), (get_opening_paren_of_params(node), Start))
     } else if node.kind() == ArrowFunction {
         let arrow_token = get_prev_non_comment_sibling(node.child_by_field_name("body").unwrap());

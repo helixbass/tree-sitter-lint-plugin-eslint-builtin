@@ -196,7 +196,10 @@ fn string_node_equals(node: Node, value: &str, context: &QueryMatchContext) -> b
 }
 
 pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
-    assert_kind!(node, MethodDefinition | FieldDefinition);
+    assert_kind!(
+        node,
+        MethodDefinition | FieldDefinition | "public_field_definition" // I guess Typescript uses this instead of FieldDefinition?
+    );
 
     let mut cursor = node.walk();
     return_default_if_false!(cursor.goto_first_child());
