@@ -766,6 +766,7 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
                     is_static = true;
                     function_type = FunctionType::Getter
                 }
+                "readonly" | "accessibility_modifier" | "override_modifier" => (),
                 _ => unreachable!(),
             }
             (child, field_name) = children.next().unwrap();
