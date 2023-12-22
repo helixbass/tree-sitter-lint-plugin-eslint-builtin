@@ -48,6 +48,7 @@ use rules::{
     no_useless_call_rule, no_useless_catch_rule, no_useless_escape_rule, no_useless_return_rule,
     prefer_object_has_own_rule, require_yield_rule, sort_keys_rule, space_unary_ops_rule,
     symbol_description_rule, vars_on_top_rule, wrap_regex_rule, yield_star_spacing_rule, yoda_rule,
+    class_methods_use_this_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -158,6 +159,7 @@ pub fn instantiate() -> Plugin {
             no_regex_spaces_rule(),
             no_invalid_regexp_rule(),
             no_useless_escape_rule(),
+            class_methods_use_this_rule(),
         ],
     }
 }
