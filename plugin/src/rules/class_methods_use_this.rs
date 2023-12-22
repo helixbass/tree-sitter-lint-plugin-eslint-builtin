@@ -1,7 +1,17 @@
 use std::{collections::HashSet, sync::Arc};
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::OptionExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::{get_method_definition_kind, is_class_member_static, MethodDefinitionKind},
+    kind::{
+        is_literal_kind, ComputedPropertyName, FieldDefinition, Function, MethodDefinition,
+        PrivatePropertyIdentifier, PropertyIdentifier,
+    },
+    utils::ast_utils,
+};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -31,14 +41,143 @@ pub fn class_methods_use_this_rule() -> Arc<dyn Rule> {
             [per-file-run]
             stack: Vec<bool>,
         },
-        listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
+        methods => {
+            fn push_context(&mut self) {
+                self.stack.push(false);
+            }
+
+            fn pop_context(&mut self) -> bool {
+                self.stack.pop().unwrap()
+            }
+
+            fn enter_function(&mut self) {
+                self.push_context();
+            }
+
+            fn is_instance_method(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Option<Node<'a>> {
+                if node.kind() == MethodDefinition {
+                    return (!is_class_member_static(node, context) &&
+                        get_method_definition_kind(node, context) != MethodDefinitionKind::Constructor).then_some(node);
+                }
+                if let Some(parent) = node.parent().filter(|&parent| {
+                    parent.kind() == FieldDefinition &&
+                        !is_class_member_static(parent, context) &&
+                        self.enforce_for_class_fields
+                }) {
+                    return Some(parent);
+                }
+                None
+            }
+
+            fn is_included_instance_method(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+                let Some(field_node) = self.is_instance_method(node, context) else {
+                    return false;
+                };
+                let name_node = field_node.field("name");
+                if name_node.kind() == ComputedPropertyName {
+                    return true;
+                }
+
+                let hash_if_needed = if name_node.kind() == PrivatePropertyIdentifier {
+                    "#"
+                } else {
+                    ""
+                };
+                let name = if is_literal_kind(name_node.kind()) {
+                    ast_utils::get_static_string_value(name_node, context).unwrap()
+                } else {
+                    match name_node.kind() {
+                        PropertyIdentifier => name_node.text(context),
+                        _ => "".into(),
+                    }
+                };
+
+                !self.except_methods.contains(&format!("{hash_if_needed}{name}"))
+            }
+
+            fn exit_function(&mut self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
+                let method_uses_this = self.pop_context();
+                if method_uses_this {
+                    return;
+                }
+
+                if !self.is_included_instance_method(node, context) {
+                    return;
+                }
+
                 context.report(violation! {
                     node => node,
-                    message_id => "unexpected",
+                    range => ast_utils::get_function_head_range(node),
+                    message_id => "missing_this",
+                    data => {
+                        name => ast_utils::get_function_name_with_kind(node, context),
+                    }
                 });
+            }
+        },
+        listeners => [
+            r#"
+                function_declaration,
+                function,
+                generator_function_declaration,
+                generator_function,
+                method_definition
+            "# => |node, context| {
+                self.enter_function();
+            },
+            r#"
+                function_declaration:exit,
+                function:exit,
+                generator_function_declaration:exit,
+                generator_function:exit,
+                method_definition:exit
+            "# => |node, context| {
+                self.exit_function(node, context);
+            },
+            r#"
+                (field_definition
+                  value: (_) @c
+                )
+                (class_static_block) @c
+            "# => |node, context| {
+                self.push_context();
+            },
+            r#"
+                field_definition:exit,
+                class_static_block:exit
+            "# => |node, context| {
+                self.pop_context();
+            },
+            r#"
+                (this) @c
+                (super) @c
+            "# => |node, context| {
+                if let Some(last) = self.stack.last_mut() {
+                    *last = true;
+                }
+            },
+            r#"
+                (field_definition
+                  value: (arrow_function) @c
+                )
+            "# => |node, context| {
+                if !self.enforce_for_class_fields {
+                    return;
+                }
+
+                self.enter_function();
+            },
+            r#"arrow_function:exit"# => |node, context| {
+                if !self.enforce_for_class_fields {
+                    return;
+                }
+                if !node.parent().matches(|parent| {
+                    parent.kind() == FieldDefinition
+                }) {
+                    return;
+                }
+
+                self.exit_function(node, context);
             },
         ],
     }
