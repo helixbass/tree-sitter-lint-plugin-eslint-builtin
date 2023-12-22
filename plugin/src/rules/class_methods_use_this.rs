@@ -7,7 +7,7 @@ use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchCo
 use crate::{
     ast_helpers::{get_method_definition_kind, is_class_member_static, MethodDefinitionKind},
     kind::{
-        is_literal_kind, ComputedPropertyName, FieldDefinition, Function, MethodDefinition,
+        is_literal_kind, ClassBody, ComputedPropertyName, FieldDefinition, MethodDefinition,
         PrivatePropertyIdentifier, PropertyIdentifier,
     },
     utils::ast_utils,
@@ -55,44 +55,38 @@ pub fn class_methods_use_this_rule() -> Arc<dyn Rule> {
             }
 
             fn is_instance_method(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Option<Node<'a>> {
-                if node.kind() == MethodDefinition {
+                if node.kind() == MethodDefinition && node.parent().unwrap().kind() == ClassBody {
                     return (!is_class_member_static(node, context) &&
-                        get_method_definition_kind(node, context) != MethodDefinitionKind::Constructor).then_some(node);
+                        get_method_definition_kind(node, context) != MethodDefinitionKind::Constructor).then_some(node.field("name"));
                 }
                 if let Some(parent) = node.parent().filter(|&parent| {
                     parent.kind() == FieldDefinition &&
                         !is_class_member_static(parent, context) &&
                         self.enforce_for_class_fields
                 }) {
-                    return Some(parent);
+                    return Some(parent.field("property"));
                 }
                 None
             }
 
             fn is_included_instance_method(&self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
-                let Some(field_node) = self.is_instance_method(node, context) else {
+                let Some(name_node) = self.is_instance_method(node, context) else {
                     return false;
                 };
-                let name_node = field_node.field("name");
                 if name_node.kind() == ComputedPropertyName {
                     return true;
                 }
 
-                let hash_if_needed = if name_node.kind() == PrivatePropertyIdentifier {
-                    "#"
-                } else {
-                    ""
-                };
                 let name = if is_literal_kind(name_node.kind()) {
                     ast_utils::get_static_string_value(name_node, context).unwrap()
                 } else {
                     match name_node.kind() {
-                        PropertyIdentifier => name_node.text(context),
+                        PrivatePropertyIdentifier | PropertyIdentifier => name_node.text(context),
                         _ => "".into(),
                     }
                 };
 
-                !self.except_methods.contains(&format!("{hash_if_needed}{name}"))
+                !self.except_methods.contains(&*name)
             }
 
             fn exit_function(&mut self, node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
@@ -188,7 +182,6 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::Function;
 
     #[test]
     fn test_class_methods_use_this_rule() {
@@ -225,49 +218,49 @@ mod tests {
                         code => "class A { foo() {} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
-                        ]
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                        ],
                     },
                     {
                         code => "class A { foo() {/**this**/} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
                         code => "class A { foo() {var a = function () {this};} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
                         code => "class A { foo() {var a = function () {var b = function(){this}};} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
                         code => "class A { foo() {window.this} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
                         code => "class A { foo() {that.this = 'this';} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
                         code => "class A { foo() { () => undefined; } }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
@@ -275,7 +268,7 @@ mod tests {
                         options => { except_methods => ["bar"] },
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method 'foo'" } }
                         ]
                     },
                     {
@@ -283,7 +276,7 @@ mod tests {
                         options => { except_methods => ["foo"] },
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 20, message_id => "missing_this", data => { name => "method 'hasOwnProperty'" } }
+                            { type => MethodDefinition, line => 1, column => 20, message_id => "missing_this", data => { name => "method 'hasOwnProperty'" } }
                         ]
                     },
                     {
@@ -291,7 +284,7 @@ mod tests {
                         options => { except_methods => ["foo"] },
                         environment => { ecma_version => 6 },
                         errors => [
-                            { type => Function, line => 1, column => 11, message_id => "missing_this", data => { name => "method" } }
+                            { type => MethodDefinition, line => 1, column => 11, message_id => "missing_this", data => { name => "method" } }
                         ]
                     },
                     {
@@ -299,23 +292,23 @@ mod tests {
                         options => { except_methods => ["#foo"] },
                         environment => { ecma_version => 2022 },
                         errors => [
-                            { type => Function, line => 1, column => 22, message_id => "missing_this", data => { name => "method 'foo'" } },
-                            { type => Function, line => 1, column => 31, message_id => "missing_this", data => { name => "private method #bar" } }
+                            { type => MethodDefinition, line => 1, column => 22, message_id => "missing_this", data => { name => "method 'foo'" } },
+                            { type => MethodDefinition, line => 1, column => 31, message_id => "missing_this", data => { name => "private method #bar" } }
                         ]
                     },
                     {
                         code => "class A { foo(){} 'bar'(){} 123(){} [`baz`](){} [a](){} [f(a)](){} get quux(){} set[a](b){} *quuux(){} }",
                         environment => { ecma_version => 6 },
                         errors => [
-                            { message_id => "missing_this", data => { name => "method 'foo'" }, type => Function, column => 11 },
-                            { message_id => "missing_this", data => { name => "method 'bar'" }, type => Function, column => 19 },
-                            { message_id => "missing_this", data => { name => "method '123'" }, type => Function, column => 29 },
-                            { message_id => "missing_this", data => { name => "method 'baz'" }, type => Function, column => 37 },
-                            { message_id => "missing_this", data => { name => "method" }, type => Function, column => 49 },
-                            { message_id => "missing_this", data => { name => "method" }, type => Function, column => 57 },
-                            { message_id => "missing_this", data => { name => "getter 'quux'" }, type => Function, column => 68 },
-                            { message_id => "missing_this", data => { name => "setter" }, type => Function, column => 81 },
-                            { message_id => "missing_this", data => { name => "generator method 'quuux'" }, type => Function, column => 93 }
+                            { message_id => "missing_this", data => { name => "method 'foo'" }, type => MethodDefinition, column => 11 },
+                            { message_id => "missing_this", data => { name => "method 'bar'" }, type => MethodDefinition, column => 19 },
+                            { message_id => "missing_this", data => { name => "method '123'" }, type => MethodDefinition, column => 29 },
+                            { message_id => "missing_this", data => { name => "method 'baz'" }, type => MethodDefinition, column => 37 },
+                            { message_id => "missing_this", data => { name => "method" }, type => MethodDefinition, column => 49 },
+                            { message_id => "missing_this", data => { name => "method" }, type => MethodDefinition, column => 57 },
+                            { message_id => "missing_this", data => { name => "getter 'quux'" }, type => MethodDefinition, column => 68 },
+                            { message_id => "missing_this", data => { name => "setter" }, type => MethodDefinition, column => 81 },
+                            { message_id => "missing_this", data => { name => "generator method 'quuux'" }, type => MethodDefinition, column => 93 }
                         ]
                     },
                     {
