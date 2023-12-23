@@ -844,7 +844,10 @@ pub fn get_function_head_range(node: Node) -> Range {
 
     let parent = node.parent().unwrap();
 
-    if matches!(parent.kind(), FieldDefinition | "public_field_definition" | Pair) {
+    if matches!(
+        parent.kind(),
+        FieldDefinition | "public_field_definition" | Pair
+    ) {
         ((parent, Start), (get_opening_paren_of_params(node), Start))
     } else if node.kind() == ArrowFunction {
         let arrow_token = get_prev_non_comment_sibling(node.child_by_field_name("body").unwrap());
