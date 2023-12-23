@@ -32,7 +32,8 @@ use squalid::EverythingExt;
 use tree_sitter_lint::tree_sitter::{Tree, TreeCursor};
 
 use crate::kind::{
-    ImportStatement, JsxOpeningElement, JsxSelfClosingElement, TemplateSubstitution,
+    ExportStatement, ImportStatement, JsxOpeningElement, JsxSelfClosingElement,
+    TemplateSubstitution,
 };
 
 #[macro_export]
@@ -196,7 +197,10 @@ fn string_node_equals(node: Node, value: &str, context: &QueryMatchContext) -> b
 }
 
 pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
-    assert_kind!(node, MethodDefinition | FieldDefinition);
+    assert_kind!(
+        node,
+        MethodDefinition | FieldDefinition | "public_field_definition" // I guess Typescript uses this instead of FieldDefinition?
+    );
 
     let mut cursor = node.walk();
     return_default_if_false!(cursor.goto_first_child());
@@ -760,6 +764,18 @@ pub fn is_simple_template_literal(node: Node) -> bool {
         && !node
             .non_comment_named_children(SupportedLanguage::Javascript)
             .any(|child| child.kind() == TemplateSubstitution)
+}
+
+pub fn is_export_default(node: Node) -> bool {
+    if node.kind() != ExportStatement {
+        return false;
+    }
+    node.non_comment_children(SupportedLanguage::Javascript)
+        .skip_while(|child| child.kind() != "export")
+        .nth(1)
+        .unwrap()
+        .kind()
+        == "default"
 }
 
 #[cfg(test)]
