@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use itertools::Itertools;
+use tree_sitter_lint::{rule, tree_sitter_grep::SupportedLanguage, violation, NodeExt, Rule};
+
+use crate::kind::{AssignmentPattern, RestPattern};
 
 pub fn default_param_last_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,13 +13,30 @@ pub fn default_param_last_rule() -> Arc<dyn Rule> {
             should_be_last => "Default parameters should be last.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (function_declaration) @c
+              (function) @c
+              (generator_function_declaration) @c
+              (generator_function) @c
+              (method_definition) @c
+              (arrow_function) @c
+            "# => |node, context| {
+                let mut has_seen_plain_param = false;
+
+                for param in node.field("parameters").non_comment_named_children(SupportedLanguage::Javascript).collect_vec().into_iter().rev() {
+                    match param.kind() {
+                        AssignmentPattern => {
+                            if has_seen_plain_param {
+                                context.report(violation! {
+                                    node => param,
+                                    message_id => "should_be_last",
+                                });
+                            }
+                        }
+                        RestPattern => (),
+                        _ => has_seen_plain_param = true,
+                    }
+                }
             },
         ],
     }
