@@ -163,9 +163,7 @@ pub fn instantiate() -> Plugin {
             class_methods_use_this_rule(),
             default_param_last_rule(),
         ])
-        .configs([
-            ("all".to_owned(), configs::all())
-        ])
+        .configs([("all".to_owned(), configs::all())])
         .build()
         .unwrap()
 }

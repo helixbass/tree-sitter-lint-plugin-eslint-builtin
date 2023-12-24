@@ -3,7 +3,10 @@ use std::sync::Arc;
 use itertools::Itertools;
 use tree_sitter_lint::{rule, violation, Rule};
 
-use crate::{kind::{AssignmentPattern, RestPattern}, ast_helpers::get_function_params};
+use crate::{
+    ast_helpers::get_function_params,
+    kind::{AssignmentPattern, RestPattern},
+};
 
 pub fn default_param_last_rule() -> Arc<dyn Rule> {
     rule! {
