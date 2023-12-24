@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals, clippy::into_iter_on_ref)]
 
 use tree_sitter_lint::{
-    instance_provider_factory, FromFileRunContextInstanceProviderFactory, Plugin,
+    instance_provider_factory, FromFileRunContextInstanceProviderFactory, Plugin, PluginBuilder,
 };
 
 mod all_comments;
@@ -63,9 +63,9 @@ pub type ProvidedTypes<'a> = (
 );
 
 pub fn instantiate() -> Plugin {
-    Plugin {
-        name: "eslint-builtin".to_owned(),
-        rules: vec![
+    PluginBuilder::default()
+        .name("eslint-builtin")
+        .rules([
             for_direction_rule(),
             no_async_promise_executor_rule(),
             no_await_in_loop_rule(),
@@ -161,8 +161,9 @@ pub fn instantiate() -> Plugin {
             no_useless_escape_rule(),
             class_methods_use_this_rule(),
             default_param_last_rule(),
-        ],
-    }
+        ])
+        .build()
+        .unwrap()
 }
 
 pub fn get_instance_provider_factory() -> Box<dyn FromFileRunContextInstanceProviderFactory> {
