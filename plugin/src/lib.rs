@@ -8,6 +8,7 @@ mod all_comments;
 pub mod ast_helpers;
 mod code_path_analysis;
 mod conf;
+mod configs;
 mod directive_comments;
 mod directives;
 pub mod kind;
@@ -161,6 +162,9 @@ pub fn instantiate() -> Plugin {
             no_useless_escape_rule(),
             class_methods_use_this_rule(),
             default_param_last_rule(),
+        ])
+        .configs([
+            ("all".to_owned(), configs::all())
         ])
         .build()
         .unwrap()
