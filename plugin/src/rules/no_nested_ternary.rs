@@ -4,7 +4,7 @@ use tree_sitter_lint::{rule, violation, Rule};
 
 pub fn no_nested_ternary_rule() -> Arc<dyn Rule> {
     rule! {
-        name => "no-debugger",
+        name => "no-nested-ternary",
         languages => [Javascript],
         messages => [
             no_nested_ternary => "Do not nest ternary expressions.",
