@@ -102,7 +102,7 @@ pub fn all() -> Configuration {
             "default-param-last",
         ].into_iter().map(|rule_name| {
             (
-                rule_name.to_owned(),
+                format!("eslint-builtin/{rule_name}"),
                 RuleConfigurationValueBuilder::default()
                     .level(ErrorLevel::Error)
                     .build()

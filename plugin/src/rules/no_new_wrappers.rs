@@ -4,7 +4,7 @@ use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 pub fn no_new_wrappers_rule() -> Arc<dyn Rule> {
     rule! {
-        name => "no-new_wrapper",
+        name => "no-new-wrappers",
         languages => [Javascript],
         messages => [
             no_constructor => "Do not use {{fn_}} as a constructor.",
