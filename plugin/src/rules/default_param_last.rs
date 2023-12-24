@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use itertools::Itertools;
-use tree_sitter_lint::{rule, tree_sitter_grep::SupportedLanguage, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, violation, Rule};
 
-use crate::kind::{AssignmentPattern, RestPattern};
+use crate::{kind::{AssignmentPattern, RestPattern}, ast_helpers::get_function_params};
 
 pub fn default_param_last_rule() -> Arc<dyn Rule> {
     rule! {
@@ -23,7 +23,7 @@ pub fn default_param_last_rule() -> Arc<dyn Rule> {
             "# => |node, context| {
                 let mut has_seen_plain_param = false;
 
-                for param in node.field("parameters").non_comment_named_children(SupportedLanguage::Javascript).collect_vec().into_iter().rev() {
+                for param in get_function_params(node).collect_vec().into_iter().rev() {
                     match param.kind() {
                         AssignmentPattern => {
                             if has_seen_plain_param {
