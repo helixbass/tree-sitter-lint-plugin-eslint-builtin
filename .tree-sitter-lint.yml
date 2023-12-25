@@ -638,6 +638,9 @@ rules:
         Wtf16:
           module: regexpp_js
           kind: type
+        json:
+          module: serde_json
+          kind: macro
         iter:
           module: std
           kind: module
