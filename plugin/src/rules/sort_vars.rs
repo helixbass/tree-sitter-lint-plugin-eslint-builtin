@@ -44,9 +44,9 @@ pub fn sort_vars_rule() -> Arc<dyn Rule> {
                     .collect_vec();
                 let get_sortable_name = |decl: &Node| {
                     if self.ignore_case {
-                        decl.field("name").text(context)
-                    } else {
                         decl.field("name").text(context).to_lowercase().into()
+                    } else {
+                        decl.field("name").text(context)
                     }
                 };
                 let unfixable = id_declarations.iter().any(|decl| {
