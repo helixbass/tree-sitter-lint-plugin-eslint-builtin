@@ -444,6 +444,9 @@ rules:
         get_static_string_value:
           module: crate::utils::ast_utils
           kind: function
+        range_between_start_and_end:
+          module: tree_sitter_lint
+          kind: function
         FileRunContext:
           module: tree_sitter_lint
           kind: type
@@ -597,6 +600,10 @@ rules:
           module: squalid
           kind: trait_method
           trait: OptionExtDeref
+        # sorted_by_key:
+        #   module: squalid
+        #   kind: trait_method
+        #   trait: SliceExtClone
         sorted:
           module: squalid
           kind: trait_method

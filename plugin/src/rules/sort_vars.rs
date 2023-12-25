@@ -1,7 +1,14 @@
 use std::sync::Arc;
 
+use itertools::Itertools;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::OptionExt;
+use tree_sitter_lint::{
+    range_between_start_and_end, rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage,
+    violation, NodeExt, Rule, SourceTextProvider,
+};
+
+use crate::kind::{is_literal_kind, Identifier};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -29,12 +36,66 @@ pub fn sort_vars_rule() -> Arc<dyn Rule> {
             ignore_case: bool = options.ignore_case(),
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
+            r#"
+              (variable_declaration) @c
+            "# => |node, context| {
+                let id_declarations = node.non_comment_named_children(SupportedLanguage::Javascript)
+                    .filter(|decl| decl.field("name").kind() == Identifier)
+                    .collect_vec();
+                let get_sortable_name = |decl: &Node| {
+                    if self.ignore_case {
+                        decl.field("name").text(context)
+                    } else {
+                        decl.field("name").text(context).to_lowercase().into()
+                    }
+                };
+                let unfixable = id_declarations.iter().any(|decl| {
+                    decl.child_by_field_name("value").matches(|init| {
+                        !is_literal_kind(init.kind())
+                    })
+                });
+                let mut fixed = false;
+
+                id_declarations.iter().reduce(|memo, decl| {
+                    let last_variable_name = get_sortable_name(memo);
+                    let current_variable_name = get_sortable_name(decl);
+
+                    if current_variable_name < last_variable_name {
+                        context.report(violation! {
+                            node => *decl,
+                            message_id => "sort_vars",
+                            fix => |fixer| {
+                                if unfixable || fixed {
+                                    return;
+                                }
+                                fixer.replace_text_range(
+                                    range_between_start_and_end(
+                                        id_declarations[0].range(),
+                                        id_declarations.last().unwrap().range(),
+                                    ),
+                                    id_declarations
+                                        .iter()
+                                        .sorted_by_key(|node| get_sortable_name(node))
+                                        .enumerate()
+                                        .fold("".to_owned(), |mut source_text, (index, identifier)| {
+                                            let text_after_identifier = if index == id_declarations.len() - 1 {
+                                                "".into()
+                                            } else {
+                                                context.file_run_context.file_contents.slice(
+                                                    id_declarations[index].end_byte()..id_declarations[index + 1].start_byte()
+                                                )
+                                            };
+
+                                            source_text.push_str(&format!("{}{text_after_identifier}", identifier.text(context)));
+                                            source_text
+                                        })
+                                );
+                            }
+                        });
+                        fixed = true;
+                        return memo;
+                    }
+                    decl
                 });
             },
         ],
