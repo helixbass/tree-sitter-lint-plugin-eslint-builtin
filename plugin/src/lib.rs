@@ -51,6 +51,7 @@ use rules::{
     prefer_object_has_own_rule, require_yield_rule, sort_keys_rule, sort_vars_rule,
     space_unary_ops_rule, symbol_description_rule, vars_on_top_rule, wrap_regex_rule,
     yield_star_spacing_rule, yoda_rule,
+    sort_imports_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -164,6 +165,7 @@ pub fn instantiate() -> Plugin {
             class_methods_use_this_rule(),
             default_param_last_rule(),
             sort_vars_rule(),
+            sort_imports_rule(),
         ])
         .configs([("all".to_owned(), configs::all())])
         .build()
