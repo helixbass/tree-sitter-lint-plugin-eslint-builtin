@@ -81,7 +81,7 @@ fn look_for_loops<'a>(
             }
             if let Some((_, node)) = code_path_analyzer.code_path_segment_arena[segment]
                 .nodes
-                .get(0)
+                .first()
                 .filter(|(enter_or_exit, node)| {
                     *enter_or_exit == EnterOrExit::Enter
                         && is_looping_target(*node, target_loop_kinds)

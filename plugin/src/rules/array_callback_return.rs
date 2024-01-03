@@ -75,7 +75,7 @@ fn get_array_method_name<'a>(
                 }
                 if is_target_method(callee, context) {
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
-                    if arguments.get(0).copied() == Some(current_node) {
+                    if arguments.first().copied() == Some(current_node) {
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
@@ -95,7 +95,7 @@ fn get_array_method_name<'a>(
                 }
                 if is_target_method(callee, context) {
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
-                    if arguments.get(0).copied() == Some(current_node) {
+                    if arguments.first().copied() == Some(current_node) {
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
