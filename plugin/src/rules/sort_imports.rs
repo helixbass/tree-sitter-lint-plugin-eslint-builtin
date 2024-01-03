@@ -1,16 +1,20 @@
 use std::{borrow::Cow, sync::Arc};
 
 use grouped_ordering::grouped_ordering;
+use itertools::Itertools;
 use serde::Deserialize;
+use squalid::{EverythingExt, OptionExt};
 use tree_sitter_lint::{
-    rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation, NodeExt,
-    QueryMatchContext, Rule,
+    range_between_start_and_end, rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage,
+    violation, NodeExt, QueryMatchContext, Rule, SourceTextProvider,
 };
 
 use crate::{
     assert_kind,
     ast_helpers::get_num_import_specifiers,
-    kind::{Identifier, ImportClause, ImportStatement, NamedImports, NamespaceImport},
+    kind::{
+        Identifier, ImportClause, ImportSpecifier, ImportStatement, NamedImports, NamespaceImport,
+    },
 };
 
 grouped_ordering!(MemberSyntaxSortOrder, [None, All, Multiple, Single,]);
@@ -40,6 +44,18 @@ fn used_member_syntax(node: Node) -> MemberSyntaxSortOrderGroup {
     }
 }
 
+fn get_import_specifier_local_name<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> Cow<'a, str> {
+    assert_kind!(node, ImportSpecifier);
+
+    node.child_by_field_name("alias").map_or_else(
+        || node.field("name").text(context),
+        |alias| alias.text(context),
+    )
+}
+
 fn get_first_local_member_name<'a>(
     node: Node<'a>,
     context: &QueryMatchContext<'a, '_>,
@@ -49,16 +65,15 @@ fn get_first_local_member_name<'a>(
     let first_child = import_clause.first_non_comment_named_child(SupportedLanguage::Javascript);
     match first_child.kind() {
         Identifier => Some(first_child.text(context)),
-        NamespaceImport => Some(first_child
-            .first_non_comment_named_child(SupportedLanguage::Javascript)
-            .text(context)),
+        NamespaceImport => Some(
+            first_child
+                .first_non_comment_named_child(SupportedLanguage::Javascript)
+                .text(context),
+        ),
         NamedImports => first_child
             .maybe_first_non_comment_named_child(SupportedLanguage::Javascript)
             .map(|first_named_import| {
-                first_named_import.child_by_field_name("alias").map_or_else(
-                    || first_named_import.field("name").text(context),
-                    |alias| alias.text(context),
-                )
+                get_import_specifier_local_name(first_named_import, context)
             }),
         _ => unreachable!(),
     }
@@ -97,6 +112,16 @@ pub fn sort_imports_rule() -> Arc<dyn Rule> {
             fn get_member_parameter_group_index(&self, node: Node) -> usize {
                 self.member_syntax_sort_order[used_member_syntax(node)]
             }
+
+            fn get_sortable_name(&self, specifier: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Cow<'a, str> {
+                get_import_specifier_local_name(specifier, context).thrush(|name| {
+                    if self.ignore_case {
+                        name.to_lowercase().into()
+                    } else {
+                        name
+                    }
+                })
+            }
         },
         listeners => [
             r#"
@@ -123,7 +148,7 @@ pub fn sort_imports_rule() -> Arc<dyn Rule> {
                             previous_local_member_name = previous_local_member_name.map(|previous_local_member_name| {
                                 previous_local_member_name.to_lowercase().into()
                             });
-                            current_local_member_name = current_local_member_name.map(|previous_local_member_name| {
+                            current_local_member_name = current_local_member_name.map(|current_local_member_name| {
                                 current_local_member_name.to_lowercase().into()
                             });
                         }
@@ -156,6 +181,61 @@ pub fn sort_imports_rule() -> Arc<dyn Rule> {
 
                     self.previous_declaration = Some(node);
                 }
+
+                if !self.ignore_member_sort {
+                    let import_specifiers = node.maybe_first_child_of_kind(ImportClause)
+                        .and_then(|import_clause| import_clause.maybe_first_child_of_kind(NamedImports))
+                        .map_or_default(|named_imports| {
+                            named_imports.non_comment_named_children(SupportedLanguage::Javascript)
+                                .collect_vec()
+                        });
+                    let import_specifier_names = import_specifiers.iter().map(|&import_specifier| {
+                        self.get_sortable_name(import_specifier, context)
+                    }).collect_vec();
+                    let Some(first_unsorted_index) = import_specifier_names.iter().enumerate().position(|(index, name)| {
+                        index > 0 && &import_specifier_names[index - 1] > name
+                    }) else {
+                        return
+                    };
+
+                    context.report(violation! {
+                        node => import_specifiers[first_unsorted_index],
+                        message_id => "sort_members_alphabetically",
+                        data => {
+                            member_name => get_import_specifier_local_name(import_specifiers[first_unsorted_index], context),
+                        },
+                        fix => |fixer| {
+                            if import_specifiers.iter().any(|&specifier| {
+                                context.get_comments_before(specifier).next().is_some() ||
+                                    context.get_comments_after(specifier).next().is_some()
+                            }) {
+                                return;
+                            }
+
+                            fixer.replace_text_range(
+                                range_between_start_and_end(
+                                    import_specifiers[0].range(),
+                                    import_specifiers.last().unwrap().range()
+                                ),
+                                import_specifiers
+                                    .iter()
+                                    .sorted_by_key(|&&specifier| self.get_sortable_name(specifier, context))
+                                    .enumerate()
+                                    .fold("".to_owned(), |mut source_text, (index, &specifier)| {
+                                        let text_after_specifier = if index == import_specifiers.len() - 1 {
+                                            "".into()
+                                        } else {
+                                            context.slice(import_specifiers[index].end_byte()..import_specifiers[index + 1].start_byte())
+                                        };
+
+                                        source_text.push_str(&specifier.text(context));
+                                        source_text.push_str(&text_after_specifier);
+                                        source_text
+                                    })
+                            );
+                        }
+                    });
+                }
             },
         ],
     }
@@ -172,7 +252,7 @@ mod tests {
     fn test_sort_imports_rule() {
         let expected_error = RuleTestExpectedErrorBuilder::default()
             .message_id("sort_imports_alphabetically")
-            .type_("ImportDeclaration")
+            .type_(ImportStatement)
             .build()
             .unwrap();
         let ignore_case_args = json!({"ignore_case": true});
@@ -337,7 +417,7 @@ mod tests {
                                 syntax_a => "multiple",
                                 syntax_b => "single"
                             },
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -351,7 +431,7 @@ mod tests {
                                 syntax_a => "all",
                                 syntax_b => "single"
                             },
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -365,7 +445,7 @@ mod tests {
                                 syntax_a => "none",
                                 syntax_b => "single"
                             },
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -382,7 +462,7 @@ mod tests {
                                 syntax_a => "all",
                                 syntax_b => "single"
                             },
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -489,7 +569,7 @@ mod tests {
                         output => None,
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -498,7 +578,7 @@ mod tests {
                         options => {},
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -507,7 +587,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -516,7 +596,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -525,7 +605,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -534,7 +614,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -543,7 +623,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -552,7 +632,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -561,7 +641,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -570,7 +650,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -579,7 +659,7 @@ mod tests {
                         options => { allow_separated_groups => false },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration"
+                            type => ImportStatement
                         }]
                     },
                     {
@@ -588,7 +668,7 @@ mod tests {
                         options => { allow_separated_groups => true },
                         errors => [{
                             message_id => "sort_imports_alphabetically",
-                            type => "ImportDeclaration",
+                            type => ImportStatement,
                             line => 4
                         }]
                     },

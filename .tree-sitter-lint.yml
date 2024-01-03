@@ -599,6 +599,10 @@ rules:
           module: squalid
           kind: trait_method
           trait: NonEmpty
+        map_or_default:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
         matches:
           module: squalid
           kind: trait_method
@@ -611,10 +615,10 @@ rules:
         #   module: squalid
         #   kind: trait_method
         #   trait: SliceExtClone
-        sorted:
-          module: squalid
-          kind: trait_method
-          trait: SliceExtCloneOrd
+        # sorted:
+        #   module: squalid
+        #   kind: trait_method
+        #   trait: SliceExtCloneOrd
         Captures:
           module: regex
           kind: type
