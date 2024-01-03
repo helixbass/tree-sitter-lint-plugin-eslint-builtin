@@ -43,6 +43,9 @@ rules:
         get_method_definition_kind:
           module: crate::ast_helpers
           kind: function
+        get_num_import_specifiers:
+          module: crate::ast_helpers
+          kind: function
         get_template_string_chunks:
           module: crate::ast_helpers
           kind: function
@@ -477,15 +480,23 @@ rules:
         violation:
           module: tree_sitter_lint
           kind: macro
-        has_child_of_kind:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
         first_non_comment_named_child:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        has_child_of_kind:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        maybe_first_child_of_kind:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
         non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        num_non_comment_named_children:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
@@ -494,10 +505,6 @@ rules:
           kind: trait_method
           trait: NodeExt
         tokens:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
-        num_non_comment_named_children:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
@@ -592,6 +599,10 @@ rules:
           module: squalid
           kind: trait_method
           trait: NonEmpty
+        map_or_default:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
         matches:
           module: squalid
           kind: trait_method
@@ -604,10 +615,10 @@ rules:
         #   module: squalid
         #   kind: trait_method
         #   trait: SliceExtClone
-        sorted:
-          module: squalid
-          kind: trait_method
-          trait: SliceExtCloneOrd
+        # sorted:
+        #   module: squalid
+        #   kind: trait_method
+        #   trait: SliceExtCloneOrd
         Captures:
           module: regex
           kind: type

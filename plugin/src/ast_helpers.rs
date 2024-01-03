@@ -32,8 +32,8 @@ use squalid::EverythingExt;
 use tree_sitter_lint::tree_sitter::{Tree, TreeCursor};
 
 use crate::kind::{
-    ExportStatement, ImportStatement, JsxOpeningElement, JsxSelfClosingElement,
-    TemplateSubstitution,
+    ExportStatement, ImportStatement, JsxOpeningElement, JsxSelfClosingElement, NamedImports,
+    NamespaceImport, TemplateSubstitution,
 };
 
 #[macro_export]
@@ -776,6 +776,35 @@ pub fn is_export_default(node: Node) -> bool {
         .unwrap()
         .kind()
         == "default"
+}
+
+pub fn get_num_import_specifiers(node: Node) -> usize {
+    assert_kind!(node, ImportClause);
+    let mut named_children = node.non_comment_named_children(SupportedLanguage::Javascript);
+    let first_child = named_children.next().unwrap();
+    match first_child.kind() {
+        NamespaceImport => {
+            assert!(named_children.next().is_none());
+            1
+        }
+        NamedImports => {
+            assert!(named_children.next().is_none());
+            first_child.num_non_comment_named_children(SupportedLanguage::Javascript)
+        }
+        Identifier => {
+            1 + named_children.next().map_or_default(|next_child| {
+                assert!(named_children.next().is_none());
+                match next_child.kind() {
+                    NamespaceImport => 1,
+                    NamedImports => {
+                        next_child.num_non_comment_named_children(SupportedLanguage::Javascript)
+                    }
+                    _ => unreachable!(),
+                }
+            })
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[cfg(test)]
