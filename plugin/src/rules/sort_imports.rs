@@ -1,51 +1,19 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
-use serde::{de::Error, Deserialize};
-use tree_sitter_lint::{rule, violation, Rule};
+use grouped_ordering::grouped_ordering;
+use serde::Deserialize;
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation, NodeExt,
+    QueryMatchContext, Rule,
+};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-enum MemberSyntaxSortOrderItem {
-    None,
-    All,
-    Multiple,
-    Single,
-}
+use crate::{
+    assert_kind,
+    ast_helpers::get_num_import_specifiers,
+    kind::{Identifier, ImportClause, ImportStatement, NamedImports, NamespaceImport},
+};
 
-type MemberSyntaxSortOrderArray = [MemberSyntaxSortOrderItem; 4];
-
-struct MemberSyntaxSortOrder(MemberSyntaxSortOrderArray);
-
-impl<'de> Deserialize<'de> for MemberSyntaxSortOrder {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let array = MemberSyntaxSortOrderArray::deserialize(deserializer)?;
-        for variant in [
-            MemberSyntaxSortOrderItem::None,
-            MemberSyntaxSortOrderItem::All,
-            MemberSyntaxSortOrderItem::Multiple,
-            MemberSyntaxSortOrderItem::Single,
-        ] {
-            if !array.contains(&variant) {
-                return Err(D::Error::custom("Expected all variants"));
-            }
-        }
-        Ok(Self(array))
-    }
-}
-
-impl Default for MemberSyntaxSortOrder {
-    fn default() -> Self {
-        Self([
-            MemberSyntaxSortOrderItem::None,
-            MemberSyntaxSortOrderItem::All,
-            MemberSyntaxSortOrderItem::Multiple,
-            MemberSyntaxSortOrderItem::Single,
-        ])
-    }
-}
+grouped_ordering!(MemberSyntaxSortOrder, [None, All, Multiple, Single,]);
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -55,6 +23,52 @@ struct Options {
     ignore_declaration_sort: bool,
     ignore_member_sort: bool,
     allow_separated_groups: bool,
+}
+
+fn used_member_syntax(node: Node) -> MemberSyntaxSortOrderGroup {
+    let Some(import_clause) = node.maybe_first_child_of_kind(ImportClause) else {
+        return MemberSyntaxSortOrderGroup::None;
+    };
+    let first_child = import_clause.first_non_comment_named_child(SupportedLanguage::Javascript);
+    if first_child.kind() == NamespaceImport {
+        return MemberSyntaxSortOrderGroup::All;
+    }
+    match get_num_import_specifiers(import_clause) {
+        1 => MemberSyntaxSortOrderGroup::Single,
+        num_specifiers if num_specifiers > 1 => MemberSyntaxSortOrderGroup::Multiple,
+        _ => unreachable!(),
+    }
+}
+
+fn get_first_local_member_name<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> Option<Cow<'a, str>> {
+    assert_kind!(node, ImportStatement);
+    let import_clause = node.maybe_first_child_of_kind(ImportClause)?;
+    let first_child = import_clause.first_non_comment_named_child(SupportedLanguage::Javascript);
+    match first_child.kind() {
+        Identifier => Some(first_child.text(context)),
+        NamespaceImport => Some(first_child
+            .first_non_comment_named_child(SupportedLanguage::Javascript)
+            .text(context)),
+        NamedImports => first_child
+            .maybe_first_non_comment_named_child(SupportedLanguage::Javascript)
+            .map(|first_named_import| {
+                first_named_import.child_by_field_name("alias").map_or_else(
+                    || first_named_import.field("name").text(context),
+                    |alias| alias.text(context),
+                )
+            }),
+        _ => unreachable!(),
+    }
+}
+
+fn get_number_of_lines_between(left: Node, right: Node) -> usize {
+    match right.end_position().row - left.end_position().row {
+        0 => 0,
+        num_lines => num_lines - 1,
+    }
 }
 
 pub fn sort_imports_rule() -> Arc<dyn Rule> {
@@ -75,15 +89,73 @@ pub fn sort_imports_rule() -> Arc<dyn Rule> {
             ignore_declaration_sort: bool = options.ignore_declaration_sort,
             ignore_member_sort: bool = options.ignore_member_sort,
             allow_separated_groups: bool = options.allow_separated_groups,
+
+            [per-file-run]
+            previous_declaration: Option<Node<'a>>,
+        },
+        methods => {
+            fn get_member_parameter_group_index(&self, node: Node) -> usize {
+                self.member_syntax_sort_order[used_member_syntax(node)]
+            }
         },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (import_statement) @c
+            "# => |node, context| {
+                if !self.ignore_declaration_sort {
+                    if matches!(
+                        self.previous_declaration,
+                        // TODO: shouldn't have to say self.rule_instance, this is presumably
+                        // because we're inside matches!() macro
+                        Some(previous_declaration) if self.rule_instance.allow_separated_groups
+                            && get_number_of_lines_between(previous_declaration, node) > 0
+                    ) {
+                        self.previous_declaration = None;
+                    }
+
+                    if let Some(previous_declaration) = self.previous_declaration {
+                        let current_member_syntax_group_index = self.get_member_parameter_group_index(node);
+                        let previous_member_syntax_group_index = self.get_member_parameter_group_index(previous_declaration);
+                        let mut current_local_member_name = get_first_local_member_name(node, context);
+                        let mut previous_local_member_name = get_first_local_member_name(previous_declaration, context);
+
+                        if self.ignore_case {
+                            previous_local_member_name = previous_local_member_name.map(|previous_local_member_name| {
+                                previous_local_member_name.to_lowercase().into()
+                            });
+                            current_local_member_name = current_local_member_name.map(|previous_local_member_name| {
+                                current_local_member_name.to_lowercase().into()
+                            });
+                        }
+
+                        #[allow(clippy::collapsible_else_if)]
+                        if current_member_syntax_group_index != previous_member_syntax_group_index {
+                            if current_member_syntax_group_index < previous_member_syntax_group_index {
+                                context.report(violation! {
+                                    node => node,
+                                    message_id => "unexpected_syntax_order",
+                                    data => {
+                                        syntax_a => format!("{:?}", self.member_syntax_sort_order[current_member_syntax_group_index]),
+                                        syntax_b => format!("{:?}", self.member_syntax_sort_order[previous_member_syntax_group_index]),
+                                    }
+                                });
+                            }
+                        } else {
+                            if matches!(
+                                (previous_local_member_name, current_local_member_name),
+                                (Some(previous_local_member_name), Some(current_local_member_name)) if
+                                    current_local_member_name < previous_local_member_name
+                            ) {
+                                context.report(violation! {
+                                    node => node,
+                                    message_id => "sort_imports_alphabetically",
+                                });
+                            }
+                        }
+                    }
+
+                    self.previous_declaration = Some(node);
+                }
             },
         ],
     }
@@ -92,7 +164,7 @@ pub fn sort_imports_rule() -> Arc<dyn Rule> {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
-    use tree_sitter_lint::{rule_tests, RuleTester, RuleTestExpectedErrorBuilder};
+    use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
     use super::*;
 
@@ -325,10 +397,10 @@ mod tests {
                     {
                         code =>
                             "import {b, a, d, c} from 'foo.js';
-import {e, f, g, h} from 'bar.js';",
+            import {e, f, g, h} from 'bar.js';",
                         output =>
                             "import {a, b, c, d} from 'foo.js';
-import {e, f, g, h} from 'bar.js';",
+            import {e, f, g, h} from 'bar.js';",
                         options => {
                             ignore_declaration_sort => true
                         },
