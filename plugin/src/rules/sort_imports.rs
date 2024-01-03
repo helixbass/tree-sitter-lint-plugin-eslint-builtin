@@ -160,8 +160,8 @@ pub fn sort_imports_rule() -> Arc<dyn Rule> {
                                     node => node,
                                     message_id => "unexpected_syntax_order",
                                     data => {
-                                        syntax_a => format!("{:?}", self.member_syntax_sort_order[current_member_syntax_group_index]),
-                                        syntax_b => format!("{:?}", self.member_syntax_sort_order[previous_member_syntax_group_index]),
+                                        syntax_a => format!("{:?}", self.member_syntax_sort_order[current_member_syntax_group_index]).to_lowercase(),
+                                        syntax_b => format!("{:?}", self.member_syntax_sort_order[previous_member_syntax_group_index]).to_lowercase(),
                                     }
                                 });
                             }
@@ -404,7 +404,7 @@ mod tests {
                             "import * as foo from 'foo.js';
                             import * as bar from 'bar.js';",
                         output => None,
-                        errors => [expected_error]
+                        errors => [expected_error],
                     },
                     {
                         code =>
@@ -418,7 +418,7 @@ mod tests {
                                 syntax_b => "single"
                             },
                             type => ImportStatement
-                        }]
+                        }],
                     },
                     {
                         code =>
@@ -471,7 +471,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "a" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
                     {
@@ -487,7 +487,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "a" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
                     {
@@ -496,7 +496,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "B" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
                     {
@@ -505,8 +505,8 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "aaaaa" },
-                            type => "ImportSpecifier"
-                        }]
+                            type => ImportSpecifier
+                        }],
                     },
                     {
                         code => "import {zzzzz /* comment */, aaaaa} from 'foo.js';",
@@ -514,7 +514,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "aaaaa" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
                     {
@@ -523,7 +523,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "aaaaa" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
                     {
@@ -532,7 +532,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "aaaaa" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
                     {
@@ -559,7 +559,7 @@ mod tests {
                         errors => [{
                             message_id => "sort_members_alphabetically",
                             data => { member_name => "qux" },
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     },
 
@@ -644,24 +644,25 @@ mod tests {
                             type => ImportStatement
                         }]
                     },
-                    {
-                        code => "import { b } from \n'b'; /* comment */ import\n { a } from 'a';",
-                        output => None,
-                        options => { allow_separated_groups => false },
-                        errors => [{
-                            message_id => "sort_imports_alphabetically",
-                            type => ImportStatement
-                        }]
-                    },
-                    {
-                        code => "import { b } from \n'b';\nimport\n { a } from 'a';",
-                        output => None,
-                        options => { allow_separated_groups => false },
-                        errors => [{
-                            message_id => "sort_imports_alphabetically",
-                            type => ImportStatement
-                        }]
-                    },
+                    // TODO: uncomment these if https://github.com/tree-sitter/tree-sitter-javascript/issues/283 is resolved
+                    // {
+                    //     code => "import { b } from \n'b'; /* comment */ import\n { a } from 'a';",
+                    //     output => None,
+                    //     options => { allow_separated_groups => false },
+                    //     errors => [{
+                    //         message_id => "sort_imports_alphabetically",
+                    //         type => ImportStatement
+                    //     }],
+                    // },
+                    // {
+                    //     code => "import { b } from \n'b';\nimport\n { a } from 'a';",
+                    //     output => None,
+                    //     options => { allow_separated_groups => false },
+                    //     errors => [{
+                    //         message_id => "sort_imports_alphabetically",
+                    //         type => ImportStatement
+                    //     }]
+                    // },
                     {
                         code => "import c from 'c';\n\nimport b from 'b';\nimport a from 'a';",
                         output => None,
@@ -678,7 +679,7 @@ mod tests {
                         options => { allow_separated_groups => true },
                         errors => [{
                             message_id => "sort_members_alphabetically",
-                            type => "ImportSpecifier"
+                            type => ImportSpecifier
                         }]
                     }
                 ]
