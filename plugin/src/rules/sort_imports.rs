@@ -72,9 +72,7 @@ fn get_first_local_member_name<'a>(
         ),
         NamedImports => first_child
             .maybe_first_non_comment_named_child(SupportedLanguage::Javascript)
-            .map(|first_named_import| {
-                get_import_specifier_local_name(first_named_import, context)
-            }),
+            .map(|first_named_import| get_import_specifier_local_name(first_named_import, context)),
         _ => unreachable!(),
     }
 }
