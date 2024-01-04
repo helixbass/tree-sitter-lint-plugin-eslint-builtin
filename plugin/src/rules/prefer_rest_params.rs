@@ -82,7 +82,7 @@ mod tests {
                     { code => "function foo() { arguments[Symbol.iterator]; }", errors => [{ type => Identifier, message_id => "prefer_rest_params" }] }
                 ]
             },
-            get_instance_provider_factory()
+            get_instance_provider_factory(),
         )
     }
 }
