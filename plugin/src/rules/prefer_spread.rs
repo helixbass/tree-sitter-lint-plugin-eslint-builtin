@@ -5,14 +5,14 @@ use squalid::OptionExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::get_call_expression_arguments,
+    ast_helpers::{get_call_expression_arguments, NodeExtJs},
     kind::{Array, MemberExpression, SpreadElement},
     utils::ast_utils,
 };
 
 fn is_variadic_apply_calling(node: Node, context: &QueryMatchContext) -> bool {
     ast_utils::is_specific_member_access(
-        node.field("function"),
+        node.field("function").skip_parentheses(),
         Option::<&str>::None,
         Some("apply"),
         context,
@@ -48,11 +48,11 @@ pub fn prefer_spread_rule() -> Arc<dyn Rule> {
                     return;
                 }
 
-                let applied = node.field("function").field("object");
+                let applied = node.field("function").skip_parentheses().field("object").skip_parentheses();
                 let expected_this = (applied.kind() == MemberExpression).then(|| {
-                    applied.field("object")
+                    applied.field("object").skip_parentheses()
                 });
-                let this_arg = get_call_expression_arguments(node).unwrap().next().unwrap();
+                let this_arg = get_call_expression_arguments(node).unwrap().next().unwrap().skip_parentheses();
 
                 if is_valid_this_arg(expected_this, this_arg, context) {
                     context.report(violation! {
