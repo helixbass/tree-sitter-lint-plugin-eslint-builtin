@@ -2,13 +2,13 @@ use std::{collections::HashSet, sync::Arc};
 
 use itertools::Itertools;
 use regex::{Captures, Regex};
-use squalid::{regex, CowExt, CowStrExt, EverythingExt, OptionExt};
+use squalid::{regex, CowExt, CowStrExt, EverythingExt};
 use tree_sitter_lint::{
     rule, tree_sitter::Node, violation, Fixer, NodeExt, QueryMatchContext, Rule, SourceTextProvider,
 };
 
 use crate::{
-    ast_helpers::get_template_string_chunks,
+    ast_helpers::{get_template_string_chunks, NodeExtJs},
     kind,
     kind::{BinaryExpression, TemplateString},
     utils::ast_utils,
@@ -21,16 +21,21 @@ fn is_concatenation(node: Node) -> bool {
 fn get_top_concat_binary_expression(node: Node) -> Node {
     let mut current_node = node;
 
-    while is_concatenation(current_node.parent().unwrap()) {
-        current_node = current_node.parent().unwrap();
+    while is_concatenation(current_node.next_non_parentheses_ancestor()) {
+        current_node = current_node.next_non_parentheses_ancestor();
     }
     current_node
 }
 
 fn has_octal_or_non_octal_decimal_escape_sequence(node: Node, context: &QueryMatchContext) -> bool {
     if is_concatenation(node) {
-        return has_octal_or_non_octal_decimal_escape_sequence(node.field("left"), context)
-            || has_octal_or_non_octal_decimal_escape_sequence(node.field("right"), context);
+        return has_octal_or_non_octal_decimal_escape_sequence(
+            node.field("left").skip_parentheses(),
+            context,
+        ) || has_octal_or_non_octal_decimal_escape_sequence(
+            node.field("right").skip_parentheses(),
+            context,
+        );
     }
 
     if node.kind() == kind::String {
@@ -42,16 +47,16 @@ fn has_octal_or_non_octal_decimal_escape_sequence(node: Node, context: &QueryMat
 
 fn has_string_literal(node: Node) -> bool {
     if is_concatenation(node) {
-        return has_non_string_literal(node.field("right"))
-            || has_non_string_literal(node.field("left"));
+        return has_string_literal(node.field("right"))
+            || has_string_literal(node.field("left"));
     }
     ast_utils::is_string_literal(node)
 }
 
 fn has_non_string_literal(node: Node) -> bool {
     if is_concatenation(node) {
-        return has_non_string_literal(node.field("right"))
-            || has_non_string_literal(node.field("left"));
+        return has_non_string_literal(node.field("right").skip_parentheses())
+            || has_non_string_literal(node.field("left").skip_parentheses());
     }
     !ast_utils::is_string_literal(node)
 }
@@ -119,7 +124,10 @@ fn get_template_literal<'a>(
                 .map_cow(|text| {
                     regex!(r#"\\*(\$\{|`)"#).replace_all(text, |captures: &Captures| {
                         let matched = &captures[0];
-                        if matched.rfind('\\').matches(|pos| pos % 2 == 1) {
+                        if match matched.rfind('\\') {
+                            None => true,
+                            Some(pos) => pos % 2 == 1,
+                        } {
                             return format!("\\{matched}");
                         }
                         matched.to_owned()
@@ -140,22 +148,31 @@ fn get_template_literal<'a>(
     if is_concatenation(current_node) && has_string_literal(current_node) {
         let plus_sign = context
             .get_first_token_between(
-                current_node.field("left"),
-                current_node.field("right"),
+                current_node.field("left").skip_parentheses(),
+                current_node.field("right").skip_parentheses(),
                 Some(|token: Node| token.kind() == "+"),
             )
             .unwrap();
-        let text_before_plus = get_text_between(current_node.field("left"), plus_sign, context);
-        let text_after_plus = get_text_between(plus_sign, current_node.field("right"), context);
-        let left_ends_with_curly = ends_with_template_curly(current_node.field("left"), context);
+        let text_before_plus = get_text_between(
+            current_node.field("left").skip_parentheses(),
+            plus_sign,
+            context,
+        );
+        let text_after_plus = get_text_between(
+            plus_sign,
+            current_node.field("right").skip_parentheses(),
+            context,
+        );
+        let left_ends_with_curly =
+            ends_with_template_curly(current_node.field("left").skip_parentheses(), context);
         let right_starts_with_curly =
-            starts_with_template_curly(current_node.field("right"), context);
+            starts_with_template_curly(current_node.field("right").skip_parentheses(), context);
 
         if left_ends_with_curly {
             return format!(
                 "{}{}",
                 get_template_literal(
-                    current_node.field("left"),
+                    current_node.field("left").skip_parentheses(),
                     text_before_node,
                     Some(format!("{text_before_plus}{text_after_plus}")),
                     context
@@ -163,20 +180,28 @@ fn get_template_literal<'a>(
                 .thrush(|template_literal| template_literal
                     [0..template_literal.len() - 1]
                     .to_owned()),
-                &get_template_literal(current_node.field("right"), None, text_after_node, context)
-                    [1..]
+                &get_template_literal(
+                    current_node.field("right").skip_parentheses(),
+                    None,
+                    text_after_node,
+                    context
+                )[1..]
             );
         }
         if right_starts_with_curly {
             return format!(
                 "{}{}",
-                get_template_literal(current_node.field("left"), text_before_node, None, context)
-                    .thrush(
-                        |template_literal| template_literal[0..template_literal.len() - 1]
-                            .to_owned()
-                    ),
+                get_template_literal(
+                    current_node.field("left").skip_parentheses(),
+                    text_before_node,
+                    None,
+                    context
+                )
+                .thrush(|template_literal| template_literal
+                    [0..template_literal.len() - 1]
+                    .to_owned()),
                 &get_template_literal(
-                    current_node.field("right"),
+                    current_node.field("right").skip_parentheses(),
                     Some(format!("{text_before_plus}{text_after_plus}")),
                     text_after_node,
                     context
@@ -186,10 +211,20 @@ fn get_template_literal<'a>(
 
         return format!(
             "{}{}+{}{}",
-            get_template_literal(current_node.field("left"), text_before_node, None, context),
+            get_template_literal(
+                current_node.field("left").skip_parentheses(),
+                text_before_node,
+                None,
+                context
+            ),
             text_before_plus,
             text_after_plus,
-            get_template_literal(current_node.field("right"), text_after_node, None, context),
+            get_template_literal(
+                current_node.field("right").skip_parentheses(),
+                text_after_node,
+                None,
+                context
+            ),
         );
     }
 
@@ -206,7 +241,7 @@ fn fix_non_string_binary_expression<'a>(
     node: Node<'a>,
     context: &QueryMatchContext<'a, '_>,
 ) {
-    let top_binary_expr = get_top_concat_binary_expression(node.parent().unwrap());
+    let top_binary_expr = get_top_concat_binary_expression(node.next_non_parentheses_ancestor());
 
     if has_octal_or_non_octal_decimal_escape_sequence(top_binary_expr, context) {
         return;
@@ -235,11 +270,12 @@ pub fn prefer_template_rule() -> Arc<dyn Rule> {
               (string) @c
               (template_string) @c
             "# => |node, context| {
-                if !is_concatenation(node.parent().unwrap()) {
+                let parent = node.next_non_parentheses_ancestor();
+                if !is_concatenation(parent) {
                     return;
                 }
 
-                let top_binary_expr = get_top_concat_binary_expression(node.parent().unwrap());
+                let top_binary_expr = get_top_concat_binary_expression(parent);
 
                 if self.done.contains(&top_binary_expr.start_byte()) {
                     return;
@@ -401,7 +437,7 @@ mod tests {
     }) +
 ';';",
                         output =>
-                        "var foo = `favorites: ${
+                        "var foo = `favorites: ${ 
     favorites.map(f => {
         return f.name;
     }) 
