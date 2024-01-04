@@ -38,7 +38,7 @@ fn is_parse_int_method(node: Node, context: &QueryMatchContext) -> bool {
 
 fn is_valid_radix(radix: Node, context: &QueryMatchContext) -> bool {
     match radix.kind() {
-        kind::Number => !VALID_RADIX_VALUES.contains(&get_number_literal_value(radix, context)),
+        kind::Number => VALID_RADIX_VALUES.contains(&get_number_literal_value(radix, context)),
         kind if is_literal_kind(kind) => false,
         Undefined => false,
         _ => true,

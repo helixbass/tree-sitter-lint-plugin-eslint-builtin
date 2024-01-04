@@ -98,7 +98,7 @@ impl hash::Hash for Number {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         match self {
             Number::NaN => "NaN".hash(state),
-            Number::Integer(value) => value.hash(state),
+            Number::Integer(value) => (*value as f64).to_bits().hash(state),
             Number::Float(value) => value.to_bits().hash(state),
         }
     }
