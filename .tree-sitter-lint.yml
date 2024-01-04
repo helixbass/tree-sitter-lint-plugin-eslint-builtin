@@ -49,10 +49,16 @@ rules:
         get_template_string_chunks:
           module: crate::ast_helpers
           kind: function
+        is_async_function:
+          module: crate::ast_helpers
+          kind: function
         is_class_member_static:
           module: crate::ast_helpers
           kind: function
         is_default_import_declaration:
+          module: crate::ast_helpers
+          kind: function
+        is_for_of_await:
           module: crate::ast_helpers
           kind: function
         is_jsx_tag_name:

@@ -2,6 +2,16 @@ use std::sync::Arc;
 
 use tree_sitter_lint::{rule, violation, Rule};
 
+use crate::{
+    ast_helpers::{is_async_function, is_for_of_await},
+    kind::{GeneratorFunction, GeneratorFunctionDeclaration},
+    utils::ast_utils,
+};
+
+fn capitalize_first_letter(text: &str) -> String {
+    format!("{}{}", text[0..1].to_uppercase(), &text[1..])
+}
+
 pub fn require_await_rule() -> Arc<dyn Rule> {
     rule! {
         name => "require-await",
@@ -9,14 +19,68 @@ pub fn require_await_rule() -> Arc<dyn Rule> {
         messages => [
             missing_await => "{{name}} has no 'await' expression.",
         ],
+        state => {
+            [per-file-run]
+            scope_info: Vec<bool>,
+        },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (function_declaration) @c
+              (function) @c
+              (generator_function_declaration) @c
+              (generator_function) @c
+              (method_definition) @c
+              (arrow_function) @c
+            "# => |node, context| {
+                self.scope_info.push(false);
+            },
+            r#"
+              function_declaration:exit,
+              function:exit,
+              generator_function_declaration:exit,
+              generator_function:exit,
+              method_definition:exit,
+              arrow_function:exit
+            "# => |node, context| {
+                if !matches!(
+                    node.kind(),
+                    GeneratorFunctionDeclaration | GeneratorFunction
+                ) && is_async_function(node) &&
+                    !*self.scope_info.last().unwrap() &&
+                    !ast_utils::is_empty_function(node) {
+                    context.report(violation! {
+                        node => node,
+                        range => ast_utils::get_function_head_range(
+                            node,
+                        ),
+                        message_id => "missing_await",
+                        data => {
+                            name => capitalize_first_letter(
+                                &ast_utils::get_function_name_with_kind(
+                                    node,
+                                    context,
+                                )
+                            ),
+                        }
+                    });
+                }
+                self.scope_info.pop().unwrap();
+            },
+            r#"
+              (await_expression) @c
+            "# => |node, context| {
+                if let Some(has_await) = self.scope_info.last_mut() {
+                    *has_await = true;
+                }
+            },
+            r#"
+              (for_in_statement) @c
+            "# => |node, context| {
+                if let Some(has_await) = self.scope_info.last_mut() {
+                    if is_for_of_await(node, context) {
+                        *has_await = true;
+                    }
+                }
             },
         ],
     }

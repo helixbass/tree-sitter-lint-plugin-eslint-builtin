@@ -663,6 +663,18 @@ pub fn get_binary_expression_operator_precedence(operator: &str) -> u32 {
     _get_precedence(BinaryExpression, Some(operator), None)
 }
 
+pub fn is_empty_block(node: Node) -> bool {
+    node.kind() == StatementBlock
+        && node
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .next()
+            .is_none()
+}
+
+pub fn is_empty_function(node: Node) -> bool {
+    is_function(node) && is_empty_block(node.field("body"))
+}
+
 pub enum NodeOrKind<'a> {
     Node(Node<'a>),
     Kind(Kind),

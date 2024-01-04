@@ -32,19 +32,20 @@ use squalid::EverythingExt;
 use tree_sitter_lint::tree_sitter::{Tree, TreeCursor};
 
 use crate::kind::{
-    ExportStatement, ImportStatement, JsxOpeningElement, JsxSelfClosingElement, NamedImports,
-    NamespaceImport, TemplateSubstitution,
+    ExportStatement, Function, FunctionDeclaration, GeneratorFunction,
+    GeneratorFunctionDeclaration, ImportStatement, JsxOpeningElement, JsxSelfClosingElement,
+    NamedImports, NamespaceImport, TemplateSubstitution,
 };
 
 #[macro_export]
 macro_rules! assert_kind {
     ($node:expr, $kind:pat) => {
         assert!(
-            matches!($node.kind(), $kind),
-            "Expected kind {:?}, got: {:?}",
-            stringify!($kind),
-            $node.kind()
-        );
+                                                                    matches!($node.kind(), $kind),
+                                                                    "Expected kind {:?}, got: {:?}",
+                                                                    stringify!($kind),
+                                                                    $node.kind()
+                                                                );
     };
 }
 
@@ -52,8 +53,8 @@ macro_rules! assert_kind {
 macro_rules! return_default_if_false {
     ($expr:expr) => {
         if !$expr {
-            return Default::default();
-        }
+                                                            return Default::default();
+                                                        }
     };
 }
 
@@ -804,6 +805,25 @@ pub fn get_num_import_specifiers(node: Node) -> usize {
             })
         }
         _ => unreachable!(),
+    }
+}
+
+pub fn is_async_function(node: Node) -> bool {
+    match node.kind() {
+        FunctionDeclaration
+        | Function
+        | GeneratorFunctionDeclaration
+        | GeneratorFunction
+        | ArrowFunction => {
+            node.first_non_comment_child(SupportedLanguage::Javascript)
+                .kind()
+                == "async"
+        }
+        MethodDefinition => node
+            .non_comment_children_and_field_names(SupportedLanguage::Javascript)
+            .take_while(|(_, field_name)| *field_name != Some("name"))
+            .any(|(child, _)| child.kind() == "async"),
+        _ => false,
     }
 }
 
