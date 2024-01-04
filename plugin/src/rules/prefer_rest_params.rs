@@ -59,11 +59,11 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::Identifier;
+    use crate::{get_instance_provider_factory, kind::Identifier};
 
     #[test]
     fn test_prefer_rest_params_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             prefer_rest_params_rule(),
             rule_tests! {
                 valid => [
@@ -82,6 +82,7 @@ mod tests {
                     { code => "function foo() { arguments[Symbol.iterator]; }", errors => [{ type => Identifier, message_id => "prefer_rest_params" }] }
                 ]
             },
+            get_instance_provider_factory()
         )
     }
 }
