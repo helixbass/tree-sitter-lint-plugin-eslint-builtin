@@ -47,8 +47,8 @@ fn has_octal_or_non_octal_decimal_escape_sequence(node: Node, context: &QueryMat
 
 fn has_string_literal(node: Node) -> bool {
     if is_concatenation(node) {
-        return has_string_literal(node.field("right"))
-            || has_string_literal(node.field("left"));
+        return has_string_literal(node.field("right").skip_parentheses())
+            || has_string_literal(node.field("left").skip_parentheses());
     }
     ast_utils::is_string_literal(node)
 }
@@ -63,7 +63,7 @@ fn has_non_string_literal(node: Node) -> bool {
 
 fn starts_with_template_curly<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
     if node.kind() == BinaryExpression {
-        return starts_with_template_curly(node.field("left"), context);
+        return starts_with_template_curly(node.field("left").skip_parentheses(), context);
     }
     if node.kind() == TemplateString {
         let mut chunks = get_template_string_chunks(node, context);
@@ -78,7 +78,7 @@ fn starts_with_template_curly<'a>(node: Node<'a>, context: &QueryMatchContext<'a
 
 fn ends_with_template_curly<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
     if node.kind() == BinaryExpression {
-        return starts_with_template_curly(node.field("right"), context);
+        return starts_with_template_curly(node.field("right").skip_parentheses(), context);
     }
     if node.kind() == TemplateString {
         let chunks = get_template_string_chunks(node, context).collect_vec();
@@ -520,9 +520,9 @@ mod tests {
                         code => r#""default-src 'self' https://*.google.com;"
                         + "frame-ancestors 'none';"
                         + "report-to " + foo + ";""#,
-                        output => r#"\`default-src 'self' https://*.google.com;\`
-                        + \`frame-ancestors 'none';\`
-                        + \`report-to \${  foo  };\`"#,
+                        output => r#"`default-src 'self' https://*.google.com;`
+                        + `frame-ancestors 'none';`
+                        + `report-to ${  foo  };`"#,
                         errors => errors,
                     },
                     {
