@@ -1,4 +1,4 @@
-use std::ops;
+use std::{hash, ops};
 
 use squalid::{regex, CowStrExt};
 use tree_sitter_lint::{tree_sitter::Node, QueryMatchContext};
@@ -80,6 +80,8 @@ impl PartialEq for Number {
     }
 }
 
+impl Eq for Number {}
+
 impl PartialOrd for Number {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -88,6 +90,16 @@ impl PartialOrd for Number {
             (Self::Integer(a), Self::Float(b)) => (*a as f64).partial_cmp(b),
             (Self::Float(a), Self::Integer(b)) => a.partial_cmp(&(*b as f64)),
             (Self::Float(a), Self::Float(b)) => a.partial_cmp(b),
+        }
+    }
+}
+
+impl hash::Hash for Number {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Number::NaN => "NaN".hash(state),
+            Number::Integer(value) => (*value as f64).to_bits().hash(state),
+            Number::Float(value) => value.to_bits().hash(state),
         }
     }
 }
