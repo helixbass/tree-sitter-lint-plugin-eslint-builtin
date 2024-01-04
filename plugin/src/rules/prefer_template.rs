@@ -437,8 +437,7 @@ mod tests {
     }) +
 ';';",
                         output =>
-                        "var foo = `favorites: ${ 
-    favorites.map(f => {
+                        "var foo = `favorites: ${ \n    favorites.map(f => {
         return f.name;
     }) 
 };`;",
