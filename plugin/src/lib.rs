@@ -48,9 +48,9 @@ use rules::{
     no_unreachable_rule, no_unsafe_finally_rule, no_unsafe_negation_rule,
     no_unsafe_optional_chaining_rule, no_unused_labels_rule, no_unused_vars_rule,
     no_useless_call_rule, no_useless_catch_rule, no_useless_escape_rule, no_useless_return_rule,
-    prefer_object_has_own_rule, require_await_rule, require_yield_rule, sort_imports_rule,
-    sort_keys_rule, sort_vars_rule, space_unary_ops_rule, symbol_description_rule,
-    vars_on_top_rule, wrap_regex_rule, yield_star_spacing_rule, yoda_rule,
+    prefer_object_has_own_rule, radix_rule, require_await_rule, require_yield_rule,
+    sort_imports_rule, sort_keys_rule, sort_vars_rule, space_unary_ops_rule,
+    symbol_description_rule, vars_on_top_rule, wrap_regex_rule, yield_star_spacing_rule, yoda_rule,
 };
 use scope::ScopeManager;
 pub use visit::Visit;
@@ -166,6 +166,7 @@ pub fn instantiate() -> Plugin {
             sort_vars_rule(),
             sort_imports_rule(),
             require_await_rule(),
+            radix_rule(),
         ])
         .configs([("all".to_owned(), configs::all())])
         .build()
