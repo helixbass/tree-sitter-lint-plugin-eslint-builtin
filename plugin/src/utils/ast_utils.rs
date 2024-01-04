@@ -65,6 +65,9 @@ pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
     .into()
 });
 
+pub static OCTAL_OR_NON_OCTAL_DECIMAL_ESCAPE_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?s)^(?:[^\\]|\\.)*\\(?:[1-9]|0[0-9])"#).unwrap());
+
 fn is_modifying_reference(reference: &Reference, index: usize, references: &[Reference]) -> bool {
     let identifier = reference.identifier();
 
@@ -581,6 +584,10 @@ pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bo
 pub static BREAKABLE_TYPE_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"^(?:do|while|for(?:_in)?|switch)_statement$"#).unwrap());
 
+pub fn is_string_literal(node: Node) -> bool {
+    matches!(node.kind(), kind::String | TemplateString)
+}
+
 pub fn is_breakable_statement(node: Node) -> bool {
     BREAKABLE_TYPE_PATTERN.is_match(node.kind())
 }
@@ -1049,4 +1056,8 @@ impl<'a> From<&'a str> for NodeOrStr<'a> {
 
 pub fn is_static_template_literal(node: Node) -> bool {
     node.kind() == TemplateString && !node.has_child_of_kind(TemplateSubstitution)
+}
+
+pub fn has_octal_or_non_octal_decimal_escape_sequence(raw_string: &str) -> bool {
+    OCTAL_OR_NON_OCTAL_DECIMAL_ESCAPE_PATTERN.is_match(raw_string)
 }

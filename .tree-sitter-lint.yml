@@ -462,6 +462,9 @@ rules:
         FileRunContext:
           module: tree_sitter_lint
           kind: type
+        Fixer:
+          module: tree_sitter_lint
+          kind: type
         FromFileRunContext:
           module: tree_sitter_lint
           kind: type
