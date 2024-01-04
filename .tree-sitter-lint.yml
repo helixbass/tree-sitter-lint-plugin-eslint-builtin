@@ -43,6 +43,9 @@ rules:
         get_method_definition_kind:
           module: crate::ast_helpers
           kind: function
+        get_number_literal_value:
+          module: crate::ast_helpers
+          kind: function
         get_num_import_specifiers:
           module: crate::ast_helpers
           kind: function

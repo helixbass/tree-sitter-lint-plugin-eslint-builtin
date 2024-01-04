@@ -1,7 +1,18 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
+use itertools::Itertools;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::EverythingExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::{get_call_expression_arguments, get_number_literal_value, Number},
+    kind,
+    kind::{is_literal_kind, MemberExpression, PropertyIdentifier, Undefined},
+    scope::{ScopeManager, Variable},
+    utils::ast_utils,
+};
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -9,6 +20,36 @@ enum Mode {
     #[default]
     Always,
     AsNeeded,
+}
+
+static VALID_RADIX_VALUES: Lazy<HashSet<Number>> =
+    Lazy::new(|| (2..=36).step_by(2).map(Number::Integer).collect());
+
+fn is_shadowed(variable: &Variable) -> bool {
+    variable.defs().next().is_some()
+}
+
+fn is_parse_int_method(node: Node, context: &QueryMatchContext) -> bool {
+    node.kind() == MemberExpression
+        && node.field("property").thrush(|property| {
+            property.kind() == PropertyIdentifier && property.text(context) == "parseInt"
+        })
+}
+
+fn is_valid_radix(radix: Node, context: &QueryMatchContext) -> bool {
+    match radix.kind() {
+        kind::Number => !VALID_RADIX_VALUES.contains(&get_number_literal_value(radix, context)),
+        kind if is_literal_kind(kind) => false,
+        Undefined => false,
+        _ => true,
+    }
+}
+
+fn is_default_radix(radix: Node, context: &QueryMatchContext) -> bool {
+    if radix.kind() != kind::Number {
+        return false;
+    }
+    get_number_literal_value(radix, context) == Number::Integer(10)
 }
 
 pub fn radix_rule() -> Arc<dyn Rule> {
@@ -27,14 +68,78 @@ pub fn radix_rule() -> Arc<dyn Rule> {
             [per-config]
             mode: Mode = options,
         },
+        methods => {
+            fn check_arguments(&self, node: Node, context: &QueryMatchContext) {
+                let Some(args) = get_call_expression_arguments(node) else {
+                    return;
+                };
+                let args = args.collect_vec();
+                match args.len() {
+                    0 => {
+                        context.report(violation! {
+                            node => node,
+                            message_id => "missing_parameters",
+                        });
+                    }
+                    1 => {
+                        if self.mode == Mode::Always {
+                            context.report(violation! {
+                                node => node,
+                                message_id => "missing_radix",
+                                // TODO: suggestions?
+                            });
+                        }
+                    }
+                    _ => {
+                        if self.mode == Mode::AsNeeded &&
+                            is_default_radix(args[1], context) {
+                            context.report(violation! {
+                                node => node,
+                                message_id => "redundant_radix",
+                            });
+                        } else if !is_valid_radix(args[1], context) {
+                            context.report(violation! {
+                                node => node,
+                                message_id => "invalid_radix",
+                            });
+                        }
+                    }
+                }
+            }
+        },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              program:exit
+            "# => |node, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                let scope = scope_manager.get_scope(node);
+
+                let variable = ast_utils::get_variable_by_name(scope.clone(), "parseInt");
+                if let Some(variable) = variable.as_ref().filter(|variable| {
+                    !is_shadowed(variable)
+                }) {
+                    variable.references().for_each(|reference| {
+                        let id_node = reference.identifier();
+
+                        if ast_utils::is_callee(id_node) {
+                            self.check_arguments(id_node.parent().unwrap(), context);
+                        }
+                    });
+                }
+
+                let variable = ast_utils::get_variable_by_name(scope, "Number");
+                if let Some(variable) = variable.as_ref().filter(|variable| {
+                    !is_shadowed(variable)
+                }) {
+                    variable.references().for_each(|reference| {
+                        let parent_node = reference.identifier().parent().unwrap();
+                        let maybe_callee = parent_node;
+
+                        if is_parse_int_method(parent_node, context) && ast_utils::is_callee(maybe_callee) {
+                            self.check_arguments(maybe_callee.parent().unwrap(), context);
+                        }
+                    });
+                }
             },
         ],
     }
@@ -45,11 +150,11 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::kind::CallExpression;
+    use crate::{get_instance_provider_factory, kind::CallExpression};
 
     #[test]
     fn test_radix_rule() {
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             radix_rule(),
             rule_tests! {
                 valid => [
@@ -101,14 +206,14 @@ mod tests {
                         code => "parseInt();",
                         options => "as-needed",
                         errors => [{
-                            message_id => "missingParameters",
+                            message_id => "missing_parameters",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt();",
                         errors => [{
-                            message_id => "missingParameters",
+                            message_id => "missing_parameters",
                             type => CallExpression
                         }]
                     },
@@ -149,63 +254,63 @@ mod tests {
                     {
                         code => "parseInt(\"10\", null);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", undefined);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", true);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", \"foo\");",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", \"123\");",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", 1);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", 37);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "parseInt(\"10\", 10.5);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "Number.parseInt();",
                         errors => [{
-                            message_id => "missingParameters",
+                            message_id => "missing_parameters",
                             type => CallExpression
                         }]
                     },
@@ -213,7 +318,7 @@ mod tests {
                         code => "Number.parseInt();",
                         options => "as-needed",
                         errors => [{
-                            message_id => "missingParameters",
+                            message_id => "missing_parameters",
                             type => CallExpression
                         }]
                     },
@@ -228,21 +333,21 @@ mod tests {
                     {
                         code => "Number.parseInt(\"10\", 1);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "Number.parseInt(\"10\", 37);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
                     {
                         code => "Number.parseInt(\"10\", 10.5);",
                         errors => [{
-                            message_id => "invalidRadix",
+                            message_id => "invalid_radix",
                             type => CallExpression
                         }]
                     },
@@ -250,7 +355,7 @@ mod tests {
                         code => "parseInt(\"10\", 10);",
                         options => "as-needed",
                         errors => [{
-                            message_id => "redundantRadix",
+                            message_id => "redundant_radix",
                             type => CallExpression
                         }]
                     },
@@ -302,6 +407,7 @@ mod tests {
                     }
                 ]
             },
+            get_instance_provider_factory(),
         )
     }
 }
