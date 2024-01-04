@@ -1,6 +1,32 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use tree_sitter_lint::{rule, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::{
+    kind::MemberExpression,
+    scope::{Reference, Scope, ScopeManager, Variable},
+};
+
+fn get_variable_of_arguments<'a, 'b>(scope: Scope<'a, 'b>) -> Option<Variable<'a, 'b>> {
+    scope
+        .variables()
+        .find(|variable| variable.name() == "arguments")
+        .filter(|variable| variable.identifiers().next().is_none())
+}
+
+fn is_not_normal_member_access(reference: &Reference) -> bool {
+    let id = reference.identifier();
+    let parent = id.parent().unwrap();
+
+    !(parent.kind() == MemberExpression && parent.field("object") == id)
+}
+
+fn report(reference: Reference, context: &QueryMatchContext) {
+    context.report(violation! {
+        node => reference.identifier(),
+        message_id => "prefer_rest_params",
+    });
+}
 
 pub fn prefer_rest_params_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,13 +36,19 @@ pub fn prefer_rest_params_rule() -> Arc<dyn Rule> {
             prefer_rest_params => "Use the rest parameters instead of 'arguments'.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              function_declaration:exit,
+              function:exit
+            "# => |node, context| {
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                if let Some(arguments_var) = get_variable_of_arguments(scope_manager.get_scope(node)) {
+                    arguments_var
+                        .references()
+                        .filter(is_not_normal_member_access)
+                        .for_each(|reference| {
+                            report(reference, context);
+                        });
+                }
             },
         ],
     }
