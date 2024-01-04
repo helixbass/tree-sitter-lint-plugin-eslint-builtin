@@ -1,6 +1,37 @@
 use std::sync::Arc;
 
-use tree_sitter_lint::{rule, violation, Rule};
+use itertools::Itertools;
+use squalid::OptionExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::get_call_expression_arguments,
+    kind::{Array, MemberExpression, SpreadElement},
+    utils::ast_utils,
+};
+
+fn is_variadic_apply_calling(node: Node, context: &QueryMatchContext) -> bool {
+    ast_utils::is_specific_member_access(
+        node.field("function"),
+        Option::<&str>::None,
+        Some("apply"),
+        context,
+    ) && get_call_expression_arguments(node).matches(|arguments| {
+        let arguments = arguments.collect_vec();
+        arguments.len() == 2 && !matches!(arguments[1].kind(), Array | SpreadElement)
+    })
+}
+
+fn is_valid_this_arg<'a>(
+    expected_this: Option<Node<'a>>,
+    this_arg: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> bool {
+    let Some(expected_this) = expected_this else {
+        return ast_utils::is_null_or_undefined(this_arg);
+    };
+    ast_utils::equal_tokens(expected_this, this_arg, context)
+}
 
 pub fn prefer_spread_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,13 +41,25 @@ pub fn prefer_spread_rule() -> Arc<dyn Rule> {
             prefer_spread => "Use the spread operator instead of '.apply()'.",
         ],
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
+            r#"
+              (call_expression) @c
+            "# => |node, context| {
+                if !is_variadic_apply_calling(node, context) {
+                    return;
+                }
+
+                let applied = node.field("function").field("object");
+                let expected_this = (applied.kind() == MemberExpression).then(|| {
+                    applied.field("object")
                 });
+                let this_arg = get_call_expression_arguments(node).unwrap().next().unwrap();
+
+                if is_valid_this_arg(expected_this, this_arg, context) {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "prefer_spread",
+                    });
+                }
             },
         ],
     }
@@ -31,12 +74,11 @@ mod tests {
 
     #[test]
     fn test_prefer_spread_rule() {
-        let errors = vec![
-            RuleTestExpectedErrorBuilder::default()
-                .message_id("prefer_spread")
-                .type_(CallExpression)
-                .build().unwrap()
-        ];
+        let errors = vec![RuleTestExpectedErrorBuilder::default()
+            .message_id("prefer_spread")
+            .type_(CallExpression)
+            .build()
+            .unwrap()];
 
         RuleTester::run(
             prefer_spread_rule(),
