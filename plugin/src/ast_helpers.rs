@@ -41,11 +41,11 @@ use crate::kind::{
 macro_rules! assert_kind {
     ($node:expr, $kind:pat) => {
         assert!(
-                                                                    matches!($node.kind(), $kind),
-                                                                    "Expected kind {:?}, got: {:?}",
-                                                                    stringify!($kind),
-                                                                    $node.kind()
-                                                                );
+            matches!($node.kind(), $kind),
+            "Expected kind {:?}, got: {:?}",
+            stringify!($kind),
+            $node.kind()
+        );
     };
 }
 
@@ -53,8 +53,8 @@ macro_rules! assert_kind {
 macro_rules! return_default_if_false {
     ($expr:expr) => {
         if !$expr {
-                                                            return Default::default();
-                                                        }
+            return Default::default();
+        }
     };
 }
 
