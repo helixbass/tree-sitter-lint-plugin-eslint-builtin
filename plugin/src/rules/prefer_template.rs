@@ -1,6 +1,222 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use tree_sitter_lint::{rule, violation, Rule};
+use itertools::Itertools;
+use regex::{Captures, Regex};
+use squalid::{regex, CowExt, CowStrExt, EverythingExt, OptionExt};
+use tree_sitter_lint::{
+    rule, tree_sitter::Node, violation, Fixer, NodeExt, QueryMatchContext, Rule, SourceTextProvider,
+};
+
+use crate::{
+    ast_helpers::get_template_string_chunks,
+    kind,
+    kind::{BinaryExpression, TemplateString},
+    utils::ast_utils,
+};
+
+fn is_concatenation(node: Node) -> bool {
+    node.kind() == BinaryExpression && node.field("operator").kind() == "+"
+}
+
+fn get_top_concat_binary_expression(node: Node) -> Node {
+    let mut current_node = node;
+
+    while is_concatenation(current_node.parent().unwrap()) {
+        current_node = current_node.parent().unwrap();
+    }
+    current_node
+}
+
+fn has_octal_or_non_octal_decimal_escape_sequence(node: Node, context: &QueryMatchContext) -> bool {
+    if is_concatenation(node) {
+        return has_octal_or_non_octal_decimal_escape_sequence(node.field("left"), context)
+            || has_octal_or_non_octal_decimal_escape_sequence(node.field("right"), context);
+    }
+
+    if node.kind() == kind::String {
+        return ast_utils::has_octal_or_non_octal_decimal_escape_sequence(&node.text(context));
+    }
+
+    false
+}
+
+fn has_string_literal(node: Node) -> bool {
+    if is_concatenation(node) {
+        return has_non_string_literal(node.field("right"))
+            || has_non_string_literal(node.field("left"));
+    }
+    ast_utils::is_string_literal(node)
+}
+
+fn has_non_string_literal(node: Node) -> bool {
+    if is_concatenation(node) {
+        return has_non_string_literal(node.field("right"))
+            || has_non_string_literal(node.field("left"));
+    }
+    !ast_utils::is_string_literal(node)
+}
+
+fn starts_with_template_curly<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+    if node.kind() == BinaryExpression {
+        return starts_with_template_curly(node.field("left"), context);
+    }
+    if node.kind() == TemplateString {
+        let mut chunks = get_template_string_chunks(node, context);
+        let first_chunk = chunks.next().unwrap();
+        if chunks.next().is_none() {
+            return false;
+        }
+        return first_chunk.0.is_empty();
+    }
+    node.kind() != kind::String
+}
+
+fn ends_with_template_curly<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+    if node.kind() == BinaryExpression {
+        return starts_with_template_curly(node.field("right"), context);
+    }
+    if node.kind() == TemplateString {
+        let chunks = get_template_string_chunks(node, context).collect_vec();
+        if chunks.len() == 1 {
+            return false;
+        }
+        return chunks.last().unwrap().0.is_empty();
+    }
+    node.kind() != kind::String
+}
+
+fn get_text_between<'a>(
+    node1: Node<'a>,
+    node2: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> String {
+    let mut all_tokens = vec![node1];
+    all_tokens.extend(context.get_tokens_between(node1, node2, Option::<fn(Node) -> bool>::None));
+    all_tokens.push(node2);
+
+    all_tokens[0..all_tokens.len() - 1]
+        .into_iter()
+        .enumerate()
+        .fold("".to_owned(), |mut accumulator, (index, &token)| {
+            accumulator
+                .push_str(&context.slice(token.end_byte()..all_tokens[index + 1].start_byte()));
+            accumulator
+        })
+}
+
+fn get_template_literal<'a>(
+    current_node: Node<'a>,
+    text_before_node: Option<String>,
+    text_after_node: Option<String>,
+    context: &QueryMatchContext<'a, '_>,
+) -> String {
+    if current_node.kind() == kind::String {
+        let current_node_text = current_node.text(context);
+        return format!(
+            "`{}`",
+            current_node_text
+                .sliced(|len| 1..len - 1)
+                .map_cow(|text| {
+                    regex!(r#"\\*(\$\{|`)"#).replace_all(text, |captures: &Captures| {
+                        let matched = &captures[0];
+                        if matched.rfind('\\').matches(|pos| pos % 2 == 1) {
+                            return format!("\\{matched}");
+                        }
+                        matched.to_owned()
+                    })
+                })
+                .map_cow(|text| {
+                    Regex::new(&format!(r#"\\{}"#, &current_node_text[0..1]))
+                        .unwrap()
+                        .replace_all(text, &current_node_text[0..1])
+                })
+        );
+    }
+
+    if current_node.kind() == TemplateString {
+        return current_node.text(context).into_owned();
+    }
+
+    if is_concatenation(current_node) && has_string_literal(current_node) {
+        let plus_sign = context
+            .get_first_token_between(
+                current_node.field("left"),
+                current_node.field("right"),
+                Some(|token: Node| token.kind() == "+"),
+            )
+            .unwrap();
+        let text_before_plus = get_text_between(current_node.field("left"), plus_sign, context);
+        let text_after_plus = get_text_between(plus_sign, current_node.field("right"), context);
+        let left_ends_with_curly = ends_with_template_curly(current_node.field("left"), context);
+        let right_starts_with_curly =
+            starts_with_template_curly(current_node.field("right"), context);
+
+        if left_ends_with_curly {
+            return format!(
+                "{}{}",
+                get_template_literal(
+                    current_node.field("left"),
+                    text_before_node,
+                    Some(format!("{text_before_plus}{text_after_plus}")),
+                    context
+                )
+                .thrush(|template_literal| template_literal
+                    [0..template_literal.len() - 1]
+                    .to_owned()),
+                &get_template_literal(current_node.field("right"), None, text_after_node, context)
+                    [1..]
+            );
+        }
+        if right_starts_with_curly {
+            return format!(
+                "{}{}",
+                get_template_literal(current_node.field("left"), text_before_node, None, context)
+                    .thrush(
+                        |template_literal| template_literal[0..template_literal.len() - 1]
+                            .to_owned()
+                    ),
+                &get_template_literal(
+                    current_node.field("right"),
+                    Some(format!("{text_before_plus}{text_after_plus}")),
+                    text_after_node,
+                    context
+                )[1..]
+            );
+        }
+
+        return format!(
+            "{}{}+{}{}",
+            get_template_literal(current_node.field("left"), text_before_node, None, context),
+            text_before_plus,
+            text_after_plus,
+            get_template_literal(current_node.field("right"), text_after_node, None, context),
+        );
+    }
+
+    format!(
+        "`${{{}{}{}}}`",
+        text_before_node.unwrap_or_default(),
+        current_node.text(context),
+        text_after_node.unwrap_or_default(),
+    )
+}
+
+fn fix_non_string_binary_expression<'a>(
+    fixer: &mut Fixer,
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) {
+    let top_binary_expr = get_top_concat_binary_expression(node.parent().unwrap());
+
+    if has_octal_or_non_octal_decimal_escape_sequence(top_binary_expr, context) {
+        return;
+    }
+
+    fixer.replace_text(
+        top_binary_expr,
+        get_template_literal(top_binary_expr, None, None, context),
+    );
+}
 
 pub fn prefer_template_rule() -> Arc<dyn Rule> {
     rule! {
@@ -10,14 +226,35 @@ pub fn prefer_template_rule() -> Arc<dyn Rule> {
             unexpected_string_concatenation => "Unexpected string concatenation.",
         ],
         fixable => true,
+        state => {
+            [per-file-run]
+            done: HashSet<usize>,
+        },
         listeners => [
             r#"
-              (debugger_statement) @c
+              (string) @c
+              (template_string) @c
             "# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+                if !is_concatenation(node.parent().unwrap()) {
+                    return;
+                }
+
+                let top_binary_expr = get_top_concat_binary_expression(node.parent().unwrap());
+
+                if self.done.contains(&top_binary_expr.start_byte()) {
+                    return;
+                }
+                self.done.insert(top_binary_expr.start_byte());
+
+                if has_non_string_literal(top_binary_expr) {
+                    context.report(violation! {
+                        node => top_binary_expr,
+                        message_id => "unexpected_string_concatenation",
+                        fix => |fixer| {
+                            fix_non_string_binary_expression(fixer, node, context);
+                        }
+                    });
+                }
             },
         ],
     }
