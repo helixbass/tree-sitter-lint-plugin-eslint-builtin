@@ -7,7 +7,7 @@ use squalid::EverythingExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::{get_call_expression_arguments, get_number_literal_value, Number},
+    ast_helpers::{get_call_expression_arguments, get_number_literal_value, NodeExtJs, Number},
     kind,
     kind::{is_literal_kind, MemberExpression, PropertyIdentifier, Undefined},
     scope::{ScopeManager, Variable},
@@ -122,7 +122,7 @@ pub fn radix_rule() -> Arc<dyn Rule> {
                         let id_node = reference.identifier();
 
                         if ast_utils::is_callee(id_node) {
-                            self.check_arguments(id_node.parent().unwrap(), context);
+                            self.check_arguments(id_node.next_non_parentheses_ancestor(), context);
                         }
                     });
                 }
@@ -136,7 +136,7 @@ pub fn radix_rule() -> Arc<dyn Rule> {
                         let maybe_callee = parent_node;
 
                         if is_parse_int_method(parent_node, context) && ast_utils::is_callee(maybe_callee) {
-                            self.check_arguments(maybe_callee.parent().unwrap(), context);
+                            self.check_arguments(maybe_callee.next_non_parentheses_ancestor(), context);
                         }
                     });
                 }
