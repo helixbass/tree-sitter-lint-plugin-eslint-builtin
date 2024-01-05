@@ -12,7 +12,7 @@ use crate::{
     kind,
     kind::{
         AssignmentExpression, Identifier, Kind, MemberExpression, PrivatePropertyIdentifier,
-        SubscriptExpression, Super, VariableDeclarator,
+        PropertyIdentifier, SubscriptExpression, Super, VariableDeclarator,
     },
     utils::{ast_utils, ast_utils::get_static_string_value},
 };
@@ -150,7 +150,7 @@ fn should_fix(node: Node, context: &QueryMatchContext) -> bool {
         return false;
     }
     let init_property = init.field("property");
-    if init_property.kind() != Identifier {
+    if init_property.kind() != PropertyIdentifier {
         return false;
     }
     id.text(context) == init_property.text(context)
@@ -506,7 +506,6 @@ mod tests {
                             data => { type => "object" },
                             type => VariableDeclarator
                         }],
-                        only => true,
                     },
                     {
                         code => "var foo = (a, b).foo;",
