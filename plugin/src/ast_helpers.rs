@@ -27,7 +27,9 @@ use crate::{
 
 mod number;
 
-pub use number::{get_number_literal_string_value, get_number_literal_value, Number, NumberOrBigInt};
+pub use number::{
+    get_number_literal_string_value, get_number_literal_value, Number, NumberOrBigInt,
+};
 use squalid::EverythingExt;
 use tree_sitter_lint::tree_sitter::{Tree, TreeCursor};
 
