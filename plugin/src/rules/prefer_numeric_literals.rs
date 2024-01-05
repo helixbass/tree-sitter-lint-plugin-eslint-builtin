@@ -1,6 +1,64 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use tree_sitter_lint::{rule, violation, Rule};
+use once_cell::sync::Lazy;
+use squalid::OptionExt;
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
+
+use crate::{
+    ast_helpers::{
+        get_call_expression_arguments, get_number_literal_value, Number, NumberOrBigInt,
+    },
+    utils::ast_utils,
+};
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum System {
+    Binary,
+    Octal,
+    Hexadecimal,
+}
+
+struct RadixSpec {
+    system: System,
+    literal_prefix: &'static str,
+}
+
+static RADIX_MAP: Lazy<HashMap<Number, RadixSpec>> = Lazy::new(|| {
+    [
+        (
+            Number::Integer(2),
+            RadixSpec {
+                system: System::Binary,
+                literal_prefix: "0b",
+            },
+        ),
+        (
+            Number::Integer(8),
+            RadixSpec {
+                system: System::Octal,
+                literal_prefix: "0o",
+            },
+        ),
+        (
+            Number::Integer(16),
+            RadixSpec {
+                system: System::Hexadecimal,
+                literal_prefix: "0x",
+            },
+        ),
+    ]
+    .into()
+});
+
+fn is_parse_int(callee_node: Node, context: &QueryMatchContext) -> bool {
+    ast_utils::is_specific_id(callee_node, "parseInt", context)
+        || ast_utils::is_specific_member_access(
+            callee_node,
+            Some("Number"),
+            Some("parseInt"),
+            context,
+        )
+}
 
 pub fn prefer_numeric_literals_rule() -> Arc<dyn Rule> {
     rule! {
@@ -11,12 +69,103 @@ pub fn prefer_numeric_literals_rule() -> Arc<dyn Rule> {
         ],
         fixable => true,
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
+            r#"
+              (call_expression
+                arguments: (arguments
+                  [
+                    (string)
+                    (template_string)
+                  ]
+                  (number)
+                )
+              ) @c
+            "# => |node, context| {
+                let mut args = get_call_expression_arguments(node).unwrap();
+                let str_node = args.next().unwrap();
+                if !ast_utils::is_string_literal(str_node) {
+                    return;
+                }
+                let Some(str_) = ast_utils::get_static_string_value(str_node, context) else {
+                    return;
+                };
+                let radix_node = args.next().unwrap();
+                let NumberOrBigInt::Number(radix) = get_number_literal_value(radix_node, context) else {
+                    return;
+                };
+                let Some(RadixSpec { system, literal_prefix }) = RADIX_MAP.get(&radix) else {
+                    return;
+                };
+
+                if !is_parse_int(node.field("function"), context) {
+                    return;
+                }
+
                 context.report(violation! {
                     node => node,
-                    message_id => "unexpected",
+                    message_id => "use_literal",
+                    data => {
+                        system => match system {
+                            System::Binary => "binary",
+                            System::Octal => "octal",
+                            System::Hexadecimal => "hexadecimal",
+                        },
+                        function_name => node.field("function").text(context),
+                    },
+                    fix => |fixer| {
+                        if context.get_comments_inside(node).next().is_some() {
+                            return;
+                        }
+
+                        let replacement = format!(
+                            "{}{}",
+                            literal_prefix, str_
+                        );
+
+                        if !matches!(
+                            i64::from_str_radix(
+                                &str_,
+                                match radix {
+                                    Number::Integer(radix) => u32::try_from(radix).unwrap(),
+                                    _ => unreachable!(),
+                                }
+                            ),
+                            Ok(parsed) if NumberOrBigInt::from(&*replacement) == NumberOrBigInt::Number(Number::Integer(parsed))
+                        ) {
+                            return;
+                        }
+
+                        let token_before = context.maybe_get_token_before(node, Option::<fn(Node) -> bool>::None);
+                        let token_after = context.maybe_get_token_after(node, Option::<fn(Node) -> bool>::None);
+                        let mut prefix = "";
+                        let mut suffix = "";
+
+                        if token_before.matches(|token_before| {
+                            token_before.end_byte() == node.start_byte() &&
+                                !ast_utils::can_tokens_be_adjacent(
+                                    token_before,
+                                    &*replacement,
+                                    context,
+                                )
+                        }) {
+                            prefix = " ";
+                        }
+
+                        if token_after.matches(|token_after| {
+                            node.end_byte() == token_after.start_byte() &&
+                                !ast_utils::can_tokens_be_adjacent(
+                                    &*replacement,
+                                    token_after,
+                                    context,
+                                )
+                        }) {
+                            suffix = " ";
+                        }
+
+                        fixer.replace_text(
+                            node,
+                            format!("{prefix}{replacement}{suffix}")
+                        );
+                    }
                 });
             },
         ],
@@ -60,7 +209,7 @@ mod tests {
                     },
                     {
                         code => "Number.parseInt('11', 8n);",
-                        environment => { ecma_version => 2020 }
+                        environment => { ecma_version => 2020 },
                     },
                     {
                         code => "parseInt('11', 16n);",

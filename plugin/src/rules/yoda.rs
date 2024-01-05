@@ -8,7 +8,7 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::{get_number_literal_value, is_logical_expression, NodeExtJs, Number},
+    ast_helpers::{get_number_literal_value, is_logical_expression, NodeExtJs, NumberOrBigInt},
     kind::{self, is_literal_kind, BinaryExpression, ParenthesizedExpression, UnaryExpression},
     utils::ast_utils,
 };
@@ -127,12 +127,12 @@ fn get_normalized_literal<'a>(
 
 #[derive(Debug)]
 enum StringOrNumber<'a> {
-    Number(Number),
+    Number(NumberOrBigInt),
     String(Cow<'a, str>),
 }
 
-impl<'a> From<Number> for StringOrNumber<'a> {
-    fn from(value: Number) -> Self {
+impl<'a> From<NumberOrBigInt> for StringOrNumber<'a> {
+    fn from(value: NumberOrBigInt) -> Self {
         Self::Number(value)
     }
 }
@@ -156,7 +156,7 @@ impl<'a> PartialEq for StringOrNumber<'a> {
 impl<'a> PartialOrd for StringOrNumber<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (Self::Number(a), Self::Number(b)) => a.partial_cmp(b),
+            (Self::Number(a), Self::Number(b)) => a.partial_cmp_value(b),
             (Self::String(a), Self::String(b)) => a.partial_cmp(b),
             _ => None,
         }
