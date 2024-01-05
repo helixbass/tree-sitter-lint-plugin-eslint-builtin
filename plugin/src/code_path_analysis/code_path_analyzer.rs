@@ -20,7 +20,7 @@ use super::{
 };
 use crate::{
     ast_helpers::{
-        get_num_call_expression_arguments, is_outermost_chain_expression, NodeExtJs, Number,
+        get_num_call_expression_arguments, is_outermost_chain_expression, NodeExtJs, NumberOrBigInt,
     },
     kind::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
@@ -99,7 +99,7 @@ fn get_boolean_value_if_simple_constant<'a>(
 ) -> Option<bool> {
     is_literal_kind(node.kind()).then(|| match node.kind() {
         kind::String => !node.text(source_text_provider).is_empty(),
-        kind::Number => Number::from(&*node.text(source_text_provider)).is_truthy(),
+        kind::Number => NumberOrBigInt::from(&*node.text(source_text_provider)).is_truthy(),
         kind::Regex => true,
         Null => false,
         True => true,

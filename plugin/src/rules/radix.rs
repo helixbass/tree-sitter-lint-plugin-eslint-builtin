@@ -7,7 +7,9 @@ use squalid::EverythingExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
-    ast_helpers::{get_call_expression_arguments, get_number_literal_value, NodeExtJs, Number},
+    ast_helpers::{
+        get_call_expression_arguments, get_number_literal_value, NodeExtJs, Number, NumberOrBigInt,
+    },
     kind,
     kind::{is_literal_kind, MemberExpression, PropertyIdentifier, Undefined},
     scope::{ScopeManager, Variable},
@@ -38,7 +40,10 @@ fn is_parse_int_method(node: Node, context: &QueryMatchContext) -> bool {
 
 fn is_valid_radix(radix: Node, context: &QueryMatchContext) -> bool {
     match radix.kind() {
-        kind::Number => VALID_RADIX_VALUES.contains(&get_number_literal_value(radix, context)),
+        kind::Number => matches!(
+            get_number_literal_value(radix, context),
+            NumberOrBigInt::Number(value) if VALID_RADIX_VALUES.contains(&value)
+        ),
         kind if is_literal_kind(kind) => false,
         Undefined => false,
         _ => true,
@@ -49,7 +54,7 @@ fn is_default_radix(radix: Node, context: &QueryMatchContext) -> bool {
     if radix.kind() != kind::Number {
         return false;
     }
-    get_number_literal_value(radix, context) == Number::Integer(10)
+    get_number_literal_value(radix, context) == NumberOrBigInt::Number(Number::Integer(10))
 }
 
 pub fn radix_rule() -> Arc<dyn Rule> {

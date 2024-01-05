@@ -18,19 +18,19 @@ use crate::{
         get_number_literal_string_value, get_number_literal_value, get_prev_non_comment_sibling,
         is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind, parse,
         skip_nodes_of_type, template_string_has_any_cooked_literal_characters,
-        MethodDefinitionKind, NodeExtJs, Number,
+        MethodDefinitionKind, NodeExtJs, Number, NumberOrBigInt,
     },
     kind::{
         self, is_literal_kind, Array, ArrowFunction, AssignmentExpression,
         AugmentedAssignmentExpression, AwaitExpression, BinaryExpression, CallExpression, Class,
         ClassStaticBlock, Comment, ComputedPropertyName, Decorator, False, FieldDefinition,
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
-        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Object, Pair,
-        PairPattern, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
-        PropertyIdentifier, SequenceExpression, ShorthandPropertyIdentifier,
-        ShorthandPropertyIdentifierPattern, SpreadElement, StatementBlock, SubscriptExpression,
-        Super, SwitchCase, SwitchDefault, TemplateString, TemplateSubstitution, TernaryExpression,
-        This, True, UnaryExpression, Undefined, UpdateExpression, YieldExpression,
+        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Object, Pair, PairPattern,
+        ParenthesizedExpression, PrivatePropertyIdentifier, Program, PropertyIdentifier,
+        SequenceExpression, ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern,
+        SpreadElement, StatementBlock, SubscriptExpression, Super, SwitchCase, SwitchDefault,
+        TemplateString, TemplateSubstitution, TernaryExpression, This, True, UnaryExpression,
+        Undefined, UpdateExpression, YieldExpression,
     },
     scope::{Reference, Scope, ScopeType, Variable},
 };
@@ -152,7 +152,7 @@ pub fn get_static_string_value<'a>(
     context: &QueryMatchContext<'a, '_>,
 ) -> Option<Cow<'a, str>> {
     match node.kind() {
-        Number => Some(get_number_literal_string_value(node, context).into()),
+        kind::Number => Some(get_number_literal_string_value(node, context).into()),
         kind::Regex => Some(context.get_node_text(node)),
         kind::String => Some(
             node.text(context)
@@ -223,7 +223,7 @@ fn check_text<'a>(actual: &str, expected: impl Into<StrOrRegex<'a>>) -> bool {
     }
 }
 
-fn is_specific_id<'a>(
+pub fn is_specific_id<'a>(
     node: Node,
     name: impl Into<StrOrRegex<'a>>,
     context: &QueryMatchContext,
@@ -243,9 +243,13 @@ pub fn is_specific_member_access<'a>(
         return false;
     }
 
-    if object_name
-        .matches(|object_name| !is_specific_id(check_node.field("object"), object_name, context))
-    {
+    if object_name.matches(|object_name| {
+        !is_specific_id(
+            check_node.field("object").skip_parentheses(),
+            object_name,
+            context,
+        )
+    }) {
         return false;
     }
 
@@ -412,9 +416,10 @@ fn get_boolean_value(node: Node, context: &QueryMatchContext) -> bool {
     match node.kind() {
         kind::String => node.range().end_byte - node.range().start_byte > 2,
         kind::Number => match get_number_literal_value(node, context) {
-            Number::NaN => false,
-            Number::Integer(value) => value != 0,
-            Number::Float(value) => value != 0.0,
+            NumberOrBigInt::Number(Number::NaN) => false,
+            NumberOrBigInt::Number(Number::Integer(value)) => value != 0,
+            NumberOrBigInt::Number(Number::Float(value)) => value != 0.0,
+            NumberOrBigInt::BigInt(value) => value != 0,
         },
         kind::Regex => true,
         Null => false,
@@ -945,10 +950,26 @@ pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
 }
 
 pub fn can_tokens_be_adjacent<'a>(
-    left_value: Node,
+    left_value: impl Into<NodeOrStr<'a>>,
     right_value: impl Into<NodeOrStr<'a>>,
     context: &QueryMatchContext,
 ) -> bool {
+    let left_value = left_value.into();
+
+    let left_value_tree: Option<Tree>;
+    let left_value = match left_value {
+        NodeOrStr::Node(left_value) => left_value,
+        NodeOrStr::Str(left_value) => {
+            left_value_tree = Some(parse(left_value));
+            left_value_tree
+                .as_ref()
+                .unwrap()
+                .root_node()
+                .tokens()
+                .last()
+                .unwrap()
+        }
+    };
     let right_value = right_value.into();
 
     let right_value_tree: Option<Tree>;

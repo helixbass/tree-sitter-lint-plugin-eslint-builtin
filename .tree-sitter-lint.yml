@@ -25,6 +25,12 @@ rules:
         CommentType:
           module: crate::ast_helpers
           kind: type
+        Number:
+          module: crate::ast_helpers
+          kind: type
+        NumberOrBigInt:
+          module: crate::ast_helpers
+          kind: type
         get_call_expression_arguments:
           module: crate::ast_helpers
           kind: function
