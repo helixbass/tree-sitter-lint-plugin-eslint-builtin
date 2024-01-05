@@ -220,6 +220,9 @@ pub fn prefer_destructuring_rule() -> Arc<dyn Rule> {
                 ) {
                     return;
                 }
+                if right_node.child_by_field_name("optional_chain").is_some() {
+                    return;
+                }
                 if right_node.field("object").kind() == Super {
                     return;
                 }
@@ -492,7 +495,7 @@ mod tests {
                         errors => [{
                             message_id => "prefer_destructuring",
                             data => { type => "array" },
-                            type => "AssignmentExpression"
+                            type => AssignmentExpression
                         }]
                     },
                     {
@@ -502,7 +505,8 @@ mod tests {
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
                             type => VariableDeclarator
-                        }]
+                        }],
+                        only => true,
                     },
                     {
                         code => "var foo = (a, b).foo;",
@@ -623,7 +627,7 @@ mod tests {
                         errors => [{
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
-                            type => "AssignmentExpression"
+                            type => AssignmentExpression
                         }]
                     },
                     {
@@ -632,7 +636,7 @@ mod tests {
                         errors => [{
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
-                            type => "AssignmentExpression"
+                            type => AssignmentExpression
                         }]
                     },
                     {
@@ -652,7 +656,7 @@ mod tests {
                         errors => [{
                             message_id => "prefer_destructuring",
                             data => { type => "array" },
-                            type => "AssignmentExpression"
+                            type => AssignmentExpression
                         }]
                     },
                     {
@@ -698,7 +702,7 @@ mod tests {
                         errors => [{
                             message_id => "prefer_destructuring",
                             data => { type => "array" },
-                            type => "AssignmentExpression"
+                            type => AssignmentExpression
                         }]
                     },
                     {
@@ -713,7 +717,7 @@ mod tests {
                         errors => [{
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
-                            type => "AssignmentExpression"
+                            type => AssignmentExpression
                         }]
                     },
                     {
