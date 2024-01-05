@@ -5,7 +5,12 @@ use serde::Deserialize;
 use squalid::OptionExt;
 use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
-use crate::{ast_helpers::{get_call_expression_arguments, get_function_params}, kind::{Undefined, Identifier, CallExpression}, utils::ast_utils, scope::ScopeManager};
+use crate::{
+    ast_helpers::{get_call_expression_arguments, get_function_params, NodeExtJs},
+    kind::{CallExpression, Identifier, Undefined},
+    scope::ScopeManager,
+    utils::ast_utils,
+};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -15,7 +20,7 @@ struct Options {
 
 fn is_promise_reject_call(node: Node, context: &QueryMatchContext) -> bool {
     ast_utils::is_specific_member_access(
-        node.field("function"),
+        node.field("function").skip_parentheses(),
         Some("Promise"),
         Some("reject"),
         context,
@@ -58,6 +63,13 @@ pub fn prefer_promise_reject_errors_rule() -> Arc<dyn Rule> {
               (call_expression
                 function: (member_expression
                   object: (identifier) @promise (#eq? @promise "Promise")
+                )
+              ) @call_expression
+              (call_expression
+                function: (parenthesized_expression
+                  (member_expression
+                    object: (identifier) @promise (#eq? @promise "Promise")
+                  )
                 )
               ) @call_expression
             "# => |captures, context| {
@@ -104,10 +116,11 @@ pub fn prefer_promise_reject_errors_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
+    use squalid::json_object;
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
     use super::*;
-    use crate::kind::CallExpression;
+    use crate::{get_instance_provider_factory, kind::CallExpression};
 
     #[test]
     fn test_prefer_promise_reject_errors_rule() {
@@ -117,7 +130,7 @@ mod tests {
             .build()
             .unwrap()];
 
-        RuleTester::run(
+        RuleTester::run_with_instance_provider_and_environment(
             prefer_promise_reject_errors_rule(),
             rule_tests! {
                 valid => [
@@ -335,6 +348,11 @@ mod tests {
                     },
                 ]
             },
+            get_instance_provider_factory(),
+            json_object!({
+                "ecma_version": 2022,
+                "source_type": "script",
+            }),
         )
     }
 }
