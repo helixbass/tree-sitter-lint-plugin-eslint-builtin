@@ -6,7 +6,7 @@ use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchCo
 
 use crate::{
     ast_helpers::{
-        get_call_expression_arguments, get_number_literal_value, Number, NumberOrBigInt,
+        get_call_expression_arguments, get_number_literal_value, NodeExtJs, Number, NumberOrBigInt,
     },
     utils::ast_utils,
 };
@@ -96,7 +96,7 @@ pub fn prefer_numeric_literals_rule() -> Arc<dyn Rule> {
                     return;
                 };
 
-                if !is_parse_int(node.field("function"), context) {
+                if !is_parse_int(node.field("function").skip_parentheses(), context) {
                     return;
                 }
 
@@ -109,7 +109,7 @@ pub fn prefer_numeric_literals_rule() -> Arc<dyn Rule> {
                             System::Octal => "octal",
                             System::Hexadecimal => "hexadecimal",
                         },
-                        function_name => node.field("function").text(context),
+                        function_name => node.field("function").skip_parentheses().text(context),
                     },
                     fix => |fixer| {
                         if context.get_comments_inside(node).next().is_some() {
@@ -343,13 +343,13 @@ mod tests {
                         code => "function *f(){ yield(Number).parseInt('11', 2) }",
                         output => "function *f(){ yield 0b11 }",
                         environment => { ecma_version => 6 },
-                        errors => [{ message => "Use binary literals instead of (Number).parseInt()." }]
+                        errors => [{ message => "Use binary literals instead of (Number).parseInt()." }],
                     },
                     {
                         code => "function *f(){ yield(Number.parseInt)('67', 8) }",
                         output => "function *f(){ yield 0o67 }",
                         environment => { ecma_version => 6 },
-                        errors => [{ message => "Use octal literals instead of Number.parseInt()." }]
+                        errors => [{ message => "Use octal literals instead of Number.parseInt()." }],
                     },
                     {
                         code => "function *f(){ yield(parseInt)('A', 16) }",

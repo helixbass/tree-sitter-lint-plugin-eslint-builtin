@@ -25,12 +25,12 @@ use crate::{
         AugmentedAssignmentExpression, AwaitExpression, BinaryExpression, CallExpression, Class,
         ClassStaticBlock, Comment, ComputedPropertyName, Decorator, False, FieldDefinition,
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
-        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Object, Pair,
-        PairPattern, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
-        PropertyIdentifier, SequenceExpression, ShorthandPropertyIdentifier,
-        ShorthandPropertyIdentifierPattern, SpreadElement, StatementBlock, SubscriptExpression,
-        Super, SwitchCase, SwitchDefault, TemplateString, TemplateSubstitution, TernaryExpression,
-        This, True, UnaryExpression, Undefined, UpdateExpression, YieldExpression,
+        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Object, Pair, PairPattern,
+        ParenthesizedExpression, PrivatePropertyIdentifier, Program, PropertyIdentifier,
+        SequenceExpression, ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern,
+        SpreadElement, StatementBlock, SubscriptExpression, Super, SwitchCase, SwitchDefault,
+        TemplateString, TemplateSubstitution, TernaryExpression, This, True, UnaryExpression,
+        Undefined, UpdateExpression, YieldExpression,
     },
     scope::{Reference, Scope, ScopeType, Variable},
 };
@@ -243,9 +243,13 @@ pub fn is_specific_member_access<'a>(
         return false;
     }
 
-    if object_name
-        .matches(|object_name| !is_specific_id(check_node.field("object"), object_name, context))
-    {
+    if object_name.matches(|object_name| {
+        !is_specific_id(
+            check_node.field("object").skip_parentheses(),
+            object_name,
+            context,
+        )
+    }) {
         return false;
     }
 
