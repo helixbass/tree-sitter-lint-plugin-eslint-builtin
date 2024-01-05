@@ -25,7 +25,7 @@ struct ArrayAndObject {
 }
 
 #[derive(Copy, Clone, Debug, Default, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
+#[serde(default, rename_all = "PascalCase", deny_unknown_fields)]
 struct ByNodeType {
     variable_declarator: Option<ArrayAndObject>,
     assignment_expression: Option<ArrayAndObject>,
@@ -196,10 +196,7 @@ pub fn prefer_destructuring_rule() -> Arc<dyn Rule> {
         options_type => Options,
         state => {
             [per-config]
-            enforce_for_renamed_properties: bool = {
-                println!("options: {options:#?}");
-                options.enforce_for_renamed_properties()
-            },
+            enforce_for_renamed_properties: bool = options.enforce_for_renamed_properties(),
             normalized_options: ByNodeType = options.normalized_options(),
         },
         methods => {
@@ -247,7 +244,6 @@ pub fn prefer_destructuring_rule() -> Arc<dyn Rule> {
                     }
                 );
 
-                println!("enforce_for_renamed_properties: {:#?}", self.rule_instance.enforce_for_renamed_properties);
                 if self.should_check(report_node.kind(), ArrayOrObject::Object) &&
                     self.enforce_for_renamed_properties {
                     report(report_node, ArrayOrObject::Object, fix, context);
@@ -275,10 +271,16 @@ pub fn prefer_destructuring_rule() -> Arc<dyn Rule> {
                 value: [
                   (member_expression)
                   (subscript_expression)
+                  (parenthesized_expression
+                    [
+                      (member_expression)
+                      (subscript_expression)
+                    ]
+                  )
                 ]
               ) @c
             "# => |node, context| {
-                self.perform_check(node.field("name"), node.field("value"), node, context);
+                self.perform_check(node.field("name"), node.field("value").skip_parentheses(), node, context);
             },
             r#"
               (assignment_expression) @c
@@ -574,7 +576,7 @@ mod tests {
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
                             type => VariableDeclarator
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = object[bar];",
@@ -804,7 +806,7 @@ mod tests {
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
                             type => VariableDeclarator
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = (object /* comment */).foo;",
@@ -885,7 +887,7 @@ mod tests {
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
                             type => VariableDeclarator
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = (object.foo /* comment */);",
