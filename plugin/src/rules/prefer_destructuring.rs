@@ -8,7 +8,7 @@ use tree_sitter_lint::{
 };
 
 use crate::{
-    ast_helpers::{get_number_literal_value, Number, NumberOrBigInt},
+    ast_helpers::{get_number_literal_value, NodeExtJs, Number, NumberOrBigInt},
     kind,
     kind::{
         AssignmentExpression, Identifier, Kind, MemberExpression, PrivatePropertyIdentifier,
@@ -17,21 +17,21 @@ use crate::{
     utils::{ast_utils, ast_utils::get_static_string_value},
 };
 
-#[derive(Copy, Clone, Default, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, Deserialize)]
 #[serde(default)]
 struct ArrayAndObject {
     array: bool,
     object: bool,
 }
 
-#[derive(Copy, Clone, Default, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 struct ByNodeType {
     variable_declarator: Option<ArrayAndObject>,
     assignment_expression: Option<ArrayAndObject>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum FirstOption {
     ByNodeType(ByNodeType),
@@ -50,38 +50,38 @@ impl FirstOption {
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct SecondOption {
     enforce_for_renamed_properties: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum Options {
-    Single(FirstOption),
-    Multiple((FirstOption, SecondOption)),
+    Single([FirstOption; 1]),
+    Multiple(FirstOption, SecondOption),
 }
 
 impl Options {
     fn enforce_for_renamed_properties(&self) -> bool {
         match self {
-            Options::Multiple((_, second_option)) => second_option.enforce_for_renamed_properties,
+            Options::Multiple(_, second_option) => second_option.enforce_for_renamed_properties,
             _ => false,
         }
     }
 
     fn normalized_options(&self) -> ByNodeType {
         match self {
-            Self::Single(first_option) => first_option.normalized(),
-            Self::Multiple((first_option, _)) => first_option.normalized(),
+            Self::Single(first_option) => first_option[0].normalized(),
+            Self::Multiple(first_option, _) => first_option.normalized(),
         }
     }
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self::Single(FirstOption::ByNodeType(ByNodeType {
+        Self::Single([FirstOption::ByNodeType(ByNodeType {
             variable_declarator: Some(ArrayAndObject {
                 array: true,
                 object: true,
@@ -90,7 +90,7 @@ impl Default for Options {
                 array: true,
                 object: true,
             }),
-        }))
+        })])
     }
 }
 
@@ -161,9 +161,9 @@ fn fix_into_object_destructuring<'a>(
     node: Node<'a>,
     context: &QueryMatchContext<'a, '_>,
 ) {
-    let right_node = node.field("value");
+    let right_node = node.field("value").skip_parentheses();
 
-    let right_node_object = right_node.field("object");
+    let right_node_object = right_node.field("object").skip_parentheses();
     if context.get_comments_inside(node).count()
         > context.get_comments_inside(right_node_object).count()
     {
@@ -196,7 +196,10 @@ pub fn prefer_destructuring_rule() -> Arc<dyn Rule> {
         options_type => Options,
         state => {
             [per-config]
-            enforce_for_renamed_properties: bool = options.enforce_for_renamed_properties(),
+            enforce_for_renamed_properties: bool = {
+                println!("options: {options:#?}");
+                options.enforce_for_renamed_properties()
+            },
             normalized_options: ByNodeType = options.normalized_options(),
         },
         methods => {
@@ -244,6 +247,7 @@ pub fn prefer_destructuring_rule() -> Arc<dyn Rule> {
                     }
                 );
 
+                println!("enforce_for_renamed_properties: {:#?}", self.rule_instance.enforce_for_renamed_properties);
                 if self.should_check(report_node.kind(), ArrayOrObject::Object) &&
                     self.enforce_for_renamed_properties {
                     report(report_node, ArrayOrObject::Object, fix, context);
@@ -307,15 +311,6 @@ mod tests {
                         code => "var foo = object.bar;",
                         options => [{ VariableDeclarator => { object => true } }]
                     },
-
-                    // Non-array options
-                    {
-
-                        // Ensure that the default behavior does not require destructuring when renaming
-                        code => "var foo = object.bar;",
-                        options => { VariableDeclarator => { object => true } }
-                    },
-
                     {
 
                         // Ensure that the default behavior does not require destructuring when renaming
@@ -523,7 +518,7 @@ mod tests {
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
                             type => VariableDeclarator
-                        }]
+                        }],
                     },
                     {
                         code => "var foo = (a = b).foo;",
@@ -569,7 +564,7 @@ mod tests {
                             message_id => "prefer_destructuring",
                             data => { type => "object" },
                             type => VariableDeclarator
-                        }]
+                        }],
                     },
                     {
                         code => "var foobar = object.bar;",
