@@ -83,13 +83,15 @@ fn is_callee_of_bind_method<'a>(node: Node<'a>, context: &QueryMatchContext<'a, 
 
     let bind_node = parent;
 
-    bind_node.next_non_parentheses_ancestor(context).thrush(|parent| {
-        parent.kind() == CallExpression
-            && parent.field("function").skip_parentheses() == bind_node
-            && call_expression_has_single_matching_argument(parent, |arg| {
-                arg.kind() != SpreadElement
-            })
-    })
+    bind_node
+        .next_non_parentheses_ancestor(context)
+        .thrush(|parent| {
+            parent.kind() == CallExpression
+                && parent.field("function").skip_parentheses() == bind_node
+                && call_expression_has_single_matching_argument(parent, |arg| {
+                    arg.kind() != SpreadElement
+                })
+        })
 }
 
 #[derive(Debug)]
