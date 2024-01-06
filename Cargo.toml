@@ -6,8 +6,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-# tree-sitter-lint = { git = "https://github.com/helixbass/tree-sitter-lint", rev = "aa43a1c" }
-tree-sitter-lint = { path = "../tree-sitter-lint" }
+tree-sitter-lint = { git = "https://github.com/helixbass/tree-sitter-lint", rev = "554d3bc" }
 
 [patch.crates-io]
 tree-sitter = { git = "https://github.com/tree-sitter/tree-sitter", rev = "660481d" }

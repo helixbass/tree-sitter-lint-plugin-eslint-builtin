@@ -41,7 +41,10 @@ use crate::{
     EnterOrExit,
 };
 
-fn is_property_definition_value<'a>(node: Node<'a>, node_parent_provider: &impl NodeParentProvider<'a>) -> bool {
+fn is_property_definition_value<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
     let parent = node.maybe_parent(node_parent_provider);
 
     parent.matches(|parent| {
@@ -64,7 +67,7 @@ fn is_logical_assignment_operator(operator: &str) -> bool {
 fn get_label<'a>(
     node: Node<'a>,
     source_text_provider: &impl SourceTextProvider<'a>,
-    node_parent_provider: &impl NodeParentProvider<'a>
+    node_parent_provider: &impl NodeParentProvider<'a>,
 ) -> Option<Cow<'a, str>> {
     node.parent_(node_parent_provider)
         .when_kind(LabeledStatement)
@@ -111,7 +114,10 @@ fn get_boolean_value_if_simple_constant<'a>(
     })
 }
 
-fn is_identifier_reference<'a>(node: Node<'a>, node_parent_provider: &impl NodeParentProvider<'a>) -> bool {
+fn is_identifier_reference<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
     let parent = node.parent_(node_parent_provider);
 
     match parent.kind() {
@@ -583,7 +589,8 @@ impl<'a> CodePathAnalyzer<'a> {
                     .push_loop_context(
                         &mut self.fork_context_arena,
                         node.kind(),
-                        get_label(node, &self.file_contents, &self.node_parent_provider).map(Cow::into_owned),
+                        get_label(node, &self.file_contents, &self.node_parent_provider)
+                            .map(Cow::into_owned),
                     );
             }
             LabeledStatement => {
