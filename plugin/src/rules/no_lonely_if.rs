@@ -32,7 +32,7 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
                 )
               )
             "# => |node, context| {
-                if !node.is_only_non_comment_named_sibling(context) {
+                if !node.is_only_non_comment_named_sibling(context, context) {
                     return;
                 }
                 context.report(violation! {

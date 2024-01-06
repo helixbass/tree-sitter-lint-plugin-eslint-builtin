@@ -23,7 +23,7 @@ pub fn no_new_symbol_rule() -> Arc<dyn Rule> {
                     variable.references().for_each(|ref_| {
                         let id_node = ref_.identifier();
 
-                        if id_node.parent().matches(|parent| {
+                        if id_node.maybe_parent(context).matches(|parent| {
                             parent.kind() == NewExpression && parent.field("constructor") == id_node
                         }) {
                             context.report(violation! {

@@ -45,9 +45,9 @@ impl Default for Options {
     }
 }
 
-fn report(
-    node: Node,
-    context: &QueryMatchContext,
+fn report<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
     origin: CodePathOrigin,
     complexity: usize,
     threshold: usize,

@@ -170,7 +170,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                     .filter(|(node_id, _)| !reachable_nodes.contains(node_id))
                     .map(|(_, node)| node)
                     .collect::<Vec<_>>()
-                    .and_sort_by(compare_nodes)
+                    .and_sort_by(|a, b| compare_nodes(a, b, context))
                     .into_iter()
                     .fold(self.ranges.clone(), |mut ranges, node| {
                         ranges.add(node, context);

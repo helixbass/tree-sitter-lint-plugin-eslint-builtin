@@ -17,10 +17,10 @@ struct Options {
     disallow_arithmetic_operators: bool,
 }
 
-fn check_undefined_short_circuit(
-    node: Node,
+fn check_undefined_short_circuit<'a>(
+    node: Node<'a>,
     report_func: &impl Fn(Node),
-    context: &QueryMatchContext,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     match node.kind() {
         BinaryExpression => match node.field("operator").kind() {
@@ -50,7 +50,7 @@ fn check_undefined_short_circuit(
             );
         }
         CallExpression | MemberExpression | SubscriptExpression => {
-            if is_outermost_chain_expression(node) {
+            if is_outermost_chain_expression(node, context) {
                 report_func(node);
             }
         }

@@ -57,9 +57,9 @@ fn get_array_method_name<'a>(
             TernaryExpression | ParenthesizedExpression => current_node = parent,
             ReturnStatement => {
                 let func = ast_utils::get_upper_function(parent)
-                    .filter(|&func| ast_utils::is_callee(func))?;
+                    .filter(|&func| ast_utils::is_callee(func, context))?;
 
-                current_node = func.maybe_next_non_parentheses_ancestor()?;
+                current_node = func.maybe_next_non_parentheses_ancestor(context)?;
             }
             Arguments => {
                 let call_expression = parent.parent().unwrap();

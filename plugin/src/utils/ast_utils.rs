@@ -7,7 +7,7 @@ use squalid::{return_default_if_none, CowExt, CowStrExt, EverythingExt, OptionEx
 use tree_sitter_lint::{
     tree_sitter::{Node, Point, Range, Tree},
     tree_sitter_grep::SupportedLanguage,
-    NodeExt, QueryMatchContext,
+    NodeExt, NodeParentProvider, QueryMatchContext,
 };
 
 use crate::{
@@ -140,8 +140,8 @@ pub fn is_null_or_undefined(node: Node) -> bool {
         || node.kind() == UnaryExpression && node.field("operator").kind() == "void"
 }
 
-pub fn is_callee(node: Node) -> bool {
-    node.maybe_next_non_parentheses_ancestor()
+pub fn is_callee<'a>(node: Node<'a>, node_parent_provider: &impl NodeParentProvider<'a>) -> bool {
+    node.maybe_next_non_parentheses_ancestor(node_parent_provider)
         .matches(|parent| {
             parent.kind() == CallExpression && parent.field("function").skip_parentheses() == node
         })
@@ -711,7 +711,10 @@ pub fn is_decimal_integer_numeric_token(token: Node, context: &QueryMatchContext
     token.kind() == kind::Number && DECIMAL_INTEGER_PATTERN.is_match(&token.text(context))
 }
 
-pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> String {
+pub fn get_function_name_with_kind<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> String {
     if node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
     {

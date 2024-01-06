@@ -42,7 +42,7 @@ fn is_fixable<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
         return false;
     }
 
-    let ancestor = node.next_ancestor_not_of_kind(LabeledStatement);
+    let ancestor = node.next_ancestor_not_of_kind(LabeledStatement, context);
 
     #[allow(clippy::collapsible_if)]
     if ancestor.kind() == Program

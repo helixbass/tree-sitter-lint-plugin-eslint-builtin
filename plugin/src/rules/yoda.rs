@@ -334,7 +334,7 @@ pub fn yoda_rule() -> Arc<dyn Rule> {
                         looks_like_literal(expected_literal)
                     ) &&
                     !(self.only_equality && !is_equality_operator(node.field("operator").kind())) &&
-                    !(self.except_range && is_range_test(node.next_non_parentheses_ancestor(), context)) {
+                    !(self.except_range && is_range_test(node.next_non_parentheses_ancestor(context), context)) {
                     context.report(violation! {
                         node => node,
                         message_id => "expected",

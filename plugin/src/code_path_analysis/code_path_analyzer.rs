@@ -7,7 +7,8 @@ use tree_sitter_lint::{
     better_any::tid,
     tree_sitter::Node,
     tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
-    FileRunContext, FromFileRunContext, NodeExt, SourceTextProvider,
+    walk_tree, FileRunContext, FromFileRunContext, NodeExt, NodeParentProvider, SourceTextProvider,
+    StandaloneNodeParentProvider, TreeEnterLeaveVisitor,
 };
 
 use super::{
@@ -37,7 +38,6 @@ use crate::{
         YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
-    visit::{walk_tree, TreeEnterLeaveVisitor},
     EnterOrExit,
 };
 
@@ -71,8 +71,11 @@ fn get_label<'a>(
         .map(|parent| parent.field("label").text(source_text_provider))
 }
 
-fn is_forking_by_true_or_false(node: Node) -> bool {
-    let parent = node.next_non_parentheses_ancestor();
+fn is_forking_by_true_or_false<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
+    let parent = node.next_non_parentheses_ancestor(node_parent_provider);
 
     if parent.kind() == ExpressionStatement && {
         let parent_parent = parent.parent().unwrap();
@@ -144,10 +147,14 @@ pub struct CodePathAnalyzer<'a> {
     pub fork_context_arena: Arena<ForkContext<'a>>,
     pub code_path_segment_arena: Arena<CodePathSegment<'a>>,
     file_contents: RopeOrSlice<'a>,
+    node_parent_provider: StandaloneNodeParentProvider<'a>,
 }
 
 impl<'a> CodePathAnalyzer<'a> {
-    pub fn new(file_contents: RopeOrSlice<'a>) -> Self {
+    pub fn new(
+        file_contents: RopeOrSlice<'a>,
+        node_parent_provider: StandaloneNodeParentProvider<'a>,
+    ) -> Self {
         Self {
             code_paths: Default::default(),
             active_code_path: Default::default(),
@@ -157,6 +164,7 @@ impl<'a> CodePathAnalyzer<'a> {
             fork_context_arena: Default::default(),
             code_path_segment_arena: Default::default(),
             file_contents,
+            node_parent_provider,
         }
     }
 
@@ -485,7 +493,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 self.start_code_path(node, CodePathOrigin::ClassStaticBlock);
             }
             CallExpression | MemberExpression | SubscriptExpression => {
-                if is_outermost_chain_expression(node) {
+                if is_outermost_chain_expression(node, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_chain_context();
@@ -499,7 +507,7 @@ impl<'a> CodePathAnalyzer<'a> {
             BinaryExpression => {
                 let operator = node.field("operator").kind();
                 if is_handled_logical_operator_str(operator) {
-                    let is_forking_as_result = is_forking_by_true_or_false(node);
+                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
@@ -517,7 +525,7 @@ impl<'a> CodePathAnalyzer<'a> {
             AugmentedAssignmentExpression => {
                 let operator = node.field("operator").text(self);
                 if is_logical_assignment_operator(&operator) {
-                    let is_forking_as_result = is_forking_by_true_or_false(node);
+                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
@@ -560,7 +568,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchCase | SwitchDefault => {
-                if !node.is_first_non_comment_named_child(SupportedLanguage::Javascript) {
+                if !node.is_first_non_comment_named_child(SupportedLanguage::Javascript, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .fork_path(
@@ -766,7 +774,7 @@ impl<'a> CodePathAnalyzer<'a> {
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
                     );
-                if is_outermost_chain_expression(node) {
+                if is_outermost_chain_expression(node, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_chain_context(
@@ -889,11 +897,12 @@ impl<'a> CodePathAnalyzer<'a> {
             .iter()
             .find(|&&code_path| {
                 let code_path = &self.code_path_arena[code_path];
-                node.is_same_or_descendant_of(code_path.root_node(&self.code_path_segment_arena))
+                node.is_same_or_descendant_of(code_path.root_node(&self.code_path_segment_arena), self)
                     && !code_path.child_code_paths.iter().any(|&child_code_path| {
                         node.is_same_or_descendant_of(
                             self.code_path_arena[child_code_path]
                                 .root_node(&self.code_path_segment_arena),
+                            self
                         )
                     })
             })
@@ -960,9 +969,22 @@ impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
     }
 }
 
+impl<'a> NodeParentProvider<'a> for CodePathAnalyzer<'a> {
+    fn maybe_node_parent(&self, node: Node<'a>) -> Option<Node<'a>> {
+        self.node_parent_provider.maybe_node_parent(node)
+    }
+
+    fn standalone_node_parent_provider(&self) -> StandaloneNodeParentProvider<'a> {
+        self.node_parent_provider.standalone_node_parent_provider()
+    }
+}
+
 impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
-        let mut code_path_analyzer = CodePathAnalyzer::new(file_run_context.file_contents);
+        let mut code_path_analyzer = CodePathAnalyzer::new(
+            file_run_context.file_contents,
+            file_run_context.standalone_node_parent_provider(),
+        );
         walk_tree(file_run_context.tree, &mut code_path_analyzer);
         code_path_analyzer
     }
@@ -1031,6 +1053,7 @@ mod tests {
     use squalid::regex;
     use tree_sitter_lint::{
         instance_provider_factory, rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration,
+        SliceRunStatus,
     };
 
     use super::{super::debug_helpers::make_dot_arrows, *};
@@ -1084,11 +1107,11 @@ mod tests {
             ],
         };
 
-        let (violations, _) = tree_sitter_lint::run_for_slice(
+        let SliceRunStatus { violations, .. } = tree_sitter_lint::run_for_slice(
             source.as_bytes(),
             None,
             "tmp.js",
-            ConfigBuilder::default()
+            &ConfigBuilder::default()
                 .rule(rule.meta().name.clone())
                 .all_standalone_rules([rule.clone()])
                 .rule_configurations([RuleConfiguration {
@@ -1100,6 +1123,7 @@ mod tests {
                 .unwrap(),
             tree_sitter_lint::tree_sitter_grep::SupportedLanguageLanguage::Javascript,
             &instance_provider_factory!(ProvidedTypes),
+            None,
         );
 
         assert!(violations.is_empty(), "Unexpected linting error in code.");

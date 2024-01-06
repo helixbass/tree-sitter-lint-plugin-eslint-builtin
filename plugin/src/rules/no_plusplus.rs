@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::NodeExtJs,
@@ -15,8 +15,8 @@ struct Options {
     allow_for_loop_afterthoughts: bool,
 }
 
-fn is_for_statement_update(node: Node) -> bool {
-    let parent = node.next_non_parentheses_ancestor();
+fn is_for_statement_update<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+    let parent = node.next_non_parentheses_ancestor(context);
 
     parent.kind() == ForStatement
         && parent
@@ -25,14 +25,14 @@ fn is_for_statement_update(node: Node) -> bool {
             .matches(|increment| increment == node)
 }
 
-fn is_for_loop_afterthought(node: Node) -> bool {
-    let parent = node.next_non_parentheses_ancestor();
+fn is_for_loop_afterthought<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+    let parent = node.next_non_parentheses_ancestor(context);
 
     if parent.kind() == SequenceExpression {
-        return is_for_loop_afterthought(parent);
+        return is_for_loop_afterthought(parent, context);
     }
 
-    is_for_statement_update(node)
+    is_for_statement_update(node, context)
 }
 
 pub fn no_plusplus_rule() -> Arc<dyn Rule> {
@@ -51,7 +51,7 @@ pub fn no_plusplus_rule() -> Arc<dyn Rule> {
             r#"
               (update_expression) @c
             "# => |node, context| {
-                if self.allow_for_loop_afterthoughts && is_for_loop_afterthought(node) {
+                if self.allow_for_loop_afterthoughts && is_for_loop_afterthought(node, context) {
                     return;
                 }
 

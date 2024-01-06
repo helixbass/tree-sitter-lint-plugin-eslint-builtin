@@ -156,7 +156,7 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
                     }
                 }
 
-                nodes_to_report.sort_by(compare_nodes);
+                nodes_to_report.sort_by(|a, b| compare_nodes(a, b, context));
                 nodes_to_report.dedup();
 
                 for node in nodes_to_report {

@@ -115,11 +115,11 @@ struct TopLevelFunction<'a> {
     count: usize,
 }
 
-fn report_if_too_many_statements(
-    node: Node,
+fn report_if_too_many_statements<'a>(
+    node: Node<'a>,
     count: usize,
     max: usize,
-    context: &QueryMatchContext,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     if count <= max {
         return;

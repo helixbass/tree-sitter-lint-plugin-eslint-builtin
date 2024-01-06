@@ -126,8 +126,8 @@ pub fn radix_rule() -> Arc<dyn Rule> {
                     variable.references().for_each(|reference| {
                         let id_node = reference.identifier();
 
-                        if ast_utils::is_callee(id_node) {
-                            self.check_arguments(id_node.next_non_parentheses_ancestor(), context);
+                        if ast_utils::is_callee(id_node, context) {
+                            self.check_arguments(id_node.next_non_parentheses_ancestor(context), context);
                         }
                     });
                 }
@@ -140,8 +140,8 @@ pub fn radix_rule() -> Arc<dyn Rule> {
                         let parent_node = reference.identifier().parent().unwrap();
                         let maybe_callee = parent_node;
 
-                        if is_parse_int_method(parent_node, context) && ast_utils::is_callee(maybe_callee) {
-                            self.check_arguments(maybe_callee.next_non_parentheses_ancestor(), context);
+                        if is_parse_int_method(parent_node, context) && ast_utils::is_callee(maybe_callee, context) {
+                            self.check_arguments(maybe_callee.next_non_parentheses_ancestor(context), context);
                         }
                     });
                 }
