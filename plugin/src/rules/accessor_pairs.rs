@@ -119,7 +119,7 @@ fn is_property_descriptor(node: Node, context: &QueryMatchContext) -> bool {
             || is_argument_of_method_call(grandparent, 1, "Object", "defineProperties", context))
 }
 
-fn report(node: Node, message_kind: &str, context: &QueryMatchContext) {
+fn report<'a>(node: Node<'a>, message_kind: &str, context: &QueryMatchContext<'a, '_>) {
     match node.kind() {
         MethodDefinition => match node.parent().unwrap().kind() {
             Object => {
@@ -152,7 +152,7 @@ fn report(node: Node, message_kind: &str, context: &QueryMatchContext) {
     }
 }
 
-fn report_list(nodes: &[Node], message_kind: &str, context: &QueryMatchContext) {
+fn report_list<'a>(nodes: &[Node<'a>], message_kind: &str, context: &QueryMatchContext<'a, '_>) {
     for &node in nodes {
         report(node, message_kind, context);
     }

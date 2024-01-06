@@ -34,7 +34,7 @@ fn _look_for_this_before_super<'a>(
                 This => {
                     nodes_to_report.insert(*node);
                 }
-                Super if !ast_utils::is_callee(*node) => {
+                Super if !ast_utils::is_callee(*node, code_path_analyzer) => {
                     nodes_to_report.insert(*node);
                 }
                 _ => (),

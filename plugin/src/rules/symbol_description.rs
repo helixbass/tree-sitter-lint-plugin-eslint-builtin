@@ -31,7 +31,7 @@ pub fn symbol_description_rule() -> Arc<dyn Rule> {
                     variable.references().for_each(|reference| {
                         let id_node = reference.identifier();
 
-                        if ast_utils::is_callee(id_node) {
+                        if ast_utils::is_callee(id_node, context) {
                             check_argument(id_node.parent().unwrap(), context);
                         }
                     });

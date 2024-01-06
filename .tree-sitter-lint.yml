@@ -474,6 +474,12 @@ rules:
         FromFileRunContext:
           module: tree_sitter_lint
           kind: type
+        NodeParentCache:
+          module: tree_sitter_lint
+          kind: type
+        NodeParentProvider:
+          module: tree_sitter_lint
+          kind: type
         QueryMatchContext:
           module: tree_sitter_lint
           kind: type
@@ -484,6 +490,9 @@ rules:
           module: tree_sitter_lint
           kind: type
         RuleTestExpectedErrorBuilder:
+          module: tree_sitter_lint
+          kind: type
+        StandaloneNodeParentProvider:
           module: tree_sitter_lint
           kind: type
         SkipOptionsBuilder:
@@ -498,6 +507,10 @@ rules:
         violation:
           module: tree_sitter_lint
           kind: macro
+        field:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
         first_non_comment_named_child:
           module: tree_sitter_lint
           kind: trait_method
@@ -510,6 +523,10 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        maybe_parent:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
         non_comment_named_children:
           module: tree_sitter_lint
           kind: trait_method
@@ -518,15 +535,15 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        parent_:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
         text:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
         tokens:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
-        field:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt

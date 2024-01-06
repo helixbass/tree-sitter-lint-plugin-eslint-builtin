@@ -23,7 +23,7 @@ use crate::{
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
 
-fn is_constructor_function(node: Node, context: &QueryMatchContext) -> bool {
+fn is_constructor_function<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
     node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
 }

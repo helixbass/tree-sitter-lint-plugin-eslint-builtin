@@ -75,7 +75,7 @@ pub fn no_sequences_rule() -> Arc<dyn Rule> {
               (sequence_expression) @c
             "# => |node, context| {
                 let parent = node
-                    .next_ancestor_not_of_kinds(&[ExpressionStatement, ParenthesizedExpression]);
+                    .next_ancestor_not_of_kinds(&[ExpressionStatement, ParenthesizedExpression], context);
                 if parent.kind() == ForStatement
                     && (node
                         == parent

@@ -170,7 +170,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
                     .filter(|(node_id, _)| !reachable_nodes.contains(node_id))
                     .map(|(_, node)| node)
                     .collect::<Vec<_>>()
-                    .and_sort_by(compare_nodes)
+                    .and_sort_by(|a, b| compare_nodes(a, b, context))
                     .into_iter()
                     .fold(self.ranges.clone(), |mut ranges, node| {
                         ranges.add(node, context);
@@ -199,7 +199,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
 
                 let has_super_call = self.constructor_infos.pop().unwrap();
 
-                let class_definition = node.parent().unwrap().parent().unwrap();
+                let class_definition = node.parent_(context).parent_(context);
 
                 if class_definition.has_child_of_kind(ClassHeritage) &&
                     !has_super_call {

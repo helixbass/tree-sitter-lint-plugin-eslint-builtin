@@ -31,7 +31,10 @@ pub use number::{
     get_number_literal_string_value, get_number_literal_value, Number, NumberOrBigInt,
 };
 use squalid::EverythingExt;
-use tree_sitter_lint::tree_sitter::{Tree, TreeCursor};
+use tree_sitter_lint::{
+    tree_sitter::{Tree, TreeCursor},
+    NodeParentProvider,
+};
 
 use crate::kind::{
     ExportStatement, Function, FunctionDeclaration, GeneratorFunction,
@@ -135,10 +138,13 @@ pub enum MethodDefinitionKind {
     Set,
 }
 
-pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> MethodDefinitionKind {
+pub fn get_method_definition_kind<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> MethodDefinitionKind {
     assert_kind!(node, MethodDefinition);
     let name = node.child_by_field_name("name").unwrap();
-    let is_object_method = node.parent().unwrap().kind() == Object;
+    let is_object_method = node.parent_(context).kind() == Object;
     if name.kind() == PropertyIdentifier
         && !is_object_method
         && context.get_node_text(name) == "constructor"
@@ -242,23 +248,36 @@ pub fn get_first_non_comment_child(node: Node) -> Node {
 }
 
 pub trait NodeExtJs<'a> {
-    fn maybe_next_non_parentheses_ancestor(&self) -> Option<Node<'a>>;
-    fn next_non_parentheses_ancestor(&self) -> Node<'a>;
+    fn maybe_next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Option<Node<'a>>;
+    fn next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Node<'a>;
     fn skip_parentheses(&self) -> Node<'a>;
     fn is_first_call_expression_argument(&self, call_expression: Node) -> bool;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
-    fn maybe_next_non_parentheses_ancestor(&self) -> Option<Node<'a>> {
-        let mut node = self.parent()?;
+    fn maybe_next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Option<Node<'a>> {
+        let mut node = self.maybe_parent(node_parent_provider)?;
         while node.kind() == ParenthesizedExpression {
-            node = node.parent()?;
+            node = node.maybe_parent(node_parent_provider)?;
         }
         Some(node)
     }
 
-    fn next_non_parentheses_ancestor(&self) -> Node<'a> {
-        self.maybe_next_non_parentheses_ancestor().unwrap()
+    fn next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Node<'a> {
+        self.maybe_next_non_parentheses_ancestor(node_parent_provider)
+            .unwrap()
     }
 
     fn skip_parentheses(&self) -> Node<'a> {
@@ -378,8 +397,11 @@ pub fn is_chain_expression(node: Node) -> bool {
     }
 }
 
-pub fn is_outermost_chain_expression(node: Node) -> bool {
-    is_chain_expression(node) && !is_chain_expression(node.parent().unwrap())
+pub fn is_outermost_chain_expression<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
+    is_chain_expression(node) && !is_chain_expression(node.parent_(node_parent_provider))
 }
 
 pub fn is_generator_method_definition(node: Node, context: &QueryMatchContext) -> bool {

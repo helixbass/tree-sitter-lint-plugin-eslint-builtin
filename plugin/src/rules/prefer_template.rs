@@ -18,11 +18,14 @@ fn is_concatenation(node: Node) -> bool {
     node.kind() == BinaryExpression && node.field("operator").kind() == "+"
 }
 
-fn get_top_concat_binary_expression(node: Node) -> Node {
+fn get_top_concat_binary_expression<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> Node<'a> {
     let mut current_node = node;
 
-    while is_concatenation(current_node.next_non_parentheses_ancestor()) {
-        current_node = current_node.next_non_parentheses_ancestor();
+    while is_concatenation(current_node.next_non_parentheses_ancestor(context)) {
+        current_node = current_node.next_non_parentheses_ancestor(context);
     }
     current_node
 }
@@ -241,7 +244,8 @@ fn fix_non_string_binary_expression<'a>(
     node: Node<'a>,
     context: &QueryMatchContext<'a, '_>,
 ) {
-    let top_binary_expr = get_top_concat_binary_expression(node.next_non_parentheses_ancestor());
+    let top_binary_expr =
+        get_top_concat_binary_expression(node.next_non_parentheses_ancestor(context), context);
 
     if has_octal_or_non_octal_decimal_escape_sequence(top_binary_expr, context) {
         return;
@@ -270,12 +274,12 @@ pub fn prefer_template_rule() -> Arc<dyn Rule> {
               (string) @c
               (template_string) @c
             "# => |node, context| {
-                let parent = node.next_non_parentheses_ancestor();
+                let parent = node.next_non_parentheses_ancestor(context);
                 if !is_concatenation(parent) {
                     return;
                 }
 
-                let top_binary_expr = get_top_concat_binary_expression(parent);
+                let top_binary_expr = get_top_concat_binary_expression(parent, context);
 
                 if self.done.contains(&top_binary_expr.start_byte()) {
                     return;

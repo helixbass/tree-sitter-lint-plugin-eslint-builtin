@@ -2,7 +2,10 @@
 
 use itertools::Itertools;
 use speculoos::prelude::*;
-use tree_sitter_lint::tree_sitter::{Node, Tree};
+use tree_sitter_lint::{
+    tree_sitter::{Node, Tree},
+    walk_tree, TreeEnterLeaveVisitor,
+};
 
 use crate::{
     ast_helpers::is_default_import,
@@ -14,7 +17,6 @@ use crate::{
     },
     scope::{analyze, ScopeManager, ScopeManagerOptionsBuilder, SourceType},
     tests::helpers::{parse, tracing_subscribe},
-    visit::{walk_tree, TreeEnterLeaveVisitor},
 };
 
 struct VerifyEnterLeaveVisitor<'a, 'b> {
