@@ -199,7 +199,7 @@ pub fn no_unreachable_rule() -> Arc<dyn Rule> {
 
                 let has_super_call = self.constructor_infos.pop().unwrap();
 
-                let class_definition = node.parent().unwrap().parent().unwrap();
+                let class_definition = node.parent_(context).parent_(context);
 
                 if class_definition.has_child_of_kind(ClassHeritage) &&
                     !has_super_call {

@@ -41,8 +41,8 @@ use crate::{
     EnterOrExit,
 };
 
-fn is_property_definition_value(node: Node) -> bool {
-    let parent = node.parent();
+fn is_property_definition_value<'a>(node: Node<'a>, node_parent_provider: &impl NodeParentProvider<'a>) -> bool {
+    let parent = node.maybe_parent(node_parent_provider);
 
     parent.matches(|parent| {
         parent.kind() == FieldDefinition && parent.child_by_field_name("value") == Some(node)
@@ -62,11 +62,11 @@ fn is_logical_assignment_operator(operator: &str) -> bool {
 }
 
 fn get_label<'a>(
-    node: Node,
+    node: Node<'a>,
     source_text_provider: &impl SourceTextProvider<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>
 ) -> Option<Cow<'a, str>> {
-    node.parent()
-        .unwrap()
+    node.parent_(node_parent_provider)
         .when_kind(LabeledStatement)
         .map(|parent| parent.field("label").text(source_text_provider))
 }
@@ -78,7 +78,7 @@ fn is_forking_by_true_or_false<'a>(
     let parent = node.next_non_parentheses_ancestor(node_parent_provider);
 
     if parent.kind() == ExpressionStatement && {
-        let parent_parent = parent.parent().unwrap();
+        let parent_parent = parent.parent_(node_parent_provider);
         parent_parent.kind() == ForStatement && parent_parent.field("condition") == parent
     } {
         return true;
@@ -111,8 +111,8 @@ fn get_boolean_value_if_simple_constant<'a>(
     })
 }
 
-fn is_identifier_reference(node: Node) -> bool {
-    let parent = node.parent().unwrap();
+fn is_identifier_reference<'a>(node: Node<'a>, node_parent_provider: &impl NodeParentProvider<'a>) -> bool {
+    let parent = node.parent_(node_parent_provider);
 
     match parent.kind() {
         LabeledStatement | BreakStatement | ContinueStatement | ArrayPattern | RestPattern
@@ -283,7 +283,7 @@ impl<'a> CodePathAnalyzer<'a> {
     fn preprocess(&mut self, node: Node<'a>) {
         let code_path = self.active_code_path.unwrap();
         let state = &mut self.code_path_arena[code_path].state;
-        let parent = node.parent().unwrap();
+        let parent = node.parent_(&self.node_parent_provider);
 
         match parent.kind() {
             CallExpression => {
@@ -473,7 +473,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn process_code_path_to_enter(&mut self, node: Node<'a>) {
-        if is_property_definition_value(node) {
+        if is_property_definition_value(node, self) {
             self.start_code_path(node, CodePathOrigin::ClassFieldInitializer);
         }
 
@@ -550,7 +550,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchStatement => {
-                let label = get_label(node, self).map(Cow::into_owned);
+                let label = get_label(node, self, self).map(Cow::into_owned);
                 self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .push_switch_context(
@@ -583,7 +583,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     .push_loop_context(
                         &mut self.fork_context_arena,
                         node.kind(),
-                        get_label(node, &self.file_contents).map(Cow::into_owned),
+                        get_label(node, &self.file_contents, &self.node_parent_provider).map(Cow::into_owned),
                     );
             }
             LabeledStatement => {
@@ -756,7 +756,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 dont_forward = true;
             }
             Identifier | PropertyIdentifier | ShorthandPropertyIdentifier => {
-                if is_identifier_reference(node) {
+                if is_identifier_reference(node, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_first_throwable_path_in_try_block(
@@ -857,7 +857,7 @@ impl<'a> CodePathAnalyzer<'a> {
             _ => (),
         }
 
-        if is_property_definition_value(node) {
+        if is_property_definition_value(node, self) {
             self.end_code_path(node);
         }
     }
@@ -1000,7 +1000,7 @@ impl<'a> TreeEnterLeaveVisitor<'a> for CodePathAnalyzer<'a> {
 
         self.current_node = Some(node);
 
-        if node.parent().is_some() {
+        if node.maybe_parent(self).is_some() {
             self.preprocess(node);
         }
 
