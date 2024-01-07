@@ -61,6 +61,9 @@ rules:
         is_async_function:
           module: crate::ast_helpers
           kind: function
+        is_chain_expression:
+          module: crate::ast_helpers
+          kind: function
         is_class_member_static:
           module: crate::ast_helpers
           kind: function
@@ -71,6 +74,9 @@ rules:
           module: crate::ast_helpers
           kind: function
         is_jsx_tag_name:
+          module: crate::ast_helpers
+          kind: function
+        is_logical_expression:
           module: crate::ast_helpers
           kind: function
         is_tagged_template_expression:
@@ -463,6 +469,9 @@ rules:
           module: crate::utils::ast_utils
           kind: function
         range_between_start_and_end:
+          module: tree_sitter_lint
+          kind: function
+        range_between_starts:
           module: tree_sitter_lint
           kind: function
         FileRunContext:

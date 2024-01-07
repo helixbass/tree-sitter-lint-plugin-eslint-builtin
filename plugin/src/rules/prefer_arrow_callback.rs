@@ -1,10 +1,27 @@
-use std::sync::Arc;
+use std::{borrow::Cow, collections::HashSet, sync::Arc};
 
+use itertools::Itertools;
 use serde::Deserialize;
-use squalid::OptionExt;
-use tree_sitter_lint::{rule, violation, Rule};
+use squalid::{EverythingExt, OptionExt};
+use tree_sitter_lint::{
+    range_between_start_and_end, range_between_starts, rule, tree_sitter::Node,
+    tree_sitter_grep::SupportedLanguage, violation, NodeExt, QueryMatchContext, Rule,
+};
 
-use crate::scope::{ScopeManager, Variable, VariableType};
+use crate::{
+    assert_kind,
+    ast_helpers::{
+        get_call_expression_arguments, is_async_function, is_chain_expression,
+        is_logical_expression,
+    },
+    kind::{
+        Arguments, BinaryExpression, CallExpression, FormalParameters, Identifier,
+        MemberExpression, NewExpression, PropertyIdentifier, SubscriptExpression,
+        TernaryExpression, This,
+    },
+    scope::{Scope, ScopeManager, Variable, VariableType},
+    utils::ast_utils,
+};
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -33,6 +50,94 @@ fn is_function_name(variable: &Variable) -> bool {
     variable.defs().next().unwrap().type_() == VariableType::FunctionName
 }
 
+fn get_variable_of_arguments<'a, 'b>(scope: &Scope<'a, 'b>) -> Option<Variable<'a, 'b>> {
+    scope
+        .variables()
+        .find(|variable| variable.name() == "arguments")
+        .filter(|variable| variable.identifiers().next().is_none())
+}
+
+#[derive(Default)]
+struct CallbackInfo {
+    is_callback: bool,
+    is_lexical_this: bool,
+}
+
+fn get_callback_info<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> CallbackInfo {
+    let mut retv = CallbackInfo::default();
+    let mut current_node = node;
+    let mut parent = node.parent_(context);
+    let mut bound = false;
+
+    loop {
+        match parent.kind() {
+            BinaryExpression if is_logical_expression(parent) => (),
+            _ if is_chain_expression(current_node) => (),
+            TernaryExpression | Arguments => (),
+
+            MemberExpression | SubscriptExpression => {
+                if parent.field("object") == current_node
+                    && parent.kind() == MemberExpression
+                    && parent.field("property").thrush(|property| {
+                        property.kind() == PropertyIdentifier && property.text(context) == "bind"
+                    })
+                {
+                    let maybe_callee = parent;
+
+                    if ast_utils::is_callee(maybe_callee, context) {
+                        if !bound {
+                            bound = true;
+                            retv.is_lexical_this =
+                                get_call_expression_arguments(maybe_callee.parent_(context))
+                                    .matches(|args| {
+                                        let args = args.collect_vec();
+                                        args.len() == 1 && args[0].kind() == This
+                                    });
+                        }
+                        parent = maybe_callee.parent_(context);
+                    } else {
+                        return retv;
+                    }
+                } else {
+                    return retv;
+                }
+            }
+
+            CallExpression => {
+                if parent.field("function") != current_node {
+                    retv.is_callback = true;
+                }
+                return retv;
+            }
+            NewExpression => {
+                if parent.field("constructor") != current_node {
+                    retv.is_callback = true;
+                }
+                return retv;
+            }
+
+            _ => return retv,
+        }
+
+        current_node = parent;
+        parent = parent.parent_(context);
+    }
+}
+
+fn has_duplicate_params(params_list: Node, context: &QueryMatchContext) -> bool {
+    assert_kind!(params_list, FormalParameters);
+
+    let params_list = params_list
+        .non_comment_named_children(SupportedLanguage::Javascript)
+        .collect_vec();
+    params_list.iter().all(|param| param.kind() == Identifier)
+        && params_list.len()
+            != HashSet::<Cow<'_, str>>::from_iter(
+                params_list.iter().map(|param| param.text(context)),
+            )
+            .len()
+}
+
 pub fn prefer_arrow_callback_rule() -> Arc<dyn Rule> {
     rule! {
         name => "prefer-arrow-callback",
@@ -41,12 +146,13 @@ pub fn prefer_arrow_callback_rule() -> Arc<dyn Rule> {
             prefer_arrow_callback => "Unexpected function expression.",
         ],
         fixable => true,
+        // concatenate_adjacent_insert_fixes => true,
         options_type => Options,
         state => {
             [per-config]
             allow_named_functions: bool = options.allow_named_functions,
             allow_unbound_this: bool = options.allow_unbound_this,
-            
+
             [per-file-run]
             stack: Vec<StackEntry>,
         },
@@ -101,6 +207,119 @@ pub fn prefer_arrow_callback_rule() -> Arc<dyn Rule> {
                 }) {
                     return;
                 }
+
+                let variable = get_variable_of_arguments(&scope_manager.get_scope(node));
+
+                if variable.matches(|variable| {
+                    variable.references().next().is_some()
+                }) {
+                    return;
+                }
+
+                let callback_info = get_callback_info(node, context);
+
+                if callback_info.is_callback && (
+                    !self.allow_unbound_this ||
+                        !scope_info.this ||
+                        callback_info.is_lexical_this
+                ) &&
+                    !scope_info.super_ &&
+                    !scope_info.meta {
+                    context.report(violation! {
+                        node => node,
+                        message_id => "prefer_arrow_callback",
+                        fix => |fixer| {
+                            if !callback_info.is_lexical_this && scope_info.this ||
+                                has_duplicate_params(node.field("parameters"), context) {
+                                return;
+                            }
+
+                            if callback_info.is_lexical_this {
+                                let member_node = node.parent_(context);
+
+                                if member_node.kind() != MemberExpression {
+                                    return;
+                                }
+
+                                let call_node = member_node.parent_(context);
+                                let first_token_to_remove = context.get_token_after(
+                                    member_node.field("object"),
+                                    Some(|node: Node| ast_utils::is_not_closing_paren_token(node, context))
+                                );
+                                let last_token_to_remove = context.get_last_token(
+                                    call_node,
+                                    Option::<fn(Node) -> bool>::None
+                                );
+
+                                if ast_utils::is_parenthesised(member_node) {
+                                    return;
+                                }
+
+                                if context.comments_exist_between(first_token_to_remove, last_token_to_remove) {
+                                    return;
+                                }
+
+                                fixer.remove_range(
+                                    range_between_start_and_end(first_token_to_remove.range(), last_token_to_remove.range())
+                                );
+                            }
+
+                            let function_token = context.get_first_token(
+                                node,
+                                Some(if is_async_function(node) {
+                                    1
+                                } else {
+                                    0
+                                })
+                            );
+                            let left_paren_token = context.get_token_after(
+                                function_token,
+                                Some(|node: Node| ast_utils::is_opening_paren_token(node, context))
+                            );
+                            let token_before_body = context.get_token_before(
+                                node.field("body"),
+                                Option::<fn(Node) -> bool>::None,
+                            );
+
+                            if context.comments_exist_between(
+                                function_token,
+                                left_paren_token
+                            ) {
+                                fixer.remove(function_token);
+                                if let Some(id) = node.child_by_field_name("name") {
+                                    fixer.remove(id);
+                                }
+                            } else {
+                                fixer.remove_range(
+                                    range_between_starts(
+                                        function_token.range(),
+                                        left_paren_token.range(),
+                                    )
+                                );
+                            }
+                            fixer.insert_text_after(token_before_body, " =>");
+
+                            let mut replaced_node = if callback_info.is_lexical_this {
+                                node.parent_(context).parent_(context)
+                            } else {
+                                node
+                            };
+
+                            if is_chain_expression(replaced_node) {
+                                replaced_node = replaced_node.parent_(context);
+                            }
+
+                            if !matches!(
+                                replaced_node.parent_(context).kind(),
+                                Arguments | TernaryExpression
+                            ) && !ast_utils::is_parenthesised(replaced_node) &&
+                                !ast_utils::is_parenthesised(node) {
+                                fixer.insert_text_before(replaced_node, "(");
+                                fixer.insert_text_after(replaced_node, ")");
+                            }
+                        }
+                    });
+                }
             },
         ],
     }
@@ -111,18 +330,17 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
     use super::*;
-    use crate::kind::Function;
+    use crate::{kind::Function, get_instance_provider_factory};
 
     #[test]
     fn test_prefer_arrow_callback_rule() {
-        let errors = vec![
-            RuleTestExpectedErrorBuilder::default()
-                .message_id("prefer_arrow_callback")
-                .type_(Function)
-                .build().unwrap()
-        ];
+        let errors = vec![RuleTestExpectedErrorBuilder::default()
+            .message_id("prefer_arrow_callback")
+            .type_(Function)
+            .build()
+            .unwrap()];
 
-        RuleTester::run(
+        RuleTester::run_with_from_file_run_context_instance_provider(
             prefer_arrow_callback_rule(),
             rule_tests! {
                 valid => [
@@ -349,6 +567,7 @@ test(
                     }
                 ]
             },
+            get_instance_provider_factory()
         )
     }
 }

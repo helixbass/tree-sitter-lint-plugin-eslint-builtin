@@ -360,6 +360,10 @@ pub fn is_comma_token(node: Node, context: &QueryMatchContext) -> bool {
     context.get_node_text(node) == ","
 }
 
+pub fn is_opening_paren_token(node: Node, context: &QueryMatchContext) -> bool {
+    context.get_node_text(node) == "("
+}
+
 pub fn is_closing_paren_token(node: Node, context: &QueryMatchContext) -> bool {
     context.get_node_text(node) == ")"
 }
