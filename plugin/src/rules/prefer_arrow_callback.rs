@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
+use squalid::OptionExt;
 use tree_sitter_lint::{rule, violation, Rule};
+
+use crate::scope::{ScopeManager, Variable, VariableType};
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -19,6 +22,17 @@ impl Default for Options {
     }
 }
 
+#[derive(Default)]
+struct StackEntry {
+    this: bool,
+    super_: bool,
+    meta: bool,
+}
+
+fn is_function_name(variable: &Variable) -> bool {
+    variable.defs().next().unwrap().type_() == VariableType::FunctionName
+}
+
 pub fn prefer_arrow_callback_rule() -> Arc<dyn Rule> {
     rule! {
         name => "prefer-arrow-callback",
@@ -28,14 +42,65 @@ pub fn prefer_arrow_callback_rule() -> Arc<dyn Rule> {
         ],
         fixable => true,
         options_type => Options,
+        state => {
+            [per-config]
+            allow_named_functions: bool = options.allow_named_functions,
+            allow_unbound_this: bool = options.allow_unbound_this,
+            
+            [per-file-run]
+            stack: Vec<StackEntry>,
+        },
         listeners => [
-            r#"(
-              (debugger_statement) @c
-            )"# => |node, context| {
-                context.report(violation! {
-                    node => node,
-                    message_id => "unexpected",
-                });
+            r#"
+              (this) @c
+            "# => |node, context| {
+                if let Some(info) = self.stack.last_mut() {
+                    info.this = true;
+                }
+            },
+            r#"
+              (super) @c
+            "# => |node, context| {
+                if let Some(info) = self.stack.last_mut() {
+                    info.super_ = true;
+                }
+            },
+            r#"
+              (meta_property) @c
+            "# => |node, context| {
+                if let Some(info) = self.stack.last_mut() {
+                    info.meta = true;
+                }
+            },
+            r#"
+              (function_declaration) @c
+              (function) @c
+            "# => |node, context| {
+                self.stack.push(StackEntry::default());
+            },
+            r#"
+              function_declaration:exit
+            "# => |node, context| {
+                self.stack.pop().unwrap();
+            },
+            r#"
+              function:exit
+            "# => |node, context| {
+                let scope_info = self.stack.pop().unwrap();
+
+                if self.allow_named_functions &&
+                    node.child_by_field_name("name").is_some() {
+                    return;
+                }
+
+                let scope_manager = context.retrieve::<ScopeManager<'a>>();
+                let name_var = scope_manager.get_declared_variables(node).next();
+                if name_var.matches(|name_var| {
+                    is_function_name(&name_var) &&
+                        name_var.references().next().is_some()
+                }) {
+                    return;
+                }
             },
         ],
     }
