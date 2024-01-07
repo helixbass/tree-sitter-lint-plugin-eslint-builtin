@@ -3,6 +3,7 @@ use std::{borrow::Cow, ops, rc::Rc};
 use id_arena::{Arena, Id};
 use itertools::{EitherOrBoth, Itertools};
 use squalid::OptionExt;
+use tracing::trace_span;
 use tree_sitter_lint::{
     better_any::tid,
     tree_sitter::Node,
@@ -990,6 +991,8 @@ impl<'a> NodeParentProvider<'a> for CodePathAnalyzer<'a> {
 
 impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
+        let _span = trace_span!(target: "code_path_analysis", "instantiating code path analyzer");
+
         let mut code_path_analyzer = CodePathAnalyzer::new(
             file_run_context.file_contents,
             file_run_context.standalone_node_parent_provider(),

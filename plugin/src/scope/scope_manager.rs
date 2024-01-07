@@ -10,7 +10,7 @@ use id_arena::Id;
 use itertools::{Either, Itertools};
 use serde::Deserialize;
 use squalid::{break_if_none, EverythingExt, NonEmpty};
-use tracing::trace;
+use tracing::{trace, trace_span};
 use tree_sitter_lint::{
     better_any::tid, tree_sitter::Node, tree_sitter_grep::RopeOrSlice, FileRunContext,
     FromFileRunContext, NodeExt, SourceTextProvider,
@@ -375,6 +375,8 @@ tid! { impl<'a> TidAble<'a> for ScopeManager<'a> }
 
 impl<'a> FromFileRunContext<'a> for ScopeManager<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
+        let _span = trace_span!(target: "scope_analysis", "instantiating scope manager");
+
         let mut options: ScopeManagerOptions = serde_json::from_value(serde_json::Value::Object(
             file_run_context.environment.clone(),
         ))
