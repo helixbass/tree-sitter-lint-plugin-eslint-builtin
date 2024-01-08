@@ -7,7 +7,8 @@ use tree_sitter_lint::{
     better_any::tid,
     tree_sitter::Node,
     tree_sitter_grep::{RopeOrSlice, SupportedLanguage},
-    FileRunContext, FromFileRunContext, NodeExt, SourceTextProvider,
+    walk_tree, FileRunContext, FromFileRunContext, NodeExt, NodeParentProvider, SourceTextProvider,
+    StandaloneNodeParentProvider, TreeEnterLeaveVisitor,
 };
 
 use super::{
@@ -20,7 +21,7 @@ use super::{
 };
 use crate::{
     ast_helpers::{
-        get_num_call_expression_arguments, is_outermost_chain_expression, NodeExtJs, Number,
+        get_num_call_expression_arguments, is_outermost_chain_expression, NodeExtJs, NumberOrBigInt,
     },
     kind::{
         self, is_literal_kind, Arguments, ArrayPattern, ArrowFunction, AssignmentPattern,
@@ -37,12 +38,14 @@ use crate::{
         YieldExpression,
     },
     utils::ast_utils::BREAKABLE_TYPE_PATTERN,
-    visit::{walk_tree, TreeEnterLeaveVisitor},
     EnterOrExit,
 };
 
-fn is_property_definition_value(node: Node) -> bool {
-    let parent = node.parent();
+fn is_property_definition_value<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
+    let parent = node.maybe_parent(node_parent_provider);
 
     parent.matches(|parent| {
         parent.kind() == FieldDefinition && parent.child_by_field_name("value") == Some(node)
@@ -62,20 +65,23 @@ fn is_logical_assignment_operator(operator: &str) -> bool {
 }
 
 fn get_label<'a>(
-    node: Node,
+    node: Node<'a>,
     source_text_provider: &impl SourceTextProvider<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
 ) -> Option<Cow<'a, str>> {
-    node.parent()
-        .unwrap()
+    node.parent_(node_parent_provider)
         .when_kind(LabeledStatement)
         .map(|parent| parent.field("label").text(source_text_provider))
 }
 
-fn is_forking_by_true_or_false(node: Node) -> bool {
-    let parent = node.next_non_parentheses_ancestor();
+fn is_forking_by_true_or_false<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
+    let parent = node.next_non_parentheses_ancestor(node_parent_provider);
 
     if parent.kind() == ExpressionStatement && {
-        let parent_parent = parent.parent().unwrap();
+        let parent_parent = parent.parent_(node_parent_provider);
         parent_parent.kind() == ForStatement && parent_parent.field("condition") == parent
     } {
         return true;
@@ -99,7 +105,7 @@ fn get_boolean_value_if_simple_constant<'a>(
 ) -> Option<bool> {
     is_literal_kind(node.kind()).then(|| match node.kind() {
         kind::String => !node.text(source_text_provider).is_empty(),
-        kind::Number => Number::from(&*node.text(source_text_provider)).is_truthy(),
+        kind::Number => NumberOrBigInt::from(&*node.text(source_text_provider)).is_truthy(),
         kind::Regex => true,
         Null => false,
         True => true,
@@ -108,8 +114,11 @@ fn get_boolean_value_if_simple_constant<'a>(
     })
 }
 
-fn is_identifier_reference(node: Node) -> bool {
-    let parent = node.parent().unwrap();
+fn is_identifier_reference<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
+    let parent = node.parent_(node_parent_provider);
 
     match parent.kind() {
         LabeledStatement | BreakStatement | ContinueStatement | ArrayPattern | RestPattern
@@ -144,10 +153,14 @@ pub struct CodePathAnalyzer<'a> {
     pub fork_context_arena: Arena<ForkContext<'a>>,
     pub code_path_segment_arena: Arena<CodePathSegment<'a>>,
     file_contents: RopeOrSlice<'a>,
+    node_parent_provider: StandaloneNodeParentProvider<'a>,
 }
 
 impl<'a> CodePathAnalyzer<'a> {
-    pub fn new(file_contents: RopeOrSlice<'a>) -> Self {
+    pub fn new(
+        file_contents: RopeOrSlice<'a>,
+        node_parent_provider: StandaloneNodeParentProvider<'a>,
+    ) -> Self {
         Self {
             code_paths: Default::default(),
             active_code_path: Default::default(),
@@ -157,6 +170,7 @@ impl<'a> CodePathAnalyzer<'a> {
             fork_context_arena: Default::default(),
             code_path_segment_arena: Default::default(),
             file_contents,
+            node_parent_provider,
         }
     }
 
@@ -275,7 +289,7 @@ impl<'a> CodePathAnalyzer<'a> {
     fn preprocess(&mut self, node: Node<'a>) {
         let code_path = self.active_code_path.unwrap();
         let state = &mut self.code_path_arena[code_path].state;
-        let parent = node.parent().unwrap();
+        let parent = node.parent_(&self.node_parent_provider);
 
         match parent.kind() {
             CallExpression => {
@@ -465,7 +479,7 @@ impl<'a> CodePathAnalyzer<'a> {
     }
 
     fn process_code_path_to_enter(&mut self, node: Node<'a>) {
-        if is_property_definition_value(node) {
+        if is_property_definition_value(node, self) {
             self.start_code_path(node, CodePathOrigin::ClassFieldInitializer);
         }
 
@@ -485,7 +499,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 self.start_code_path(node, CodePathOrigin::ClassStaticBlock);
             }
             CallExpression | MemberExpression | SubscriptExpression => {
-                if is_outermost_chain_expression(node) {
+                if is_outermost_chain_expression(node, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_chain_context();
@@ -499,7 +513,7 @@ impl<'a> CodePathAnalyzer<'a> {
             BinaryExpression => {
                 let operator = node.field("operator").kind();
                 if is_handled_logical_operator_str(operator) {
-                    let is_forking_as_result = is_forking_by_true_or_false(node);
+                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
@@ -517,7 +531,7 @@ impl<'a> CodePathAnalyzer<'a> {
             AugmentedAssignmentExpression => {
                 let operator = node.field("operator").text(self);
                 if is_logical_assignment_operator(&operator) {
-                    let is_forking_as_result = is_forking_by_true_or_false(node);
+                    let is_forking_as_result = is_forking_by_true_or_false(node, self);
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .push_choice_context(
@@ -542,7 +556,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchStatement => {
-                let label = get_label(node, self).map(Cow::into_owned);
+                let label = get_label(node, self, self).map(Cow::into_owned);
                 self.code_path_arena[self.active_code_path.unwrap()]
                     .state
                     .push_switch_context(
@@ -560,7 +574,7 @@ impl<'a> CodePathAnalyzer<'a> {
                     );
             }
             SwitchCase | SwitchDefault => {
-                if !node.is_first_non_comment_named_child(SupportedLanguage::Javascript) {
+                if !node.is_first_non_comment_named_child(SupportedLanguage::Javascript, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .fork_path(
@@ -575,7 +589,8 @@ impl<'a> CodePathAnalyzer<'a> {
                     .push_loop_context(
                         &mut self.fork_context_arena,
                         node.kind(),
-                        get_label(node, &self.file_contents).map(Cow::into_owned),
+                        get_label(node, &self.file_contents, &self.node_parent_provider)
+                            .map(Cow::into_owned),
                     );
             }
             LabeledStatement => {
@@ -748,7 +763,7 @@ impl<'a> CodePathAnalyzer<'a> {
                 dont_forward = true;
             }
             Identifier | PropertyIdentifier | ShorthandPropertyIdentifier => {
-                if is_identifier_reference(node) {
+                if is_identifier_reference(node, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .make_first_throwable_path_in_try_block(
@@ -766,7 +781,7 @@ impl<'a> CodePathAnalyzer<'a> {
                         &mut self.fork_context_arena,
                         &mut self.code_path_segment_arena,
                     );
-                if is_outermost_chain_expression(node) {
+                if is_outermost_chain_expression(node, self) {
                     self.code_path_arena[self.active_code_path.unwrap()]
                         .state
                         .pop_chain_context(
@@ -849,7 +864,7 @@ impl<'a> CodePathAnalyzer<'a> {
             _ => (),
         }
 
-        if is_property_definition_value(node) {
+        if is_property_definition_value(node, self) {
             self.end_code_path(node);
         }
     }
@@ -889,13 +904,16 @@ impl<'a> CodePathAnalyzer<'a> {
             .iter()
             .find(|&&code_path| {
                 let code_path = &self.code_path_arena[code_path];
-                node.is_same_or_descendant_of(code_path.root_node(&self.code_path_segment_arena))
-                    && !code_path.child_code_paths.iter().any(|&child_code_path| {
-                        node.is_same_or_descendant_of(
-                            self.code_path_arena[child_code_path]
-                                .root_node(&self.code_path_segment_arena),
-                        )
-                    })
+                node.is_same_or_descendant_of(
+                    code_path.root_node(&self.code_path_segment_arena),
+                    self,
+                ) && !code_path.child_code_paths.iter().any(|&child_code_path| {
+                    node.is_same_or_descendant_of(
+                        self.code_path_arena[child_code_path]
+                            .root_node(&self.code_path_segment_arena),
+                        self,
+                    )
+                })
             })
             .copied()
             .unwrap()
@@ -960,9 +978,22 @@ impl<'a> SourceTextProvider<'a> for CodePathAnalyzer<'a> {
     }
 }
 
+impl<'a> NodeParentProvider<'a> for CodePathAnalyzer<'a> {
+    fn maybe_node_parent(&self, node: Node<'a>) -> Option<Node<'a>> {
+        self.node_parent_provider.maybe_node_parent(node)
+    }
+
+    fn standalone_node_parent_provider(&self) -> StandaloneNodeParentProvider<'a> {
+        self.node_parent_provider.standalone_node_parent_provider()
+    }
+}
+
 impl<'a> FromFileRunContext<'a> for CodePathAnalyzer<'a> {
     fn from_file_run_context(file_run_context: FileRunContext<'a, '_>) -> Self {
-        let mut code_path_analyzer = CodePathAnalyzer::new(file_run_context.file_contents);
+        let mut code_path_analyzer = CodePathAnalyzer::new(
+            file_run_context.file_contents,
+            file_run_context.standalone_node_parent_provider(),
+        );
         walk_tree(file_run_context.tree, &mut code_path_analyzer);
         code_path_analyzer
     }
@@ -976,7 +1007,7 @@ impl<'a> TreeEnterLeaveVisitor<'a> for CodePathAnalyzer<'a> {
 
         self.current_node = Some(node);
 
-        if node.parent().is_some() {
+        if node.maybe_parent(self).is_some() {
             self.preprocess(node);
         }
 
@@ -1031,6 +1062,7 @@ mod tests {
     use squalid::regex;
     use tree_sitter_lint::{
         instance_provider_factory, rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration,
+        SliceRunStatus,
     };
 
     use super::{super::debug_helpers::make_dot_arrows, *};
@@ -1084,11 +1116,11 @@ mod tests {
             ],
         };
 
-        let (violations, _) = tree_sitter_lint::run_for_slice(
+        let SliceRunStatus { violations, .. } = tree_sitter_lint::run_for_slice(
             source.as_bytes(),
             None,
             "tmp.js",
-            ConfigBuilder::default()
+            &ConfigBuilder::default()
                 .rule(rule.meta().name.clone())
                 .all_standalone_rules([rule.clone()])
                 .rule_configurations([RuleConfiguration {
@@ -1098,8 +1130,9 @@ mod tests {
                 }])
                 .build()
                 .unwrap(),
-            tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
+            tree_sitter_lint::tree_sitter_grep::SupportedLanguageLanguage::Javascript,
             &instance_provider_factory!(ProvidedTypes),
+            None,
         );
 
         assert!(violations.is_empty(), "Unexpected linting error in code.");

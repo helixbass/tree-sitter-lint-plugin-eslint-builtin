@@ -89,11 +89,10 @@ pub fn no_useless_call_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::CallExpression;
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::CallExpression;
 
     #[test]
     fn test_no_useless_call_rule() {

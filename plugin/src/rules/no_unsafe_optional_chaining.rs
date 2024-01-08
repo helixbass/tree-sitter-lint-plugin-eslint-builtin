@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Deserialize;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{
     ast_helpers::{get_last_expression_of_sequence_expression, is_outermost_chain_expression},
@@ -10,7 +10,6 @@ use crate::{
         ParenthesizedExpression, SequenceExpression, SubscriptExpression, TernaryExpression,
     },
 };
-use tree_sitter_lint::QueryMatchContext;
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -18,10 +17,10 @@ struct Options {
     disallow_arithmetic_operators: bool,
 }
 
-fn check_undefined_short_circuit(
-    node: Node,
+fn check_undefined_short_circuit<'a>(
+    node: Node<'a>,
     report_func: &impl Fn(Node),
-    context: &QueryMatchContext,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     match node.kind() {
         BinaryExpression => match node.field("operator").kind() {
@@ -35,7 +34,8 @@ fn check_undefined_short_circuit(
         SequenceExpression => {
             check_undefined_short_circuit(
                 get_last_expression_of_sequence_expression(node),
-                report_func, context,
+                report_func,
+                context,
             );
         }
         TernaryExpression => {
@@ -43,10 +43,14 @@ fn check_undefined_short_circuit(
             check_undefined_short_circuit(node.field("alternative"), report_func, context);
         }
         AwaitExpression | ParenthesizedExpression | ClassHeritage => {
-            check_undefined_short_circuit(node.first_non_comment_named_child(context), report_func, context);
+            check_undefined_short_circuit(
+                node.first_non_comment_named_child(context),
+                report_func,
+                context,
+            );
         }
         CallExpression | MemberExpression | SubscriptExpression => {
-            if is_outermost_chain_expression(node) {
+            if is_outermost_chain_expression(node, context) {
                 report_func(node);
             }
         }
@@ -215,15 +219,14 @@ pub fn no_unsafe_optional_chaining_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::MemberExpression;
-
-    use super::*;
-
     use itertools::Itertools;
     use tree_sitter_lint::{
         rule_tests, serde_json::json, RuleTestExpectedErrorBuilder, RuleTestInvalidBuilder,
         RuleTestValidBuilder, RuleTester,
     };
+
+    use super::*;
+    use crate::kind::MemberExpression;
 
     #[test]
     fn test_no_unsafe_optional_chaining_rule() {

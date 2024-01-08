@@ -45,9 +45,9 @@ impl Default for Options {
     }
 }
 
-fn report(
-    node: Node,
-    context: &QueryMatchContext,
+fn report<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
     origin: CodePathOrigin,
     complexity: usize,
     threshold: usize,
@@ -180,12 +180,12 @@ pub fn complexity_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::get_instance_provider_factory;
-
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedError, RuleTestExpectedErrorBuilder, RuleTester,
     };
+
+    use super::*;
+    use crate::get_instance_provider_factory;
 
     fn create_complexity(complexity: usize) -> String {
         let mut func_string = "function test (a) { if (a === 1) {".to_owned();

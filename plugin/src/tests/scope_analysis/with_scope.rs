@@ -21,11 +21,7 @@ fn test_creates_scope() {
     ";
     let ast = parse(code);
 
-    let scope_manager = analyze(
-        &ast,
-        code,
-        Default::default()
-    );
+    let scope_manager = analyze(&ast, code, Default::default());
 
     let scopes = scope_manager.scopes().collect_vec();
 

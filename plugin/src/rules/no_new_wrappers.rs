@@ -4,7 +4,7 @@ use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
 pub fn no_new_wrappers_rule() -> Arc<dyn Rule> {
     rule! {
-        name => "no-new_wrapper",
+        name => "no-new-wrappers",
         languages => [Javascript],
         messages => [
             no_constructor => "Do not use {{fn_}} as a constructor.",
@@ -29,11 +29,10 @@ pub fn no_new_wrappers_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::NewExpression;
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::NewExpression;
 
     #[test]
     fn test_no_new_wrappers_rule() {

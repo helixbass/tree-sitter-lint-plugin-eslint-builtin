@@ -24,11 +24,10 @@ pub fn no_octal_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::Number;
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::Number;
 
     #[test]
     fn test_no_octal_rule() {

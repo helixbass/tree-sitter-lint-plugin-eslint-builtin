@@ -49,7 +49,7 @@ impl<'a> FromFileRunContext<'a> for DirectiveComments<'a> {
                         for (id, string_config) in
                             config_comment_parser::parse_string_config(directive_value, comment)
                         {
-                            let normalized_value = match serde_json::from_str::<globals::Visibility>(
+                            let normalized_value = match serde_yaml::from_str::<globals::Visibility>(
                                 string_config.value.as_deref().unwrap_or(r#""readonly""#)
                             ) {
                                 Ok(visibility) => visibility,

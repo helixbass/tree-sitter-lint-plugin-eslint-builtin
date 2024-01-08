@@ -16,10 +16,19 @@ rules:
         assert_kind:
           module: crate
           kind: macro
+        kind:
+          module: crate
+          kind: module
         AllComments:
           module: crate::all_comments
           kind: type
         CommentType:
+          module: crate::ast_helpers
+          kind: type
+        Number:
+          module: crate::ast_helpers
+          kind: type
+        NumberOrBigInt:
           module: crate::ast_helpers
           kind: type
         get_array_expression_elements:
@@ -37,13 +46,28 @@ rules:
         get_comment_contents:
           module: crate::ast_helpers
           kind: function
+        get_cooked_value:
+          module: crate::ast_helpers
+          kind: function
         get_last_expression_of_sequence_expression:
           module: crate::ast_helpers
           kind: function
         get_method_definition_kind:
           module: crate::ast_helpers
           kind: function
+        get_number_literal_value:
+          module: crate::ast_helpers
+          kind: function
+        get_num_import_specifiers:
+          module: crate::ast_helpers
+          kind: function
         get_spread_element_argument:
+          module: crate::ast_helpers
+          kind: function
+        get_template_string_chunks:
+          module: crate::ast_helpers
+          kind: function
+        is_async_function:
           module: crate::ast_helpers
           kind: function
         is_chain_expression:
@@ -53,6 +77,9 @@ rules:
           module: crate::ast_helpers
           kind: function
         is_default_import_declaration:
+          module: crate::ast_helpers
+          kind: function
+        is_for_of_await:
           module: crate::ast_helpers
           kind: function
         is_jsx_tag_name:
@@ -414,6 +441,9 @@ rules:
         Kind:
           module: crate::kind
           kind: type
+        is_literal_kind:
+          module: crate::kind
+          kind: function
         config_comment_parser:
           module: crate::scope
           kind: type
@@ -444,10 +474,25 @@ rules:
         ast_utils:
           module: crate::utils
           kind: module
+        get_static_string_value:
+          module: crate::utils::ast_utils
+          kind: function
+        range_between_start_and_end:
+          module: tree_sitter_lint
+          kind: function
         FileRunContext:
           module: tree_sitter_lint
           kind: type
+        Fixer:
+          module: tree_sitter_lint
+          kind: type
         FromFileRunContext:
+          module: tree_sitter_lint
+          kind: type
+        NodeParentCache:
+          module: tree_sitter_lint
+          kind: type
+        NodeParentProvider:
           module: tree_sitter_lint
           kind: type
         QueryMatchContext:
@@ -462,6 +507,9 @@ rules:
         RuleTestExpectedErrorBuilder:
           module: tree_sitter_lint
           kind: type
+        StandaloneNodeParentProvider:
+          module: tree_sitter_lint
+          kind: type
         SkipOptionsBuilder:
           module: tree_sitter_lint
           kind: type
@@ -474,7 +522,7 @@ rules:
         violation:
           module: tree_sitter_lint
           kind: macro
-        has_child_of_kind:
+        field:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
@@ -482,7 +530,27 @@ rules:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
+        has_child_of_kind:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        maybe_first_child_of_kind:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        maybe_parent:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
         non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        num_non_comment_named_children:
+          module: tree_sitter_lint
+          kind: trait_method
+          trait: NodeExt
+        parent_:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
@@ -491,14 +559,6 @@ rules:
           kind: trait_method
           trait: NodeExt
         tokens:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
-        num_non_comment_named_children:
-          module: tree_sitter_lint
-          kind: trait_method
-          trait: NodeExt
-        field:
           module: tree_sitter_lint
           kind: trait_method
           trait: NodeExt
@@ -544,18 +604,42 @@ rules:
         regex:
           module: squalid
           kind: macro
-        map_or_default:
-          module: squalid
-          kind: trait_method
-          trait: OptionExt
-        matches:
-          module: squalid
-          kind: trait_method
-          trait: OptionExt
         then_and:
           module: squalid
           kind: trait_method
           trait: BoolExt
+        map_borrowed:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_borrowed_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_cow:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        map_cow_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowExt
+        sliced:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        sliced_owned:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        trimmed:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
+        trimmed_ref:
+          module: squalid
+          kind: trait_method
+          trait: CowStrExt
         thrush:
           module: squalid
           kind: trait_method
@@ -564,18 +648,30 @@ rules:
           module: squalid
           kind: trait_method
           trait: EverythingExt
-        as_double_deref:
-          module: squalid
-          kind: trait_method
-          trait: OptionExtDeref
-        sorted:
-          module: squalid
-          kind: trait_method
-          trait: SliceExtCloneOrd
         non_empty:
           module: squalid
           kind: trait_method
           trait: NonEmpty
+        map_or_default:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
+        matches:
+          module: squalid
+          kind: trait_method
+          trait: OptionExt
+        as_double_deref:
+          module: squalid
+          kind: trait_method
+          trait: OptionExtDeref
+        # sorted_by_key:
+        #   module: squalid
+        #   kind: trait_method
+        #   trait: SliceExtClone
+        # sorted:
+        #   module: squalid
+        #   kind: trait_method
+        #   trait: SliceExtCloneOrd
         Captures:
           module: regex
           kind: type
@@ -598,13 +694,37 @@ rules:
         Lazy:
           module: once_cell::sync
           kind: type
+        visit_reg_exp_ast:
+          module: regexpp_js
+          kind: function
+        RegExpParser:
+          module: regexpp_js
+          kind: type
+        RegExpValidator:
+          module: regexpp_js
+          kind: type
+        ValidatePatternFlags:
+          module: regexpp_js
+          kind: type
+        Wtf16:
+          module: regexpp_js
+          kind: type
+        json:
+          module: serde_json
+          kind: macro
         iter:
           module: std
           kind: module
         ops:
           module: std
           kind: module
+        OnceCell:
+          module: std::cell
+          kind: type
         Ref:
+          module: std::cell
+          kind: type
+        RefCell:
           module: std::cell
           kind: type
         HashSet:
@@ -613,7 +733,13 @@ rules:
         HashMap:
           module: std::collections
           kind: type
+        Rc:
+          module: std::rc
+          kind: type
         Arc:
+          module: std::sync
+          kind: type
+        OnceLock:
           module: std::sync
           kind: type
         Cow:

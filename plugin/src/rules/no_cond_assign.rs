@@ -156,10 +156,9 @@ pub fn no_cond_assign_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
 
+    use super::*;
     use crate::kind::{AssignmentExpression, AugmentedAssignmentExpression};
 
     #[test]

@@ -31,8 +31,8 @@ fn is_side_effect_free(node: Node) -> bool {
 }
 
 fn report<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
-    let member_node = node.next_non_parentheses_ancestor();
-    let call_node = member_node.next_non_parentheses_ancestor();
+    let member_node = node.next_non_parentheses_ancestor(context);
+    let call_node = member_node.next_non_parentheses_ancestor(context);
 
     context.report(violation! {
         node => call_node,
@@ -75,21 +75,23 @@ fn report<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) {
     });
 }
 
-fn is_callee_of_bind_method(node: Node, context: &QueryMatchContext) -> bool {
-    let parent = node.next_non_parentheses_ancestor();
+fn is_callee_of_bind_method<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+    let parent = node.next_non_parentheses_ancestor(context);
     if !ast_utils::is_specific_member_access(parent, Option::<&str>::None, Some("bind"), context) {
         return false;
     }
 
     let bind_node = parent;
 
-    bind_node.next_non_parentheses_ancestor().thrush(|parent| {
-        parent.kind() == CallExpression
-            && parent.field("function").skip_parentheses() == bind_node
-            && call_expression_has_single_matching_argument(parent, |arg| {
-                arg.kind() != SpreadElement
-            })
-    })
+    bind_node
+        .next_non_parentheses_ancestor(context)
+        .thrush(|parent| {
+            parent.kind() == CallExpression
+                && parent.field("function").skip_parentheses() == bind_node
+                && call_expression_has_single_matching_argument(parent, |arg| {
+                    arg.kind() != SpreadElement
+                })
+        })
 }
 
 #[derive(Debug)]
@@ -158,9 +160,9 @@ pub fn no_extra_bind_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_extra_bind_rule() {

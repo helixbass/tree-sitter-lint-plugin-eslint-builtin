@@ -20,10 +20,7 @@ pub fn parse_string_config<'a>(
         let key = split.next().unwrap().to_owned();
         let value = split.next().map(ToOwned::to_owned);
 
-        items.insert(key, StringConfig {
-            value,
-            comment,
-        });
+        items.insert(key, StringConfig { value, comment });
     });
     items
 }

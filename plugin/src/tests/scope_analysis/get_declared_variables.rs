@@ -2,7 +2,10 @@
 
 use itertools::Itertools;
 use speculoos::prelude::*;
-use tree_sitter_lint::tree_sitter::{Node, Tree};
+use tree_sitter_lint::{
+    tree_sitter::{Node, Tree},
+    walk_tree, TreeEnterLeaveVisitor,
+};
 
 use crate::{
     ast_helpers::is_default_import,
@@ -14,7 +17,6 @@ use crate::{
     },
     scope::{analyze, ScopeManager, ScopeManagerOptionsBuilder, SourceType},
     tests::helpers::{parse, tracing_subscribe},
-    visit::{walk_tree, TreeEnterLeaveVisitor},
 };
 
 struct VerifyEnterLeaveVisitor<'a, 'b> {
@@ -33,7 +35,10 @@ impl<'a, 'b> TreeEnterLeaveVisitor<'a> for VerifyEnterLeaveVisitor<'a, 'b> {
             }
         {
             let expected = self.expected_names_list.remove(0);
-            let actual = self.scope_manager.get_declared_variables(node).collect_vec();
+            let actual = self
+                .scope_manager
+                .get_declared_variables(node)
+                .collect_vec();
 
             if expected.is_empty() {
                 assert_that!(&actual).is_empty();

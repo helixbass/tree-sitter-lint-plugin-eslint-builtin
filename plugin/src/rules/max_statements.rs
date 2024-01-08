@@ -115,11 +115,11 @@ struct TopLevelFunction<'a> {
     count: usize,
 }
 
-fn report_if_too_many_statements(
-    node: Node,
+fn report_if_too_many_statements<'a>(
+    node: Node<'a>,
     count: usize,
     max: usize,
-    context: &QueryMatchContext,
+    context: &QueryMatchContext<'a, '_>,
 ) {
     if count <= max {
         return;
@@ -170,7 +170,9 @@ pub fn max_statements_rule() -> Arc<dyn Rule> {
             r#"
               (statement_block) @c
             "# => |node, context| {
-                *self.function_stack.last_mut().unwrap() += node.num_non_comment_named_children(SupportedLanguage::Javascript);
+                if let Some(function_stack_last) = self.function_stack.last_mut() {
+                    *function_stack_last += node.num_non_comment_named_children(SupportedLanguage::Javascript);
+                }
             },
             r#"
               function_declaration:exit,

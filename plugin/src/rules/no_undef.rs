@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 use squalid::OptionExt;
-use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{rule, tree_sitter::Node, violation, NodeExt, QueryMatchContext, Rule};
 
 use crate::{ast_helpers::NodeExtJs, kind::UnaryExpression, scope::ScopeManager};
 
@@ -13,8 +13,8 @@ struct Options {
     typeof_: bool,
 }
 
-fn has_type_of_operator(node: Node) -> bool {
-    node.maybe_next_non_parentheses_ancestor()
+fn has_type_of_operator<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
+    node.maybe_next_non_parentheses_ancestor(context)
         .matches(|parent| {
             parent.kind() == UnaryExpression && parent.field("operator").kind() == "typeof"
         })
@@ -41,7 +41,7 @@ pub fn no_undef_rule() -> Arc<dyn Rule> {
                 global_scope.through().for_each(|ref_| {
                     let identifier = ref_.identifier();
 
-                    if !self.consider_typeof && has_type_of_operator(identifier) {
+                    if !self.consider_typeof && has_type_of_operator(identifier, context) {
                         return;
                     }
 

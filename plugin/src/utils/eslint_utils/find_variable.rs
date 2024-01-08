@@ -1,8 +1,7 @@
-use tree_sitter_lint::{tree_sitter::Node, SourceTextProvider, NodeExt};
-
-use crate::scope::{Scope, Variable};
+use tree_sitter_lint::{tree_sitter::Node, NodeExt, SourceTextProvider};
 
 use super::get_innermost_scope;
+use crate::scope::{Scope, Variable};
 
 pub fn find_variable<'a, 'b, 'c>(
     initial_scope: &Scope<'a, 'b>,

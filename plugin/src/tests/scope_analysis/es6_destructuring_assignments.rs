@@ -1076,15 +1076,21 @@ fn test_array_pattern_with_member_expression_in_assignment_expression() {
     assert_that(&&*references[0].identifier().text(&scope_manager)).is_equal_to("obj");
     assert_that!(&references[0].is_write()).is_false();
     assert_that!(&references[0].is_read()).is_true();
-    assert_that!(&references[0].resolved()).is_some().is_equal_to(&variables[1]);
+    assert_that!(&references[0].resolved())
+        .is_some()
+        .is_equal_to(&variables[1]);
     assert_that(&&*references[1].identifier().text(&scope_manager)).is_equal_to("obj");
     assert_that!(&references[1].is_write()).is_false();
     assert_that!(&references[1].is_read()).is_true();
-    assert_that!(&references[1].resolved()).is_some().is_equal_to(&variables[1]);
+    assert_that!(&references[1].resolved())
+        .is_some()
+        .is_equal_to(&variables[1]);
     assert_that(&&*references[2].identifier().text(&scope_manager)).is_equal_to("obj");
     assert_that!(&references[2].is_write()).is_false();
     assert_that!(&references[2].is_read()).is_true();
-    assert_that!(&references[2].resolved()).is_some().is_equal_to(&variables[1]);
+    assert_that!(&references[2].resolved())
+        .is_some()
+        .is_equal_to(&variables[1]);
     assert_that(&&*references[3].identifier().text(&scope_manager)).is_equal_to("array");
     assert_that!(&references[3].is_write()).is_false();
     assert_that!(&references[3].is_read()).is_true();

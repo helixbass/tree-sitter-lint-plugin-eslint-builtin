@@ -74,7 +74,8 @@ fn test_should_create_function_declaration_bindings() {
     let variables = scope.variables().collect_vec();
     assert_that!(&variables).has_length(1);
     assert_that!(&variables[0].name()).is_equal_to("f");
-    assert_that!(&variables[0].defs().next().unwrap().type_()).is_equal_to(VariableType::FunctionName);
+    assert_that!(&variables[0].defs().next().unwrap().type_())
+        .is_equal_to(VariableType::FunctionName);
     assert_that!(&scope.references().collect_vec()).is_empty();
 
     let scope = &scopes[2];

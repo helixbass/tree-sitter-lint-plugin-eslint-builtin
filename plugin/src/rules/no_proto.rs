@@ -29,11 +29,10 @@ pub fn no_proto_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::{MemberExpression, SubscriptExpression};
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::{MemberExpression, SubscriptExpression};
 
     #[test]
     fn test_no_proto_rule() {

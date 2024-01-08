@@ -32,7 +32,7 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
                 )
               )
             "# => |node, context| {
-                if !node.is_only_non_comment_named_sibling(context) {
+                if !node.is_only_non_comment_named_sibling(context, context) {
                     return;
                 }
                 context.report(violation! {
@@ -102,9 +102,9 @@ pub fn no_lonely_if_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_lonely_if_rule() {

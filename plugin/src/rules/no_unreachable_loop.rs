@@ -81,7 +81,7 @@ fn look_for_loops<'a>(
             }
             if let Some((_, node)) = code_path_analyzer.code_path_segment_arena[segment]
                 .nodes
-                .get(0)
+                .first()
                 .filter(|(enter_or_exit, node)| {
                     *enter_or_exit == EnterOrExit::Enter
                         && is_looping_target(*node, target_loop_kinds)
@@ -180,19 +180,19 @@ pub fn no_unreachable_loop_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
 
     use once_cell::sync::Lazy;
     use squalid::regex;
-    use std::collections::HashMap;
     use tree_sitter_lint::{
         rule_tests, RuleTestExpectedErrorBuilder, RuleTestInvalid, RuleTestInvalidBuilder,
         RuleTester,
     };
 
+    use super::*;
     use crate::{
-        kind::{DoStatement, ForInStatement, ForStatement, WhileStatement},
         get_instance_provider_factory,
+        kind::{DoStatement, ForInStatement, ForStatement, WhileStatement},
     };
 
     static LOOP_TEMPLATES: Lazy<HashMap<&'static str, Vec<&'static str>>> = Lazy::new(|| {

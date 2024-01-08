@@ -1,11 +1,8 @@
 use std::{cell::RefCell, env, fs, sync::Arc};
 
 use clap::{ArgGroup, Parser, Subcommand};
-
 use tree_sitter_lint::{rule, ConfigBuilder, ErrorLevel, Rule, RuleConfiguration};
-use tree_sitter_lint_plugin_eslint_builtin::{
-    CodePathAnalyzer, get_instance_provider_factory,
-};
+use tree_sitter_lint_plugin_eslint_builtin::{get_instance_provider_factory, CodePathAnalyzer};
 
 #[derive(Parser)]
 struct Args {
@@ -68,7 +65,7 @@ fn dump_dot_file(source_text: &str) {
         source_text.as_bytes(),
         None,
         "tmp.js",
-        ConfigBuilder::default()
+        &ConfigBuilder::default()
             .rule(rule.meta().name.clone())
             .all_standalone_rules([rule.clone()])
             .rule_configurations([RuleConfiguration {
@@ -78,7 +75,8 @@ fn dump_dot_file(source_text: &str) {
             }])
             .build()
             .unwrap(),
-        tree_sitter_lint::tree_sitter_grep::SupportedLanguage::Javascript,
+        tree_sitter_lint::tree_sitter_grep::SupportedLanguageLanguage::Javascript,
         &*get_instance_provider_factory(),
+        None,
     );
 }

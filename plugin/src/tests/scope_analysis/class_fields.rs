@@ -50,7 +50,12 @@ fn test_class_c_f_equals_g() {
 
     let field_initializer_scope_references = field_initializer_scope.references().collect_vec();
     assert_that(&field_initializer_scope_references).has_length(1);
-    assert_that(&&*field_initializer_scope_references[0].identifier().text(&manager)).is_equal_to("g");
+    assert_that(
+        &&*field_initializer_scope_references[0]
+            .identifier()
+            .text(&manager),
+    )
+    .is_equal_to("g");
 
     assert_that(&field_initializer_scope.variables().collect_vec()).is_empty();
 }
@@ -121,7 +126,12 @@ fn test_class_c_hash_f_equals_g() {
 
     let field_initializer_scope_references = field_initializer_scope.references().collect_vec();
     assert_that(&field_initializer_scope_references).has_length(1);
-    assert_that(&&*field_initializer_scope_references[0].identifier().text(&manager)).is_equal_to("g");
+    assert_that(
+        &&*field_initializer_scope_references[0]
+            .identifier()
+            .text(&manager),
+    )
+    .is_equal_to("g");
 
     assert_that(&field_initializer_scope.variables().collect_vec()).is_empty();
 }
@@ -188,7 +198,12 @@ fn test_class_c_fname_equals_value() {
 
     let field_initializer_scope_references = field_initializer_scope.references().collect_vec();
     assert_that(&field_initializer_scope_references).has_length(1);
-    assert_that(&&*field_initializer_scope_references[0].identifier().text(&manager)).is_equal_to("value");
+    assert_that(
+        &&*field_initializer_scope_references[0]
+            .identifier()
+            .text(&manager),
+    )
+    .is_equal_to("value");
 
     assert_that(&field_initializer_scope.variables().collect_vec()).is_empty();
 }
@@ -225,12 +240,20 @@ fn test_class_c_f_equals_g_e_equals_this_f() {
     assert_that(&child_scopes).has_length(2);
     let first_field_initializer_scope = &child_scopes[0];
     let second_field_initializer_scope = &child_scopes[1];
-    assert_that(&first_field_initializer_scope.type_()).is_equal_to(ScopeType::ClassFieldInitializer);
-    assert_that(&second_field_initializer_scope.type_()).is_equal_to(ScopeType::ClassFieldInitializer);
+    assert_that(&first_field_initializer_scope.type_())
+        .is_equal_to(ScopeType::ClassFieldInitializer);
+    assert_that(&second_field_initializer_scope.type_())
+        .is_equal_to(ScopeType::ClassFieldInitializer);
 
-    let first_field_initializer_scope_references = first_field_initializer_scope.references().collect_vec();
+    let first_field_initializer_scope_references =
+        first_field_initializer_scope.references().collect_vec();
     assert_that(&first_field_initializer_scope_references).has_length(1);
-    assert_that(&&*first_field_initializer_scope_references[0].identifier().text(&manager)).is_equal_to("g");
+    assert_that(
+        &&*first_field_initializer_scope_references[0]
+            .identifier()
+            .text(&manager),
+    )
+    .is_equal_to("g");
 
     assert_that(&first_field_initializer_scope.variables().collect_vec()).is_empty();
 

@@ -5,8 +5,9 @@ use speculoos::prelude::*;
 
 use super::util::get_supported_ecma_versions;
 use crate::{
+    kind::{FunctionDeclaration, Program},
     scope::{analyze, ScopeManagerOptionsBuilder, ScopeType, SourceType},
-    tests::helpers::{parse, tracing_subscribe}, kind::{Program, FunctionDeclaration},
+    tests::helpers::{parse, tracing_subscribe},
 };
 
 #[test]

@@ -503,7 +503,7 @@ pub fn no_unused_vars_rule() -> Arc<dyn Rule> {
                 &self,
                 scope: Scope<'a, 'b>,
                 unused_vars: &mut Vec<Variable<'a, 'b>>,
-                context: &QueryMatchContext,
+                context: &QueryMatchContext<'a, '_>,
                 scope_manager: &ScopeManager<'a>,
             ) {
                 if scope.type_() != ScopeType::Global || self.vars == Vars::All {

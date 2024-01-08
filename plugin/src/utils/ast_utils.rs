@@ -3,34 +3,34 @@ use std::{borrow::Cow, collections::HashSet};
 use const_format::formatcp;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use squalid::{return_default_if_none, CowStrExt, EverythingExt, OptionExt};
+use squalid::{return_default_if_none, CowExt, CowStrExt, EverythingExt, OptionExt};
 use tree_sitter_lint::{
     tree_sitter::{Node, Point, Range, Tree},
     tree_sitter_grep::SupportedLanguage,
-    NodeExt, QueryMatchContext,
+    NodeExt, NodeParentProvider, QueryMatchContext,
 };
 
 use crate::{
     assert_kind,
     ast_helpers::{
-        get_call_expression_arguments, get_first_non_comment_child,
+        get_call_expression_arguments, get_cooked_value, get_first_non_comment_child,
         get_last_expression_of_sequence_expression, get_method_definition_kind,
         get_number_literal_string_value, get_number_literal_value, get_prev_non_comment_sibling,
         is_block_comment, is_chain_expression, is_logical_expression, is_punctuation_kind, parse,
         skip_nodes_of_type, template_string_has_any_cooked_literal_characters,
-        MethodDefinitionKind, NodeExtJs, Number,
+        MethodDefinitionKind, NodeExtJs, Number, NumberOrBigInt,
     },
     kind::{
         self, is_literal_kind, Array, ArrowFunction, AssignmentExpression,
         AugmentedAssignmentExpression, AwaitExpression, BinaryExpression, CallExpression, Class,
         ClassStaticBlock, Comment, ComputedPropertyName, Decorator, False, FieldDefinition,
         Function, FunctionDeclaration, GeneratorFunction, GeneratorFunctionDeclaration, Identifier,
-        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Number, Object, Pair,
-        PairPattern, ParenthesizedExpression, PrivatePropertyIdentifier, Program,
-        PropertyIdentifier, SequenceExpression, ShorthandPropertyIdentifier,
-        ShorthandPropertyIdentifierPattern, SpreadElement, StatementBlock, SubscriptExpression,
-        Super, SwitchCase, SwitchDefault, TemplateString, TemplateSubstitution, TernaryExpression,
-        This, True, UnaryExpression, Undefined, UpdateExpression, YieldExpression,
+        Kind, MemberExpression, MethodDefinition, NewExpression, Null, Object, Pair, PairPattern,
+        ParenthesizedExpression, PrivatePropertyIdentifier, Program, PropertyIdentifier,
+        SequenceExpression, ShorthandPropertyIdentifier, ShorthandPropertyIdentifierPattern,
+        SpreadElement, StatementBlock, SubscriptExpression, Super, SwitchCase, SwitchDefault,
+        TemplateString, TemplateSubstitution, TernaryExpression, This, True, UnaryExpression,
+        Undefined, UpdateExpression, YieldExpression,
     },
     scope::{Reference, Scope, ScopeType, Variable},
 };
@@ -47,6 +47,13 @@ pub static COMMENTS_IGNORE_PATTERN: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
+#[allow(dead_code)]
+pub static LINE_BREAKS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| ["\r\n", "\r", "\n", "\u{2028}", "\u{2029}"].into());
+
+pub static LINE_BREAK_SINGLE_CHARS: Lazy<HashSet<char>> =
+    Lazy::new(|| ['\r', '\n', '\u{2028}', '\u{2029}'].into());
+
 pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
     [
         Program,
@@ -57,6 +64,9 @@ pub static STATEMENT_LIST_PARENTS: Lazy<HashSet<Kind>> = Lazy::new(|| {
     ]
     .into()
 });
+
+pub static OCTAL_OR_NON_OCTAL_DECIMAL_ESCAPE_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?s)^(?:[^\\]|\\.)*\\(?:[1-9]|0[0-9])"#).unwrap());
 
 fn is_modifying_reference(reference: &Reference, index: usize, references: &[Reference]) -> bool {
     let identifier = reference.identifier();
@@ -130,8 +140,8 @@ pub fn is_null_or_undefined(node: Node) -> bool {
         || node.kind() == UnaryExpression && node.field("operator").kind() == "void"
 }
 
-pub fn is_callee(node: Node) -> bool {
-    node.maybe_next_non_parentheses_ancestor()
+pub fn is_callee<'a>(node: Node<'a>, node_parent_provider: &impl NodeParentProvider<'a>) -> bool {
+    node.maybe_next_non_parentheses_ancestor(node_parent_provider)
         .matches(|parent| {
             parent.kind() == CallExpression && parent.field("function").skip_parentheses() == node
         })
@@ -142,19 +152,19 @@ pub fn get_static_string_value<'a>(
     context: &QueryMatchContext<'a, '_>,
 ) -> Option<Cow<'a, str>> {
     match node.kind() {
-        Number => Some(get_number_literal_string_value(node, context).into()),
+        kind::Number => Some(get_number_literal_string_value(node, context).into()),
         kind::Regex => Some(context.get_node_text(node)),
-        kind::String => {
-            let node_text = context.get_node_text(node);
-            // TODO: this doesn't handle things like hex/unicode escapes
-            Some(node_text.sliced(1..node_text.len() - 1))
-        }
+        kind::String => Some(
+            node.text(context)
+                .sliced(|len| 1..len - 1)
+                .map_cow(get_cooked_value /* , false */),
+        ),
         Null => Some("null".into()),
         TemplateString => {
             (!context.has_named_child_of_kind(node, "template_substitution")).then(|| {
-                let node_text = context.get_node_text(node);
-                // TODO: this doesn't handle things like hex/unicode escapes
-                node_text.sliced(1..node_text.len() - 1)
+                node.text(context)
+                    .sliced(|len| 1..len - 1)
+                    .map_cow(get_cooked_value /* , true */)
             })
         }
         _ => None,
@@ -168,7 +178,7 @@ pub fn get_static_property_name<'a>(
     let prop = match node.kind() {
         Pair | PairPattern => node.child_by_field_name("key"),
         FieldDefinition | MemberExpression => node.child_by_field_name("property"),
-        MethodDefinition => node.child_by_field_name("name"),
+        MethodDefinition | "public_field_definition" => node.child_by_field_name("name"),
         SubscriptExpression => node.child_by_field_name("index"),
         ShorthandPropertyIdentifierPattern | ShorthandPropertyIdentifier => Some(node),
         _ => None,
@@ -213,7 +223,7 @@ fn check_text<'a>(actual: &str, expected: impl Into<StrOrRegex<'a>>) -> bool {
     }
 }
 
-fn is_specific_id<'a>(
+pub fn is_specific_id<'a>(
     node: Node,
     name: impl Into<StrOrRegex<'a>>,
     context: &QueryMatchContext,
@@ -233,9 +243,13 @@ pub fn is_specific_member_access<'a>(
         return false;
     }
 
-    if object_name
-        .matches(|object_name| !is_specific_id(check_node.field("object"), object_name, context))
-    {
+    if object_name.matches(|object_name| {
+        !is_specific_id(
+            check_node.field("object").skip_parentheses(),
+            object_name,
+            context,
+        )
+    }) {
         return false;
     }
 
@@ -402,9 +416,10 @@ fn get_boolean_value(node: Node, context: &QueryMatchContext) -> bool {
     match node.kind() {
         kind::String => node.range().end_byte - node.range().start_byte > 2,
         kind::Number => match get_number_literal_value(node, context) {
-            Number::NaN => false,
-            Number::Integer(value) => value != 0,
-            Number::Float(value) => value != 0.0,
+            NumberOrBigInt::Number(Number::NaN) => false,
+            NumberOrBigInt::Number(Number::Integer(value)) => value != 0,
+            NumberOrBigInt::Number(Number::Float(value)) => value != 0.0,
+            NumberOrBigInt::BigInt(value) => value != 0,
         },
         kind::Regex => true,
         Null => false,
@@ -574,6 +589,10 @@ pub fn is_not_closing_paren_token(node: Node, context: &QueryMatchContext) -> bo
 pub static BREAKABLE_TYPE_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"^(?:do|while|for(?:_in)?|switch)_statement$"#).unwrap());
 
+pub fn is_string_literal(node: Node) -> bool {
+    matches!(node.kind(), kind::String | TemplateString)
+}
+
 pub fn is_breakable_statement(node: Node) -> bool {
     BREAKABLE_TYPE_PATTERN.is_match(node.kind())
 }
@@ -656,6 +675,18 @@ pub fn get_binary_expression_operator_precedence(operator: &str) -> u32 {
     _get_precedence(BinaryExpression, Some(operator), None)
 }
 
+pub fn is_empty_block(node: Node) -> bool {
+    node.kind() == StatementBlock
+        && node
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .next()
+            .is_none()
+}
+
+pub fn is_empty_function(node: Node) -> bool {
+    is_function(node) && is_empty_block(node.field("body"))
+}
+
 pub enum NodeOrKind<'a> {
     Node(Node<'a>),
     Kind(Kind),
@@ -680,7 +711,10 @@ pub fn is_decimal_integer_numeric_token(token: Node, context: &QueryMatchContext
     token.kind() == kind::Number && DECIMAL_INTEGER_PATTERN.is_match(&token.text(context))
 }
 
-pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> String {
+pub fn get_function_name_with_kind<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> String {
     if node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
     {
@@ -722,14 +756,14 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
     let mut is_private = false;
     let function_name = if let Some(field_definition) = node
         .parent()
-        .filter(|parent| parent.kind() == FieldDefinition)
+        .filter(|parent| matches!(parent.kind(), FieldDefinition | "public_field_definition"))
     {
         function_type = FunctionType::Method;
         let mut children = field_definition
             .non_comment_children_and_field_names(context)
             .skip_while(|(child, _)| child.kind() == Decorator);
         let (child, field_name) = children.next().unwrap();
-        let property_name = if field_name == Some("property") {
+        let property_name = if field_name == Some("property") || field_name == Some("name") {
             child
         } else {
             is_static = true;
@@ -759,6 +793,7 @@ pub fn get_function_name_with_kind(node: Node, context: &QueryMatchContext) -> S
                     is_static = true;
                     function_type = FunctionType::Getter
                 }
+                "readonly" | "accessibility_modifier" | "override_modifier" => (),
                 _ => unreachable!(),
             }
             (child, field_name) = children.next().unwrap();
@@ -836,7 +871,10 @@ pub fn get_function_head_range(node: Node) -> Range {
 
     let parent = node.parent().unwrap();
 
-    if matches!(parent.kind(), FieldDefinition | Pair) {
+    if matches!(
+        parent.kind(),
+        FieldDefinition | "public_field_definition" | Pair
+    ) {
         ((parent, Start), (get_opening_paren_of_params(node), Start))
     } else if node.kind() == ArrowFunction {
         let arrow_token = get_prev_non_comment_sibling(node.child_by_field_name("body").unwrap());
@@ -915,10 +953,26 @@ pub fn could_be_error(node: Node, context: &QueryMatchContext) -> bool {
 }
 
 pub fn can_tokens_be_adjacent<'a>(
-    left_value: Node,
+    left_value: impl Into<NodeOrStr<'a>>,
     right_value: impl Into<NodeOrStr<'a>>,
     context: &QueryMatchContext,
 ) -> bool {
+    let left_value = left_value.into();
+
+    let left_value_tree: Option<Tree>;
+    let left_value = match left_value {
+        NodeOrStr::Node(left_value) => left_value,
+        NodeOrStr::Str(left_value) => {
+            left_value_tree = Some(parse(left_value));
+            left_value_tree
+                .as_ref()
+                .unwrap()
+                .root_node()
+                .tokens()
+                .last()
+                .unwrap()
+        }
+    };
     let right_value = right_value.into();
 
     let right_value_tree: Option<Tree>;
@@ -1026,4 +1080,8 @@ impl<'a> From<&'a str> for NodeOrStr<'a> {
 
 pub fn is_static_template_literal(node: Node) -> bool {
     node.kind() == TemplateString && !node.has_child_of_kind(TemplateSubstitution)
+}
+
+pub fn has_octal_or_non_octal_decimal_escape_sequence(raw_string: &str) -> bool {
+    OCTAL_OR_NON_OCTAL_DECIMAL_ESCAPE_PATTERN.is_match(raw_string)
 }

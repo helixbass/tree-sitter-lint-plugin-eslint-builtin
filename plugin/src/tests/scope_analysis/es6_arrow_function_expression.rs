@@ -4,7 +4,7 @@ use itertools::Itertools;
 use speculoos::prelude::*;
 
 use crate::{
-    kind::{Program, ArrowFunction},
+    kind::{ArrowFunction, Program},
     scope::{analyze, ScopeManagerOptionsBuilder, ScopeType},
     tests::helpers::{parse, tracing_subscribe},
 };

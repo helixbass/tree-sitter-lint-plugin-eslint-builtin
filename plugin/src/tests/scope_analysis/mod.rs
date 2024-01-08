@@ -30,6 +30,6 @@ mod nodejs_scope;
 mod optimistic;
 mod references;
 mod typescript;
-mod util;
 mod use_strict;
+mod util;
 mod with_scope;

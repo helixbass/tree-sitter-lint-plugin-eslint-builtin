@@ -57,9 +57,9 @@ fn get_array_method_name<'a>(
             TernaryExpression | ParenthesizedExpression => current_node = parent,
             ReturnStatement => {
                 let func = ast_utils::get_upper_function(parent)
-                    .filter(|&func| ast_utils::is_callee(func))?;
+                    .filter(|&func| ast_utils::is_callee(func, context))?;
 
-                current_node = func.maybe_next_non_parentheses_ancestor()?;
+                current_node = func.maybe_next_non_parentheses_ancestor(context)?;
             }
             Arguments => {
                 let call_expression = parent.parent().unwrap();
@@ -75,7 +75,7 @@ fn get_array_method_name<'a>(
                 }
                 if is_target_method(callee, context) {
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
-                    if arguments.get(0).copied() == Some(current_node) {
+                    if arguments.first().copied() == Some(current_node) {
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
@@ -95,7 +95,7 @@ fn get_array_method_name<'a>(
                 }
                 if is_target_method(callee, context) {
                     let arguments = get_call_expression_arguments(call_expression)?.collect_vec();
-                    if arguments.get(0).copied() == Some(current_node) {
+                    if arguments.first().copied() == Some(current_node) {
                         return ast_utils::get_static_property_name(callee, context);
                     }
                 }
@@ -116,7 +116,7 @@ fn full_method_name(array_method_name: &str) -> String {
 pub fn array_callback_return_rule() -> Arc<dyn Rule> {
     rule! {
         name => "array-callback-return",
-        languages => [Javascript],
+        languages => [Javascript, Typescript],
         messages => [
             expected_at_end =>
                 "{{array_method_name}}() expects a value to be returned at the end of {{name}}.",
@@ -247,10 +247,9 @@ pub fn array_callback_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, serde_json::json, RuleTester};
 
+    use super::*;
     use crate::get_instance_provider_factory;
 
     #[test]

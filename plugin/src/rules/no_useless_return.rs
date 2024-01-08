@@ -3,7 +3,10 @@ use std::{collections::HashSet, sync::Arc};
 use id_arena::Id;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tree_sitter_lint::{compare_nodes, rule, tree_sitter::Node, violation, NodeExt, Rule};
+use tree_sitter_lint::{
+    compare_nodes, rule, tree_sitter::Node, tree_sitter_grep::SupportedLanguage, violation,
+    NodeExt, Rule,
+};
 
 use crate::{
     kind::{
@@ -16,7 +19,6 @@ use crate::{
     utils::{ast_utils, fix_tracker::FixTracker},
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
-use tree_sitter_lint::tree_sitter_grep::SupportedLanguage;
 
 static STATEMENT_SENTINEL: Lazy<Regex> = Lazy::new(|| {
     Regex::new(&format!(r#"^(?:{ClassDeclaration}|{ContinueStatement}|{DebuggerStatement}|{DoStatement}|{EmptyStatement}|{ExpressionStatement}|{ForInStatement}|{ForStatement}|{IfStatement}|{ImportStatement}|{LabeledStatement}|{SwitchStatement}|{ThrowStatement}|{TryStatement}|{VariableDeclaration}|{LexicalDeclaration}|{WhileStatement}|{WithStatement}|{ExportStatement})$"#)).unwrap()
@@ -154,7 +156,7 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
                     }
                 }
 
-                nodes_to_report.sort_by(compare_nodes);
+                nodes_to_report.sort_by(|a, b| compare_nodes(a, b, context));
                 nodes_to_report.dedup();
 
                 for node in nodes_to_report {
@@ -177,11 +179,10 @@ pub fn no_useless_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{kind::ReturnStatement, get_instance_provider_factory};
+    use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTestExpectedErrorBuilder, RuleTester};
+    use crate::{get_instance_provider_factory, kind::ReturnStatement};
 
     #[test]
     fn test_no_useless_return_rule() {

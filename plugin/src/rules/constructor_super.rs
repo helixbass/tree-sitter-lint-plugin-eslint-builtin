@@ -23,7 +23,7 @@ use crate::{
     CodePathAnalyzer, CodePathSegment, EnterOrExit,
 };
 
-fn is_constructor_function(node: Node, context: &QueryMatchContext) -> bool {
+fn is_constructor_function<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
     node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
 }
@@ -383,14 +383,13 @@ pub fn constructor_super_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        kind::{CallExpression, MethodDefinition},
-        get_instance_provider_factory,
-    };
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::{
+        get_instance_provider_factory,
+        kind::{CallExpression, MethodDefinition},
+    };
 
     #[test]
     fn test_constructor_super_rule() {

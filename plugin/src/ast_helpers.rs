@@ -1,6 +1,11 @@
-use std::{borrow::Cow, iter};
+use std::{
+    borrow::Cow,
+    iter::{self, Peekable},
+    str::CharIndices,
+};
 
 use itertools::Either;
+use regexpp_js::CodePoint;
 use squalid::{BoolExt, CowStrExt, OptionExt};
 use tree_sitter_lint::{
     regex,
@@ -22,23 +27,31 @@ use crate::{
 
 mod number;
 
-pub use number::{get_number_literal_string_value, get_number_literal_value, Number};
+pub use number::{
+    get_number_literal_string_value, get_number_literal_value, Number, NumberOrBigInt,
+};
 use squalid::EverythingExt;
-use tree_sitter_lint::tree_sitter::Tree;
+use tree_sitter_lint::{
+    tree_sitter::{Tree, TreeCursor},
+    NodeParentProvider,
+};
 
 use crate::kind::{
     Array, ImportStatement, JsxOpeningElement, JsxSelfClosingElement, SpreadElement,
+    ExportStatement, Function, FunctionDeclaration, GeneratorFunction,
+    GeneratorFunctionDeclaration,
+    NamedImports, NamespaceImport, TemplateSubstitution,
 };
 
 #[macro_export]
 macro_rules! assert_kind {
     ($node:expr, $kind:pat) => {
         assert!(
-                                                                    matches!($node.kind(), $kind),
-                                                                    "Expected kind {:?}, got: {:?}",
-                                                                    stringify!($kind),
-                                                                    $node.kind()
-                                                                );
+            matches!($node.kind(), $kind),
+            "Expected kind {:?}, got: {:?}",
+            stringify!($kind),
+            $node.kind()
+        );
     };
 }
 
@@ -46,8 +59,8 @@ macro_rules! assert_kind {
 macro_rules! return_default_if_false {
     ($expr:expr) => {
         if !$expr {
-                                                                    return Default::default();
-                                                                }
+            return Default::default();
+        }
     };
 }
 
@@ -126,10 +139,13 @@ pub enum MethodDefinitionKind {
     Set,
 }
 
-pub fn get_method_definition_kind(node: Node, context: &QueryMatchContext) -> MethodDefinitionKind {
+pub fn get_method_definition_kind<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> MethodDefinitionKind {
     assert_kind!(node, MethodDefinition);
     let name = node.child_by_field_name("name").unwrap();
-    let is_object_method = node.parent().unwrap().kind() == Object;
+    let is_object_method = node.parent_(context).kind() == Object;
     if name.kind() == PropertyIdentifier
         && !is_object_method
         && context.get_node_text(name) == "constructor"
@@ -191,7 +207,10 @@ fn string_node_equals(node: Node, value: &str, context: &QueryMatchContext) -> b
 }
 
 pub fn is_class_member_static(node: Node, context: &QueryMatchContext) -> bool {
-    assert_kind!(node, MethodDefinition | FieldDefinition);
+    assert_kind!(
+        node,
+        MethodDefinition | FieldDefinition | "public_field_definition" // I guess Typescript uses this instead of FieldDefinition?
+    );
 
     let mut cursor = node.walk();
     return_default_if_false!(cursor.goto_first_child());
@@ -230,23 +249,36 @@ pub fn get_first_non_comment_child(node: Node) -> Node {
 }
 
 pub trait NodeExtJs<'a> {
-    fn maybe_next_non_parentheses_ancestor(&self) -> Option<Node<'a>>;
-    fn next_non_parentheses_ancestor(&self) -> Node<'a>;
+    fn maybe_next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Option<Node<'a>>;
+    fn next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Node<'a>;
     fn skip_parentheses(&self) -> Node<'a>;
     fn is_first_call_expression_argument(&self, call_expression: Node) -> bool;
 }
 
 impl<'a> NodeExtJs<'a> for Node<'a> {
-    fn maybe_next_non_parentheses_ancestor(&self) -> Option<Node<'a>> {
-        let mut node = self.parent()?;
+    fn maybe_next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Option<Node<'a>> {
+        let mut node = self.maybe_parent(node_parent_provider)?;
         while node.kind() == ParenthesizedExpression {
-            node = node.parent()?;
+            node = node.maybe_parent(node_parent_provider)?;
         }
         Some(node)
     }
 
-    fn next_non_parentheses_ancestor(&self) -> Node<'a> {
-        self.maybe_next_non_parentheses_ancestor().unwrap()
+    fn next_non_parentheses_ancestor(
+        &self,
+        node_parent_provider: &impl NodeParentProvider<'a>,
+    ) -> Node<'a> {
+        self.maybe_next_non_parentheses_ancestor(node_parent_provider)
+            .unwrap()
     }
 
     fn skip_parentheses(&self) -> Node<'a> {
@@ -345,10 +377,10 @@ pub fn get_comment_contents<'a>(
     assert_kind!(comment, Comment);
     let text = comment.text(source_text_provider);
     if text.starts_with("//") {
-        text.sliced(2..)
+        text.sliced(|_| 2..)
     } else {
         assert!(text.starts_with("/*"));
-        text.sliced(2..text.len() - 2)
+        text.sliced(|len| 2..len - 2)
     }
 }
 
@@ -366,8 +398,11 @@ pub fn is_chain_expression(node: Node) -> bool {
     }
 }
 
-pub fn is_outermost_chain_expression(node: Node) -> bool {
-    is_chain_expression(node) && !is_chain_expression(node.parent().unwrap())
+pub fn is_outermost_chain_expression<'a>(
+    node: Node<'a>,
+    node_parent_provider: &impl NodeParentProvider<'a>,
+) -> bool {
+    is_chain_expression(node) && !is_chain_expression(node.parent_(node_parent_provider))
 }
 
 pub fn is_generator_method_definition(node: Node, context: &QueryMatchContext) -> bool {
@@ -519,7 +554,8 @@ pub fn template_string_has_any_cooked_literal_characters(
     let mut last_end: Option<usize> = Default::default();
     node.non_comment_children(SupportedLanguage::Javascript)
         .any(|child| {
-            if child.kind() == EscapeSequence && !get_cooked_value(&child.text(context)).is_empty()
+            if child.kind() == EscapeSequence
+                && !get_cooked_value(&child.text(context) /* , true */).is_empty()
             {
                 return true;
             }
@@ -531,18 +567,120 @@ pub fn template_string_has_any_cooked_literal_characters(
             if quasi.is_empty() {
                 return false;
             }
-            !get_cooked_value(&quasi).is_empty()
+            !get_cooked_value(&quasi /* , true */).is_empty()
         })
 }
 
-fn get_cooked_value(quasi: &str) -> Cow<'_, str> {
-    regex!(r#"\\\n"#).replace_all(quasi, "")
+// from acorn pp.readString()
+pub fn get_cooked_value(input: &str) -> Cow<'_, str> {
+    // TODO: should handle lone surrogates? Maybe rather than
+    // always returning Wtf16 return an enum of Cow<'_, str> or
+    // Wtf16 and only return Wtf16 if it contains lone surrogates
+    // (ie can't be encoded as UTF-8 in a String)?
+    // Or maybe always/sometimes return Wtf8?
+    let mut out: Option<String> = Default::default();
+    let mut chunk_start = 0;
+    let mut char_indices = input.char_indices().peekable();
+    let mut should_reset_chunk_start = false;
+    loop {
+        let Some((index, ch)) = char_indices.next() else {
+            break;
+        };
+        if should_reset_chunk_start {
+            chunk_start = index;
+        }
+        should_reset_chunk_start = false;
+        if matches!(ch, '\\') {
+            let out = out.get_or_insert_with(Default::default);
+            out.push_str(&input[chunk_start..index]);
+            out.push_str(&read_escaped_char(&mut char_indices));
+            should_reset_chunk_start = true;
+        }
+    }
+    if should_reset_chunk_start {
+        chunk_start = input.len();
+    }
+    if chunk_start < input.len() {
+        if let Some(out) = out.as_mut() {
+            out.push_str(&input[chunk_start..]);
+        }
+    }
+    match out {
+        Some(out) => Cow::Owned(out),
+        None => Cow::Borrowed(input),
+    }
+}
+
+fn read_escaped_char(
+    char_indices: &mut Peekable<CharIndices>, /* in_template: bool */
+) -> Cow<'static, str> {
+    let (_, ch) = char_indices.next().unwrap();
+    match ch {
+        'n' => "\n".into(),
+        'r' => "\r".into(),
+        'x' => String::from(
+            char::try_from(read_hex_char(&[
+                char_indices.next().unwrap().1,
+                char_indices.next().unwrap().1,
+            ]))
+            .unwrap(),
+        )
+        .into(),
+        'u' => String::from(char::try_from(read_code_point(char_indices)).unwrap()).into(),
+        't' => "\t".into(),
+        'b' => "\u{0008}".into(),
+        'v' => "\u{000b}".into(),
+        'f' => "\u{000c}".into(),
+        '\r' => {
+            if matches!(char_indices.peek(), Some((_, '\n'))) {
+                char_indices.next();
+            }
+            "".into()
+        }
+        // TODO: this also appears to be in the realm of
+        // "invalid input" which I don't kknow if we're trying
+        // to handle?
+        // '8' | '9' => {}
+        ch if ('0'..='7').contains(&ch) => {
+            unimplemented!()
+        }
+        ch if is_new_line(ch) => "".into(),
+        ch => String::from(ch).into(),
+    }
+}
+
+fn read_code_point(char_indices: &mut Peekable<CharIndices>) -> CodePoint {
+    match char_indices.peek().unwrap().1 {
+        '{' => {
+            char_indices.next().unwrap();
+            let mut hex_chars: Vec<char> = Default::default();
+            while char_indices.peek().unwrap().1 != '}' {
+                hex_chars.push(char_indices.next().unwrap().1);
+            }
+            char_indices.next().unwrap();
+            read_hex_char(&hex_chars)
+        }
+        _ => read_hex_char(&[
+            char_indices.next().unwrap().1,
+            char_indices.next().unwrap().1,
+            char_indices.next().unwrap().1,
+            char_indices.next().unwrap().1,
+        ]),
+    }
+}
+
+fn read_hex_char(chars: &[char]) -> CodePoint {
+    CodePoint::from_str_radix(&chars.iter().collect::<String>(), 16).unwrap()
+}
+
+fn is_new_line(ch: char) -> bool {
+    matches!(ch, '\n' | '\r' | '\u{2028}' | '\u{2029}')
 }
 
 pub fn parse(source_text: &str) -> Tree {
     let mut parser = Parser::new();
     parser
-        .set_language(SupportedLanguage::Javascript.language())
+        .set_language(SupportedLanguage::Javascript.language(None))
         .unwrap();
     parser.parse(source_text, None).unwrap()
 }
@@ -558,6 +696,162 @@ pub fn is_tagged_template_expression(node: Node) -> bool {
     node.kind() == CallExpression && node.field("arguments").kind() == TemplateString
 }
 
+pub fn get_template_string_chunks<'a>(
+    node: Node<'a>,
+    context: &QueryMatchContext<'a, '_>,
+) -> TemplateStringChunks<'a> {
+    assert_kind!(node, TemplateString);
+    TemplateStringChunks::new(node, context)
+}
+
+pub struct TemplateStringChunks<'a> {
+    node: Node<'a>,
+    node_text: Cow<'a, str>,
+    cursor: TreeCursor<'a>,
+    next_byte_index: usize,
+    has_seen_start_backtick: bool,
+    has_seen_end_backtick: bool,
+}
+
+impl<'a> TemplateStringChunks<'a> {
+    pub fn new(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> Self {
+        let mut cursor = node.walk();
+        assert!(cursor.goto_first_child());
+        Self {
+            node,
+            node_text: node.text(context),
+            cursor,
+            next_byte_index: node.start_byte(),
+            has_seen_start_backtick: Default::default(),
+            has_seen_end_backtick: Default::default(),
+        }
+    }
+
+    fn get_current_chunk_and_advance(
+        &mut self,
+        chunk_end_byte: usize,
+        next_next_byte_index: usize,
+    ) -> (Cow<'a, str>, usize) {
+        let chunk_start_byte = self.next_byte_index;
+        let chunk = self.node_text.sliced(|_| {
+            chunk_start_byte - self.node.start_byte()..chunk_end_byte - self.node.start_byte()
+        });
+        self.next_byte_index = next_next_byte_index;
+        (chunk, chunk_start_byte)
+    }
+}
+
+impl<'a> Iterator for TemplateStringChunks<'a> {
+    type Item = (Cow<'a, str>, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.has_seen_end_backtick {
+            return None;
+        }
+        assert!(self.next_byte_index < self.node.end_byte());
+        loop {
+            match self.cursor.node().kind() {
+                EscapeSequence => {
+                    assert!(self.cursor.goto_next_sibling());
+                    continue;
+                }
+                TemplateSubstitution => {
+                    let ret = self.get_current_chunk_and_advance(
+                        self.cursor.node().start_byte(),
+                        self.cursor.node().end_byte(),
+                    );
+                    assert!(self.cursor.goto_next_sibling());
+                    return Some(ret);
+                }
+                "`" => {
+                    if self.has_seen_start_backtick {
+                        self.has_seen_end_backtick = true;
+                        return Some(self.get_current_chunk_and_advance(
+                            self.cursor.node().start_byte(),
+                            self.cursor.node().end_byte(),
+                        ));
+                    } else {
+                        self.has_seen_start_backtick = true;
+                        assert!(self.cursor.node().start_byte() == self.node.start_byte());
+                        assert!(self.cursor.node().end_byte() == self.node.start_byte() + 1);
+                        assert!(self.next_byte_index == self.node.start_byte());
+                        self.next_byte_index += 1;
+                    }
+                }
+                _ => unreachable!(),
+            }
+            assert!(self.cursor.goto_next_sibling());
+        }
+    }
+}
+
+pub fn is_simple_template_literal(node: Node) -> bool {
+    node.kind() == TemplateString
+        && !node
+            .non_comment_named_children(SupportedLanguage::Javascript)
+            .any(|child| child.kind() == TemplateSubstitution)
+}
+
+pub fn is_export_default(node: Node) -> bool {
+    if node.kind() != ExportStatement {
+        return false;
+    }
+    node.non_comment_children(SupportedLanguage::Javascript)
+        .skip_while(|child| child.kind() != "export")
+        .nth(1)
+        .unwrap()
+        .kind()
+        == "default"
+}
+
+pub fn get_num_import_specifiers(node: Node) -> usize {
+    assert_kind!(node, ImportClause);
+    let mut named_children = node.non_comment_named_children(SupportedLanguage::Javascript);
+    let first_child = named_children.next().unwrap();
+    match first_child.kind() {
+        NamespaceImport => {
+            assert!(named_children.next().is_none());
+            1
+        }
+        NamedImports => {
+            assert!(named_children.next().is_none());
+            first_child.num_non_comment_named_children(SupportedLanguage::Javascript)
+        }
+        Identifier => {
+            1 + named_children.next().map_or_default(|next_child| {
+                assert!(named_children.next().is_none());
+                match next_child.kind() {
+                    NamespaceImport => 1,
+                    NamedImports => {
+                        next_child.num_non_comment_named_children(SupportedLanguage::Javascript)
+                    }
+                    _ => unreachable!(),
+                }
+            })
+        }
+        _ => unreachable!(),
+    }
+}
+
+pub fn is_async_function(node: Node) -> bool {
+    match node.kind() {
+        FunctionDeclaration
+        | Function
+        | GeneratorFunctionDeclaration
+        | GeneratorFunction
+        | ArrowFunction => {
+            node.first_non_comment_child(SupportedLanguage::Javascript)
+                .kind()
+                == "async"
+        }
+        MethodDefinition => node
+            .non_comment_children_and_field_names(SupportedLanguage::Javascript)
+            .take_while(|(_, field_name)| *field_name != Some("name"))
+            .any(|(child, _)| child.kind() == "async"),
+        _ => false,
+    }
+}
+
 pub fn get_array_expression_elements(node: Node) -> impl Iterator<Item = Option<Node>> {
     assert_kind!(node, Array);
     get_comma_separated_optional_non_comment_named_children(node)
@@ -566,4 +860,30 @@ pub fn get_array_expression_elements(node: Node) -> impl Iterator<Item = Option<
 pub fn get_spread_element_argument(node: Node) -> Node {
     assert_kind!(node, SpreadElement);
     node.first_non_comment_named_child(SupportedLanguage::Javascript)
+}
+
+#[cfg(test)]
+mod tests {
+    use speculoos::prelude::*;
+
+    use super::*;
+
+    #[test]
+    fn test_get_cooked_value() {
+        for (input, expected) in [
+            ("abc", Cow::Borrowed("abc")),
+            ("", Cow::Borrowed("")),
+            // from acorn/test/tests-harmony.js
+            (
+                "\\n\\r\\b\\v\\t\\f\\\n\\\r\n\\\u{2028}\\\u{2029}",
+                Cow::Owned("\n\r\u{0008}\u{000b}\t\u{000c}".to_owned()),
+            ),
+            (
+                "\\u{000042}\\u0042\\x42u0\\A",
+                Cow::Owned("BBBu0A".to_owned()),
+            ),
+        ] {
+            assert_that!(&get_cooked_value(input /* , false */)).is_equal_to(expected);
+        }
+    }
 }

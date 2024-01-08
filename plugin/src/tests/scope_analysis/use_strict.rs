@@ -2,17 +2,13 @@
 
 use speculoos::prelude::*;
 
+use super::util::get_supported_ecma_versions;
 use crate::{
-    scope::{analyze, ScopeManagerOptionsBuilder, Scope},
+    scope::{analyze, Scope, ScopeManagerOptionsBuilder},
     tests::helpers::{parse, tracing_subscribe},
 };
 
-use super::util::get_supported_ecma_versions;
-
-fn assert_is_strict_recursively(
-    scope: Scope,
-    expected: bool,
-) {
+fn assert_is_strict_recursively(scope: Scope, expected: bool) {
     assert_that!(&scope.is_strict()).is_equal_to(expected);
 
     scope.child_scopes().for_each(|child_scope| {
@@ -35,7 +31,9 @@ fn test_should_be_ignored_when_ecma_version_3() {
     "#;
     let ast = parse(code);
 
-    let scope_manager = analyze(&ast, code,
+    let scope_manager = analyze(
+        &ast,
+        code,
         ScopeManagerOptionsBuilder::default()
             .ecma_version(3)
             .build()
@@ -68,7 +66,9 @@ fn test_at_the_top_level_should_make_all_scopes_strict_when_ecma_version_5() {
         "#;
         let ast = parse(code);
 
-        let scope_manager = analyze(&ast, code,
+        let scope_manager = analyze(
+            &ast,
+            code,
             ScopeManagerOptionsBuilder::default()
                 .ecma_version(ecma_version)
                 .build()
@@ -80,7 +80,8 @@ fn test_at_the_top_level_should_make_all_scopes_strict_when_ecma_version_5() {
 }
 
 #[test]
-fn test_at_the_function_level_should_make_functions_scope_and_all_descendants_strict_when_ecma_version_5() {
+fn test_at_the_function_level_should_make_functions_scope_and_all_descendants_strict_when_ecma_version_5(
+) {
     tracing_subscribe();
 
     get_supported_ecma_versions(Some(5)).for_each(|ecma_version| {
@@ -104,13 +105,15 @@ fn test_at_the_function_level_should_make_functions_scope_and_all_descendants_st
         "#;
         let ast = parse(code);
 
-        let scope_manager = analyze(&ast, code,
+        let scope_manager = analyze(
+            &ast,
+            code,
             ScopeManagerOptionsBuilder::default()
                 .ecma_version(ecma_version)
                 .build()
                 .unwrap(),
         );
-        
+
         let global_scope = scope_manager.global_scope();
         assert_that!(&global_scope.is_strict()).is_false();
         let mut child_scopes = global_scope.child_scopes();

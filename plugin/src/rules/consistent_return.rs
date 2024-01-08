@@ -28,7 +28,7 @@ struct FuncInfo {
     data: ViolationData,
 }
 
-fn is_class_constructor(node: Node, context: &QueryMatchContext) -> bool {
+fn is_class_constructor<'a>(node: Node<'a>, context: &QueryMatchContext<'a, '_>) -> bool {
     node.kind() == MethodDefinition
         && get_method_definition_kind(node, context) == MethodDefinitionKind::Constructor
 }
@@ -167,14 +167,13 @@ pub fn consistent_return_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        kind::{ArrowFunction, Function, FunctionDeclaration, Program, ReturnStatement},
-        get_instance_provider_factory,
-    };
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::{
+        get_instance_provider_factory,
+        kind::{ArrowFunction, Function, FunctionDeclaration, Program, ReturnStatement},
+    };
 
     #[test]
     fn test_consistent_return_rule() {

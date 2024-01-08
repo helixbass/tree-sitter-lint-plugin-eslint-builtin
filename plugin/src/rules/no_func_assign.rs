@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use itertools::Itertools;
-use tree_sitter_lint::{rule, violation, Rule, NodeExt};
+use tree_sitter_lint::{rule, violation, NodeExt, Rule};
 
-use crate::{scope::{ScopeManager, VariableType}, utils::ast_utils};
+use crate::{
+    scope::{ScopeManager, VariableType},
+    utils::ast_utils,
+};
 
 pub fn no_func_assign_rule() -> Arc<dyn Rule> {
     rule! {
@@ -48,7 +51,9 @@ mod tests {
     use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-    use crate::{kind::Identifier, get_instance_provider_factory, tests::helpers::tracing_subscribe};
+    use crate::{
+        get_instance_provider_factory, kind::Identifier, tests::helpers::tracing_subscribe,
+    };
 
     #[test]
     fn test_no_func_assign_rule() {

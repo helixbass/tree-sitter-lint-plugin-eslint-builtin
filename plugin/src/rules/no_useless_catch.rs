@@ -50,11 +50,10 @@ pub fn no_useless_catch_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kind::{CatchClause, TryStatement};
+    use tree_sitter_lint::{rule_tests, RuleTester};
 
     use super::*;
-
-    use tree_sitter_lint::{rule_tests, RuleTester};
+    use crate::kind::{CatchClause, TryStatement};
 
     #[test]
     fn test_no_useless_catch_rule() {

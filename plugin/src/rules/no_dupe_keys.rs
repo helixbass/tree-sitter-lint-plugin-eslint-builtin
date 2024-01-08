@@ -89,9 +89,9 @@ pub fn no_dupe_keys_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_dupe_keys_rule() {

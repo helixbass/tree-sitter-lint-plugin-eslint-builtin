@@ -9,19 +9,22 @@ edition = "2021"
 bitflags = "2.3.3"
 Inflector = "0.11.4"
 const_format = "0.2.31"
+grouped-ordering = { git = "https://github.com/helixbass/grouped-ordering", rev = "3a71aa8" }
 id-arena = "2.2.1"
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 regex = "1.9.1"
+regexpp-js = { git = "https://github.com/helixbass/regexpp-js", rev = "268cd8e" }
 serde = "1.0.178"
-squalid = { git = "https://github.com/helixbass/squalid", rev = "ca9515c" }
+squalid = { git = "https://github.com/helixbass/squalid", rev = "4453b30" }
 tree-sitter-lint = { workspace = true }
-itertools = "0.11.0"
-fancy-regex = "0.11.0"
+itertools = "0.12.0"
+fancy-regex = "0.13.0"
 natord = "1.0.9"
 derive_builder = "0.12.0"
 serde_regex = "1.1.0"
 tracing = "0.1.37"
 serde_json = "1.0.105"
+serde_yaml = "0.9.30"
 
 [dev-dependencies]
 rstest = "0.18.1"

@@ -80,7 +80,7 @@ pub fn no_extra_label_rule() -> Arc<dyn Rule> {
               (for_in_statement) @c
               (switch_statement) @c
             "# => |node, context| {
-                let parent = node.next_non_parentheses_ancestor();
+                let parent = node.next_non_parentheses_ancestor(context);
                 self.scope_infos.push(ScopeInfo {
                     label: if parent.kind() == LabeledStatement {
                         Some(parent.field("label"))
@@ -124,9 +124,9 @@ pub fn no_extra_label_rule() -> Arc<dyn Rule> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use tree_sitter_lint::{rule_tests, RuleTester};
+
+    use super::*;
 
     #[test]
     fn test_no_extra_label_rule() {

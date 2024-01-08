@@ -58,18 +58,27 @@ fn test_default_parameter_creates_a_readable_reference_for_references_in_right()
     tracing_subscribe();
 
     for (code, num_vars) in [
-        ("
+        (
+            "
             let a;
             function foo(b = a) {}
-        ", 2),
-        ("
+        ",
+            2,
+        ),
+        (
+            "
             let a;
             let foo = function(b = a) {}
-        ", 2),
-        ("
+        ",
+            2,
+        ),
+        (
+            "
             let a;
             let foo = (b = a) => {};
-        ", 1),
+        ",
+            1,
+        ),
     ] {
         let ast = parse(code);
 
@@ -110,18 +119,27 @@ fn test_default_parameter_creates_a_readable_reference_for_references_in_right_f
     tracing_subscribe();
 
     for (code, num_vars) in [
-        ("
+        (
+            "
             const a = 0;
             function foo(b = a) {}
-        ", 2),
-        ("
+        ",
+            2,
+        ),
+        (
+            "
             const a = 0;
             let foo = function(b = a) {}
-        ", 2),
-        ("
+        ",
+            2,
+        ),
+        (
+            "
             const a = 0;
             let foo = (b = a) => {};
-        ", 1),
+        ",
+            1,
+        ),
     ] {
         let ast = parse(code);
 
@@ -162,18 +180,27 @@ fn test_default_parameter_creates_a_readable_reference_for_references_in_right_p
     tracing_subscribe();
 
     for (code, num_vars) in [
-        ("
+        (
+            "
             let a;
             function foo(b = a.c) {}
-        ", 2),
-        ("
+        ",
+            2,
+        ),
+        (
+            "
             let a;
             let foo = function(b = a.c) {}
-        ", 2),
-        ("
+        ",
+            2,
+        ),
+        (
+            "
             let a;
             let foo = (b = a.c) => {};
-        ", 1),
+        ",
+            1,
+        ),
     ] {
         let ast = parse(code);
 
@@ -262,22 +289,32 @@ fn test_default_parameter_creates_a_readable_reference_for_references_in_rights_
 }
 
 #[test]
-fn test_default_parameter_creates_a_readable_reference_for_references_in_right_resolved_to_outer_scope() {
+fn test_default_parameter_creates_a_readable_reference_for_references_in_right_resolved_to_outer_scope(
+) {
     tracing_subscribe();
 
     for (code, num_vars) in [
-        ("
+        (
+            "
             let a;
             function foo(b = a) { let a; }
-        ", 3),
-        ("
+        ",
+            3,
+        ),
+        (
+            "
             let a;
             let foo = function(b = a) { let a; }
-        ", 3),
-        ("
+        ",
+            3,
+        ),
+        (
+            "
             let a;
             let foo = (b = a) => { let a; };
-        ", 2),
+        ",
+            2,
+        ),
     ] {
         let ast = parse(code);
 
@@ -314,22 +351,32 @@ fn test_default_parameter_creates_a_readable_reference_for_references_in_right_r
 }
 
 #[test]
-fn test_default_parameter_creates_a_readable_reference_for_references_in_right_resolved_to_parameter() {
+fn test_default_parameter_creates_a_readable_reference_for_references_in_right_resolved_to_parameter(
+) {
     tracing_subscribe();
 
     for (code, num_vars) in [
-        ("
+        (
+            "
             let a;
             function foo(b = a, a) { }
-        ", 3),
-        ("
+        ",
+            3,
+        ),
+        (
+            "
             let a;
             let foo = function(b = a, a) { }
-        ", 3),
-        ("
+        ",
+            3,
+        ),
+        (
+            "
             let a;
             let foo = (b = a, a) => { };
-        ", 2),
+        ",
+            2,
+        ),
     ] {
         let ast = parse(code);
 
@@ -367,7 +414,8 @@ fn test_default_parameter_creates_a_readable_reference_for_references_in_right_r
 }
 
 #[test]
-fn test_default_parameter_creates_a_readable_reference_for_references_in_right_nested_scope_resolved_to_outer_scope() {
+fn test_default_parameter_creates_a_readable_reference_for_references_in_right_nested_scope_resolved_to_outer_scope(
+) {
     tracing_subscribe();
 
     for code in [
