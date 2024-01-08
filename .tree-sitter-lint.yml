@@ -480,6 +480,9 @@ rules:
         get_property_name:
           module: crate::utils::eslint_utils
           kind: function
+        get_string_if_constant:
+          module: crate::utils::eslint_utils
+          kind: function
         range_between_start_and_end:
           module: tree_sitter_lint
           kind: function

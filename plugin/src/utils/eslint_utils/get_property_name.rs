@@ -2,30 +2,46 @@ use std::borrow::Cow;
 
 use tree_sitter_lint::{tree_sitter::Node, NodeExt, QueryMatchContext};
 
-use crate::scope::Scope;
+use crate::{
+    assert_kind,
+    kind::{
+        is_literal_kind, ComputedPropertyName, Identifier, MemberExpression, Pair,
+        PrivatePropertyIdentifier, SubscriptExpression,
+    },
+    scope::Scope,
+    utils::{ast_utils::get_static_string_value, eslint_utils::get_string_if_constant},
+};
 
 pub fn get_property_name<'a>(
     node: Node<'a>,
-    initial_scope: Option<Scope<'a, '_>>,
+    initial_scope: Option<&Scope<'a, '_>>,
     context: &QueryMatchContext<'a, '_>,
 ) -> Option<Cow<'a, str>> {
-    None
-    // match node.kind() {
-    //     SubscriptExpression => get_string_if_constant(node.field("index"), initial_scope, context),
-    //     MemberExpression => {
-    //         let property = node.field("property");
-    //         if property.kind() == PrivatePropertyIdentifier {
-    //             return None;
-    //         }
-    //         Some(property.text(context))
-    //     }
-    //     Pair => {
-    //         let key = node.field("key");
-    //         if key.kind() == ComputedPropertyName {
-    //             return get_string_if_constant(key, initial_scope, context);
-    //         }
-    //     }
-    // }
+    match node.kind() {
+        SubscriptExpression => get_string_if_constant(node.field("index"), initial_scope),
+        MemberExpression => {
+            let property = node.field("property");
+            if property.kind() == PrivatePropertyIdentifier {
+                return None;
+            }
+            Some(property.text(context))
+        }
+        Pair => {
+            let key = node.field("key");
+            if key.kind() == ComputedPropertyName {
+                return get_string_if_constant(key, initial_scope);
+            }
+            if is_literal_kind(key.kind()) {
+                return get_static_string_value(key, context);
+            }
+            if key.kind() == PrivatePropertyIdentifier {
+                return None;
+            }
+            assert_kind!(key, Identifier);
+            Some(key.text(context))
+        }
+        _ => unimplemented!(),
+    }
 }
 
 #[cfg(test)]
