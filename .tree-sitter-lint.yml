@@ -477,6 +477,9 @@ rules:
         get_static_string_value:
           module: crate::utils::ast_utils
           kind: function
+        get_property_name:
+          module: crate::utils::eslint_utils
+          kind: function
         range_between_start_and_end:
           module: tree_sitter_lint
           kind: function
@@ -501,6 +504,9 @@ rules:
         Rule:
           module: tree_sitter_lint
           kind: type
+        RuleTester:
+          module: tree_sitter_lint
+          kind: type
         RuleTestExpectedError:
           module: tree_sitter_lint
           kind: type
@@ -517,6 +523,9 @@ rules:
           module: tree_sitter_lint
           kind: type
         rule:
+          module: tree_sitter_lint
+          kind: macro
+        rule_tests:
           module: tree_sitter_lint
           kind: macro
         violation:

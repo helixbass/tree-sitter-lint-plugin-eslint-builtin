@@ -7,7 +7,10 @@ use crate::{
     ast_helpers::{
         get_last_expression_of_sequence_expression, is_chain_expression, is_logical_expression,
     },
-    kind::{BinaryExpression, SequenceExpression, TernaryExpression},
+    kind::{
+        BinaryExpression, MemberExpression, SequenceExpression, SubscriptExpression,
+        TernaryExpression,
+    },
     scope::{Scope, Variable},
 };
 
@@ -173,10 +176,11 @@ impl<'a, 'b> ReferenceTracker<'a, 'b> {
         match parent.kind() {
             MemberExpression | SubscriptExpression => {
                 if parent.field("object") == node {
-                    let key = get_property_name();
+                    unimplemented!()
+                    // let key = get_property_name();
                 }
             }
-            _ => ()
+            _ => (),
         }
     }
 }

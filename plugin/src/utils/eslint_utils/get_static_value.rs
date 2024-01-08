@@ -154,7 +154,7 @@ impl From<StaticValue> for StaticValueWrapper {
 
 fn get_element_values<'a>(
     node_list: impl Iterator<Item = Option<Node<'a>>>,
-    initial_scope: Option<Scope<'a, '_>>,
+    initial_scope: Option<&Scope<'a, '_>>,
 ) -> Option<Vec<StaticValue>> {
     let mut value_list: Vec<StaticValue> = Default::default();
 
@@ -190,9 +190,9 @@ fn get_element_values<'a>(
     Some(value_list)
 }
 
-fn get_static_value_r(
-    node: Option<Node>,
-    initial_scope: Option<Scope>,
+fn get_static_value_r<'a>(
+    node: Option<Node<'a>>,
+    initial_scope: Option<&Scope<'a, '_>>,
 ) -> Option<StaticValueWrapper> {
     let node = node?;
     match node.kind() {
@@ -237,7 +237,7 @@ fn get_static_value_r(
     }
 }
 
-pub fn get_static_value(node: Node, initial_scope: Option<Scope>) -> Option<StaticValueWrapper> {
+pub fn get_static_value<'a>(node: Node<'a>, initial_scope: Option<&Scope<'a, '_>>) -> Option<StaticValueWrapper> {
     // try {
     get_static_value_r(Some(node), initial_scope)
     // } catch (_error) {
